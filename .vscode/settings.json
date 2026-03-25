@@ -1,0 +1,11 @@
+{
+  "[markdown]": {
+    "editor.defaultFormatter": null
+  },
+  "markdownlint.run": "onSave",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportUnboundVariable": "none",
+    "reportArgumentType": "none",
+    "reportAttributeAccessIssue": "none"
+  }
+}

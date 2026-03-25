@@ -1,0 +1,38 @@
+# SFT training config — Supervised Fine-Tuning for comparison with GRPO.
+
+model:
+  name: "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+  quantization: "4bit"
+  dtype: "bfloat16"
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  task_type: "CAUSAL_LM"
+
+dataset:
+  path: "data/synthetic"
+  split: "train"
+  max_samples: null
+
+training:
+  num_train_epochs: 3
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-5
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  bf16: true
+  logging_steps: 10
+  save_steps: 200
+  save_total_limit: 3
+  max_seq_length: 768
+  output_dir: "experiments/checkpoints/sft"
+  log_dir: "experiments/logs/sft"
+
+wandb:
+  project: "grpo-strict-generation"
+  run_name: null
+  tags: ["sft", "Qwen2.5-Coder-1.5B"]

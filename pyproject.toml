@@ -1,0 +1,62 @@
+[project]
+name = "grpo-strict-generation"
+version = "0.1.0"
+description = "Align a Small LLM with GRPO for Strict Code/JSON Generation (Track 23)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10,<3.13"
+
+dependencies = [
+    # Core ML
+    "torch",
+    "transformers",
+    "trl",
+    "peft",
+    "datasets",
+    "accelerate",
+    "bitsandbytes",
+    # Data & Eval
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "matplotlib",
+    "seaborn",
+    # Infra
+    "pyyaml",
+    "tensorboard",
+    "wandb",
+    "python-dotenv",
+    "tqdm",
+    "jupyter",
+    "ipywidgets",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest",
+    "ipykernel",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["F821", "F401", "E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }

@@ -11,10 +11,10 @@ from pathlib import Path
 
 import wandb
 from dotenv import load_dotenv
-from trl.trainer.grpo_config import GRPOConfig
 
 load_dotenv()
-from trl.trainer.grpo_trainer import GRPOTrainer
+
+from trl import GRPOConfig, GRPOTrainer
 
 from datasets import Dataset
 from src.datasets.dataloader import (
@@ -69,7 +69,7 @@ def main() -> None:
     grpo_cfg = config["grpo"]
     reward_cfg = config["reward"]
 
-    # Load model and tokenizer
+    # Load model and tokenizer (Unsloth viene gestito da model_loader)
     print(f"Loading model: {config['model']['name']}")
     model, tokenizer = load_model_and_tokenizer(config)
 
@@ -109,6 +109,13 @@ def main() -> None:
         tags=wandb_cfg.get("tags", ["grpo", config["model"]["name"].split("/")[-1]]),
     )
 
+    # Warmup: supporta sia warmup_steps che warmup_ratio
+    warmup_kwargs = {}
+    if "warmup_ratio" in training_cfg:
+        warmup_kwargs["warmup_ratio"] = training_cfg["warmup_ratio"]
+    else:
+        warmup_kwargs["warmup_steps"] = training_cfg.get("warmup_steps", 50)
+
     grpo_config = GRPOConfig(
         output_dir=output_dir,
         max_steps=training_cfg.get("max_steps", 1000),
@@ -116,7 +123,9 @@ def main() -> None:
         gradient_accumulation_steps=training_cfg.get("gradient_accumulation_steps", 8),
         learning_rate=training_cfg.get("learning_rate", 5e-6),
         lr_scheduler_type=training_cfg.get("lr_scheduler_type", "cosine"),
-        warmup_steps=training_cfg.get("warmup_steps", 50),
+        **warmup_kwargs,
+        optim=training_cfg.get("optim", "paged_adamw_8bit"),
+        max_grad_norm=training_cfg.get("max_grad_norm", 0.1),
         bf16=training_cfg.get("bf16", True),
         logging_steps=training_cfg.get("logging_steps", 10),
         logging_dir=log_dir,
@@ -125,10 +134,9 @@ def main() -> None:
         # GRPO-specific
         num_generations=grpo_cfg.get("num_generations", 4),
         max_completion_length=grpo_cfg.get("max_completion_length", 512),
+        max_prompt_length=grpo_cfg.get("max_prompt_length", 256),
         beta=grpo_cfg.get("beta", 0.04),
         temperature=grpo_cfg.get("temperature", 0.7),
-        # vLLM — accelerates generation during GRPO training
-        use_vllm=grpo_cfg.get("use_vllm", False),
         report_to="wandb",
     )
 

@@ -22,9 +22,11 @@ training:
   max_steps: 1000
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 8
-  learning_rate: 1.0e-6
+  learning_rate: 5.0e-6
   lr_scheduler_type: "cosine"
-  warmup_steps: 50
+  warmup_ratio: 0.1
+  optim: "paged_adamw_8bit" # da notebook ufficiali Unsloth — meno VRAM
+  max_grad_norm: 0.1 # gradient clipping aggressivo — stabilizza GRPO
   bf16: true
   logging_steps: 10
   save_steps: 200
@@ -38,7 +40,6 @@ grpo:
   max_prompt_length: 256
   beta: 0.04 # KL penalty coefficient
   temperature: 0.7
-  use_vllm: false # vLLM non disponibile su Colab free, Unsloth basta
 
 reward:
   partial_credit: true # scala graduale 0.0 / 0.25 / 0.5 / 0.75 / 1.0

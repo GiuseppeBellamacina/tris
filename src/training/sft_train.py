@@ -7,7 +7,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 from pathlib import Path
 
@@ -27,11 +26,6 @@ def _generate_gold_json(prompt: str) -> str:
     """Generate a simple valid JSON completion for a prompt."""
     # Create a minimal valid JSON that satisfies the prompt
     return '```json\n{"example_key": "example_value", "count": 42, "active": true}\n```'
-
-
-def _generate_gold_python(prompt: str) -> str:
-    """Generate a simple valid Python completion for a prompt."""
-    return '```python\ndef example_function(x):\n    """Example function."""\n    return x\n```'
 
 
 def generate_gold_completions(
@@ -55,7 +49,6 @@ def generate_gold_completions(
     for i in tqdm(range(len(dataset)), desc="Generating gold completions"):
         sample = dataset[i]
         prompt = format_prompt_for_model(sample, tokenizer)
-        task_type = sample["task_type"]
 
         # Try generating a valid completion
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
@@ -75,25 +68,19 @@ def generate_gold_completions(
             input_len = inputs["input_ids"].shape[1]
             text = tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True)
 
-            # Validate
-            code = extract_code_block(text, "json" if task_type == "json" else "python")
+            # Validate JSON
+            code = extract_code_block(text, "json")
             if code is not None:
                 try:
-                    if task_type == "json":
-                        json.loads(code)
-                    else:
-                        ast.parse(code)
+                    json.loads(code)
                     best_completion = text
                     break
-                except (json.JSONDecodeError, SyntaxError):
+                except json.JSONDecodeError:
                     continue
 
         if best_completion is None:
             # Fallback to template
-            if task_type == "json":
-                best_completion = _generate_gold_json(sample["prompt"])
-            else:
-                best_completion = _generate_gold_python(sample["prompt"])
+            best_completion = _generate_gold_json(sample["prompt"])
 
         gold.append(best_completion)
 

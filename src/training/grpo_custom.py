@@ -30,7 +30,6 @@ Reference: https://arxiv.org/abs/2402.03300 (DeepSeekMath / GRPO)
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import re
 from dataclasses import dataclass
@@ -73,24 +72,18 @@ def _extract_code_block(text: str, language: str) -> str | None:
     stripped = text.strip()
     if language == "json" and (stripped.startswith("{") or stripped.startswith("[")):
         return stripped
-    if language == "python" and (stripped.startswith("def ") or stripped.startswith("class ")):
-        return stripped
     return None
 
 
 def compute_reward(completion: str, task_type: str) -> float:
-    """Binary reward: 1.0 if the code/JSON parses, 0.0 otherwise."""
-    lang = "json" if task_type == "json" else "python"
-    code = _extract_code_block(completion, lang)
+    """Binary reward: 1.0 if the JSON parses, 0.0 otherwise."""
+    code = _extract_code_block(completion, "json")
     if code is None:
         return 0.0
     try:
-        if task_type == "json":
-            json.loads(code)
-        else:
-            ast.parse(code)
+        json.loads(code)
         return 1.0
-    except (json.JSONDecodeError, SyntaxError):
+    except json.JSONDecodeError:
         return 0.0
 
 
@@ -104,22 +97,20 @@ DEMO_PROMPTS = [
         "task_type": "json",
     },
     {
-        "system": "You are a helpful assistant that generates valid Python code. "
-        "Respond ONLY with a Python code block.",
-        "user": "Write a Python function called `factorial` that takes an integer n " "and returns the factorial of n.",
-        "task_type": "python",
-    },
-    {
         "system": "You are a helpful assistant that generates valid JSON. " "Respond ONLY with a JSON code block.",
         "user": "Generate a JSON array of 3 objects, each with keys " '"id" (integer) and "value" (string).',
         "task_type": "json",
     },
     {
-        "system": "You are a helpful assistant that generates valid Python code. "
-        "Respond ONLY with a Python code block.",
-        "user": "Write a Python function `is_prime` that returns True if the input "
-        "integer is prime, False otherwise.",
-        "task_type": "python",
+        "system": "You are a helpful assistant that generates valid JSON. " "Respond ONLY with a JSON code block.",
+        "user": 'Generate a JSON object representing a user profile with "username" (string), '
+        '"email" (string), "age" (integer), and "is_active" (boolean).',
+        "task_type": "json",
+    },
+    {
+        "system": "You are a helpful assistant that generates valid JSON. " "Respond ONLY with a JSON code block.",
+        "user": 'Generate a JSON object with a "title" (string) and a "tags" key ' "containing an array of 4 strings.",
+        "task_type": "json",
     },
 ]
 

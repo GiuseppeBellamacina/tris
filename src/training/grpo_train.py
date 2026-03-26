@@ -47,11 +47,9 @@ def build_reward_fn(reward_cfg: dict):
         rewards = []
         for completion in completions:
             text = completion[0]["content"] if isinstance(completion, list) else completion
-            # Detect task type from content heuristics
-            task_type = _detect_task_type(text)
             r = combined_reward(
                 text,
-                task_type=task_type,
+                task_type="json",
                 partial_credit=partial_credit,
                 reasoning_bonus=reasoning_bonus,
             )
@@ -59,20 +57,6 @@ def build_reward_fn(reward_cfg: dict):
         return rewards
 
     return reward_fn
-
-
-def _detect_task_type(text: str) -> str:
-    """Detect whether a completion is JSON or Python based on content."""
-    text_lower = text.lower()
-    if "```json" in text_lower:
-        return "json"
-    if "```python" in text_lower or "def " in text or "class " in text:
-        return "python"
-    # Check if it starts like JSON
-    stripped = text.strip()
-    if stripped.startswith("{") or stripped.startswith("["):
-        return "json"
-    return "python"  # default
 
 
 def main() -> None:

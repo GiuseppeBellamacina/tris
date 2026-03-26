@@ -1,41 +1,32 @@
-"""Evaluation metrics for strict code/JSON generation.
+"""Evaluation metrics for strict JSON generation.
 
 Computes Pass@k, error type distribution, and per-task breakdowns.
 """
 
 from __future__ import annotations
 
-import ast
 import json
 from collections import Counter
 
 from src.training.rewards import extract_code_block
 
 
-def check_syntax(completion: str, task_type: str) -> tuple[bool, str]:
-    """Check if a completion contains syntactically valid code/JSON.
+def check_syntax(completion: str, task_type: str = "json") -> tuple[bool, str]:
+    """Check if a completion contains syntactically valid JSON.
 
     Returns:
         (is_valid, error_message) — error_message is "" if valid.
     """
-    lang = "json" if task_type == "json" else "python"
-    code = extract_code_block(completion, lang)
+    code = extract_code_block(completion, "json")
 
     if code is None:
         return False, "no_code_block"
 
-    if task_type == "json":
-        try:
-            json.loads(code)
-            return True, ""
-        except json.JSONDecodeError as e:
-            return False, f"json_error: {e.msg}"
-    else:
-        try:
-            ast.parse(code)
-            return True, ""
-        except SyntaxError as e:
-            return False, f"syntax_error: {e.msg}"
+    try:
+        json.loads(code)
+        return True, ""
+    except json.JSONDecodeError as e:
+        return False, f"json_error: {e.msg}"
 
 
 def pass_at_k(
@@ -47,7 +38,7 @@ def pass_at_k(
 
     Args:
         completions_per_prompt: For each prompt, a list of k completions.
-        task_types: Task type ("json"/"python") for each prompt.
+        task_types: Task type for each prompt (always "json").
         k_values: List of k values to compute.
 
     Returns:

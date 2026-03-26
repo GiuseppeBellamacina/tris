@@ -4,7 +4,6 @@ from src.training.rewards import (
     combined_reward,
     extract_code_block,
     json_reward,
-    python_reward,
     reasoning_reward,
 )
 
@@ -14,10 +13,6 @@ class TestExtractCodeBlock:
         text = 'Some text\n```json\n{"key": "value"}\n```\nMore text'
         assert extract_code_block(text, "json") == '{"key": "value"}'
 
-    def test_python_fenced(self):
-        text = "Here is code:\n```python\ndef foo():\n    return 42\n```"
-        assert extract_code_block(text, "python") == "def foo():\n    return 42"
-
     def test_generic_fence_fallback(self):
         text = "```\n{}\n```"
         assert extract_code_block(text, "json") == "{}"
@@ -25,10 +20,6 @@ class TestExtractCodeBlock:
     def test_no_fence_json_raw(self):
         text = '{"name": "test"}'
         assert extract_code_block(text, "json") == '{"name": "test"}'
-
-    def test_no_fence_python_raw(self):
-        text = "def hello():\n    pass"
-        assert extract_code_block(text, "python") == "def hello():\n    pass"
 
     def test_no_match(self):
         text = "Just some plain text with no code."
@@ -52,36 +43,34 @@ class TestJsonReward:
         text = "No JSON here."
         assert json_reward(text) == 0.0
 
-    def test_partial_credit(self):
-        # Missing closing brace — error near end
+    def test_partial_credit_near_end(self):
+        # Missing closing brace — error near end → 0.75
         text = '```json\n{"name": "Alice", "age": 30\n```'
         reward = json_reward(text, partial_credit=True)
-        assert reward in (0.0, 0.5)
+        assert reward == 0.75
 
+    def test_partial_credit_mid_error(self):
+        # Error in the middle of the structure → 0.5
+        text = '```json\n{"name": bad, "age": 30}\n```'
+        reward = json_reward(text, partial_credit=True)
+        assert reward == 0.5
 
-class TestPythonReward:
-    def test_valid_function(self):
-        text = (
-            "```python\n"
-            "def factorial(n):\n"
-            "    if n <= 1:\n"
-            "        return 1\n"
-            "    return n * factorial(n - 1)\n"
-            "```"
-        )
-        assert python_reward(text) == 1.0
+    def test_partial_credit_no_json_structure(self):
+        # Has a code block but content is not JSON-like → 0.25
+        text = "```json\nhello world this is not json\n```"
+        reward = json_reward(text, partial_credit=True)
+        assert reward == 0.25
 
-    def test_valid_class(self):
-        text = "```python\nclass Stack:\n    def __init__(self):\n        self.items = []\n```"
-        assert python_reward(text) == 1.0
+    def test_partial_credit_no_block(self):
+        # No code block at all → 0.0
+        text = "No JSON here."
+        reward = json_reward(text, partial_credit=True)
+        assert reward == 0.0
 
-    def test_invalid_syntax(self):
-        text = "```python\ndef broken(\n    return\n```"
-        assert python_reward(text) == 0.0
-
-    def test_no_code_block(self):
-        text = "No Python here."
-        assert python_reward(text) == 0.0
+    def test_partial_credit_valid(self):
+        # Valid JSON even with partial_credit → still 1.0
+        text = '```json\n{"name": "Alice"}\n```'
+        assert json_reward(text, partial_credit=True) == 1.0
 
 
 class TestReasoningReward:
@@ -107,9 +96,9 @@ class TestCombinedReward:
         text = '```json\n{"x": 1}\n```'
         assert combined_reward(text, "json") == 1.0
 
-    def test_python_valid(self):
-        text = "```python\nx = 1\n```"
-        assert combined_reward(text, "python") == 1.0
+    def test_json_invalid(self):
+        text = "```json\n{invalid}\n```"
+        assert combined_reward(text, "json") == 0.0
 
     def test_with_reasoning_bonus(self):
         text = (
@@ -122,7 +111,7 @@ class TestCombinedReward:
 
     def test_invalid_task_type(self):
         try:
-            combined_reward("text", "unknown")
+            combined_reward("text", "python")
             assert False, "Should raise ValueError"
         except ValueError:
             pass

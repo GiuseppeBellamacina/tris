@@ -62,7 +62,7 @@ def plot_per_category_breakdown(
     title: str = "Pass Rate by Task Type and Difficulty",
     output_path: str = "figures/per_category_breakdown.png",
 ) -> None:
-    """Grouped bar chart of pass rates per category (json/simple, python/hard, etc.)."""
+    """Grouped bar chart of pass rates per category (json/simple, json/hard, etc.)."""
     sns.set_theme(style="whitegrid")
     categories = detailed_metrics.get("per_category", {})
 

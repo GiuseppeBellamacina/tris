@@ -1,7 +1,7 @@
-"""Synthetic dataset generator for strict JSON/Python code generation tasks.
+"""Synthetic dataset generator for strict JSON generation tasks.
 
 Generates prompt-instruction pairs at three difficulty levels (simple, medium, hard)
-for both JSON and Python tasks. Used as the training/eval dataset for GRPO alignment.
+for JSON tasks. Used as the training/eval dataset for GRPO alignment.
 
 Usage:
     python -m src.datasets.synthetic_dataset --output data/synthetic --num_samples 5000
@@ -17,7 +17,7 @@ from pathlib import Path
 from datasets import Dataset, DatasetDict
 
 # ---------------------------------------------------------------------------
-# JSON prompt templates
+# JSON prompt templates — Simple
 # ---------------------------------------------------------------------------
 
 _JSON_SIMPLE: list[dict] = [
@@ -27,13 +27,13 @@ _JSON_SIMPLE: list[dict] = [
             '"{k1}" (string), "{k2}" (integer), "{k3}" (boolean).'
         ),
         "params": lambda: {
-            "k1": random.choice(["name", "title", "label", "city", "color"]),
-            "k2": random.choice(["age", "count", "score", "year", "quantity"]),
-            "k3": random.choice(["active", "verified", "enabled", "visible", "published"]),
+            "k1": random.choice(["name", "title", "label", "city", "color", "brand", "category"]),
+            "k2": random.choice(["age", "count", "score", "year", "quantity", "rating", "price"]),
+            "k3": random.choice(["active", "verified", "enabled", "visible", "published", "premium", "available"]),
         },
     },
     {
-        "instruction": ("Generate a JSON array containing exactly {n} strings representing {topic}."),
+        "instruction": "Generate a JSON array containing exactly {n} strings representing {topic}.",
         "params": lambda: {
             "n": random.randint(3, 7),
             "topic": random.choice(
@@ -43,6 +43,11 @@ _JSON_SIMPLE: list[dict] = [
                     "programming languages",
                     "animal species",
                     "planet names",
+                    "car brands",
+                    "musical instruments",
+                    "European capital cities",
+                    "file extensions",
+                    "color names",
                 ]
             ),
         },
@@ -52,12 +57,96 @@ _JSON_SIMPLE: list[dict] = [
             'Generate a JSON object with a key "{k1}" (string) and a key ' '"{k2}" which is an array of {n} integers.'
         ),
         "params": lambda: {
-            "k1": random.choice(["id", "name", "label"]),
-            "k2": random.choice(["values", "scores", "data", "items"]),
+            "k1": random.choice(["id", "name", "label", "code", "tag"]),
+            "k2": random.choice(["values", "scores", "data", "items", "measurements"]),
             "n": random.randint(3, 6),
         },
     },
+    {
+        "instruction": (
+            "Generate a JSON object with exactly {n} key-value pairs where all "
+            "values are of type {vtype}. Use descriptive key names related to {topic}."
+        ),
+        "params": lambda: {
+            "n": random.randint(3, 6),
+            "vtype": random.choice(["string", "integer", "boolean"]),
+            "topic": random.choice(["weather", "food", "sports", "music", "travel", "health"]),
+        },
+    },
+    {
+        "instruction": (
+            "Generate a JSON object representing a simple {entity} "
+            'with keys "{k1}" (string), "{k2}" ({t2}), and "{k3}" ({t3}).'
+        ),
+        "params": lambda: {
+            "entity": random.choice(
+                [
+                    "contact card",
+                    "book entry",
+                    "to-do item",
+                    "event",
+                    "bookmark",
+                    "notification",
+                    "tag",
+                    "setting",
+                    "preference",
+                ]
+            ),
+            "k1": random.choice(["name", "title", "description", "label"]),
+            "k2": random.choice(["priority", "order", "level", "index"]),
+            "t2": random.choice(["integer", "number"]),
+            "k3": random.choice(["done", "read", "starred", "archived", "pinned"]),
+            "t3": "boolean",
+        },
+    },
+    {
+        "instruction": (
+            "Generate a JSON array of exactly {n} objects, each containing "
+            'only a "{k1}" (string) and a "{k2}" (integer).'
+        ),
+        "params": lambda: {
+            "n": random.randint(2, 5),
+            "k1": random.choice(["name", "item", "label", "title", "city"]),
+            "k2": random.choice(["value", "count", "score", "amount", "population"]),
+        },
+    },
+    {
+        "instruction": (
+            'Generate a JSON object with a "{k1}" key (string) and a "{k2}" key '
+            "containing a flat array of {n} {elem_type}."
+        ),
+        "params": lambda: {
+            "k1": random.choice(["category", "group", "type", "section"]),
+            "k2": random.choice(["items", "elements", "entries", "members"]),
+            "n": random.randint(3, 7),
+            "elem_type": random.choice(["strings", "integers", "booleans"]),
+        },
+    },
+    {
+        "instruction": (
+            "Generate a valid JSON object representing a key-value mapping "
+            "of {n} {domain} abbreviations to their full names."
+        ),
+        "params": lambda: {
+            "n": random.randint(3, 6),
+            "domain": random.choice(
+                [
+                    "country",
+                    "US state",
+                    "HTTP status code",
+                    "chemical element",
+                    "currency",
+                    "time zone",
+                    "unit of measurement",
+                ]
+            ),
+        },
+    },
 ]
+
+# ---------------------------------------------------------------------------
+# JSON prompt templates — Medium
+# ---------------------------------------------------------------------------
 
 _JSON_MEDIUM: list[dict] = [
     {
@@ -68,11 +157,11 @@ _JSON_MEDIUM: list[dict] = [
         ),
         "params": lambda: {
             "n": random.randint(2, 4),
-            "k1": random.choice(["name", "title", "username"]),
-            "k2": random.choice(["age", "id", "score"]),
-            "k3": random.choice(["address", "contact", "location"]),
-            "nk1": random.choice(["street", "city", "email"]),
-            "nk2": random.choice(["zip", "country", "phone"]),
+            "k1": random.choice(["name", "title", "username", "product", "label"]),
+            "k2": random.choice(["age", "id", "score", "quantity", "price"]),
+            "k3": random.choice(["address", "contact", "location", "details", "metadata"]),
+            "nk1": random.choice(["street", "city", "email", "line1", "type"]),
+            "nk2": random.choice(["zip", "country", "phone", "region", "code"]),
         },
     },
     {
@@ -88,6 +177,11 @@ _JSON_MEDIUM: list[dict] = [
                     "blog post",
                     "movie record",
                     "employee record",
+                    "restaurant menu item",
+                    "flight booking",
+                    "music album",
+                    "course syllabus",
+                    "recipe",
                 ]
             ),
             "n": random.randint(5, 8),
@@ -105,14 +199,99 @@ _JSON_MEDIUM: list[dict] = [
                     "database",
                     "logging service",
                     "cache layer",
+                    "message queue",
+                    "API gateway",
+                    "monitoring agent",
                 ]
             ),
-            "k1": random.choice(["host", "port", "name"]),
-            "k2": random.choice(["timeout", "retries", "max_connections"]),
-            "k3": random.choice(["auth", "ssl", "logging", "metrics"]),
+            "k1": random.choice(["host", "port", "name", "endpoint"]),
+            "k2": random.choice(["timeout", "retries", "max_connections", "buffer_size"]),
+            "k3": random.choice(["auth", "ssl", "logging", "metrics", "cors"]),
+        },
+    },
+    {
+        "instruction": (
+            "Generate a JSON object representing a {entity} that includes "
+            "a list of {n} {sub_entity}, each with at least 3 fields."
+        ),
+        "params": lambda: {
+            "entity": random.choice(
+                [
+                    "classroom",
+                    "shopping cart",
+                    "playlist",
+                    "project board",
+                    "team roster",
+                    "menu",
+                    "itinerary",
+                    "inventory",
+                ]
+            ),
+            "n": random.randint(2, 5),
+            "sub_entity": random.choice(
+                ["students", "items", "tracks", "tasks", "members", "dishes", "stops", "products"]
+            ),
+        },
+    },
+    {
+        "instruction": (
+            "Generate a JSON object representing a {doc_type} with the following "
+            'sections: "{s1}", "{s2}", and "{s3}". Each section should be a nested '
+            "object with at least 2 fields."
+        ),
+        "params": lambda: {
+            "doc_type": random.choice(
+                ["report", "invoice", "contract", "specification", "manifest", "log entry", "audit record"]
+            ),
+            "s1": random.choice(["header", "metadata", "summary", "info"]),
+            "s2": random.choice(["body", "content", "details", "payload"]),
+            "s3": random.choice(["footer", "signature", "status", "notes"]),
+        },
+    },
+    {
+        "instruction": (
+            'Generate a JSON object with a "{k1}" key (string), a "{k2}" key '
+            '(ISO 8601 date string), and a "{k3}" key containing an array of '
+            'objects with "{nk1}" (string) and "{nk2}" (number) fields.'
+        ),
+        "params": lambda: {
+            "k1": random.choice(["title", "name", "event", "project"]),
+            "k2": random.choice(["created_at", "due_date", "start_date", "timestamp"]),
+            "k3": random.choice(["entries", "line_items", "records", "milestones"]),
+            "nk1": random.choice(["description", "label", "name", "note"]),
+            "nk2": random.choice(["amount", "hours", "progress", "value"]),
+        },
+    },
+    {
+        "instruction": (
+            "Generate a JSON object representing a {form_type} form schema with {n} fields. "
+            'Each field should have "label" (string), "type" (one of "text", "number", '
+            '"email", "select"), and "required" (boolean).'
+        ),
+        "params": lambda: {
+            "form_type": random.choice(
+                ["registration", "contact", "survey", "feedback", "checkout", "onboarding", "support ticket"]
+            ),
+            "n": random.randint(4, 7),
+        },
+    },
+    {
+        "instruction": (
+            "Generate a JSON object representing a {entity} with an "
+            '"id" (integer), "name" (string), "tags" (array of strings), '
+            'and a "metadata" nested object with at least 3 key-value pairs.'
+        ),
+        "params": lambda: {
+            "entity": random.choice(
+                ["document", "asset", "resource", "artifact", "dataset", "model", "deployment", "experiment"]
+            ),
         },
     },
 ]
+
+# ---------------------------------------------------------------------------
+# JSON prompt templates — Hard
+# ---------------------------------------------------------------------------
 
 _JSON_HARD: list[dict] = [
     {
@@ -129,6 +308,9 @@ _JSON_HARD: list[dict] = [
                     "weather forecast",
                     "user registration form",
                     "CI/CD pipeline definition",
+                    "IoT sensor reading",
+                    "GraphQL query result",
+                    "OAuth2 token response",
                 ]
             ),
         },
@@ -148,6 +330,8 @@ _JSON_HARD: list[dict] = [
                     "articles",
                     "transactions",
                     "repositories",
+                    "notifications",
+                    "search results",
                 ]
             ),
             "n": random.randint(2, 4),
@@ -167,262 +351,89 @@ _JSON_HARD: list[dict] = [
                     "file system directory tree",
                     "category taxonomy",
                     "geographical region breakdown",
-                ]
-            ),
-        },
-    },
-]
-
-# ---------------------------------------------------------------------------
-# Python prompt templates
-# ---------------------------------------------------------------------------
-
-_PYTHON_SIMPLE: list[dict] = [
-    {
-        "instruction": ("Write a Python function called `{fname}` that takes {args} " "and returns {ret}."),
-        "params": lambda: {
-            "fname": random.choice(
-                [
-                    "factorial",
-                    "fibonacci",
-                    "is_prime",
-                    "reverse_string",
-                    "sum_list",
-                ]
-            ),
-            "args": random.choice(
-                [
-                    "an integer n",
-                    "a string s",
-                    "a list of integers",
-                ]
-            ),
-            "ret": random.choice(
-                [
-                    "the factorial of n",
-                    "the n-th Fibonacci number",
-                    "True if n is prime, False otherwise",
-                    "the reversed string",
-                    "the sum of the list",
+                    "menu navigation structure",
+                    "permission role hierarchy",
                 ]
             ),
         },
     },
     {
         "instruction": (
-            "Write a Python function called `{fname}` that takes a list of " "{elem_type} and returns {ret}."
+            "Generate a JSON object representing a full {api_type} API endpoint "
+            "specification (OpenAPI-style) including path, method, parameters "
+            "(with types and required flags), request body schema, and "
+            "response schema with example values."
         ),
         "params": lambda: {
-            "fname": random.choice(
-                [
-                    "find_max",
-                    "find_min",
-                    "count_even",
-                    "filter_positive",
-                    "unique_elements",
-                ]
-            ),
-            "elem_type": random.choice(["integers", "floats", "strings"]),
-            "ret": random.choice(
-                [
-                    "the maximum element",
-                    "the minimum element",
-                    "the number of even numbers",
-                    "only the positive values",
-                    "a list with duplicates removed",
-                ]
-            ),
-        },
-    },
-    {
-        "instruction": ("Write a Python function `{fname}` that converts {input_desc} " "to {output_desc}."),
-        "params": lambda: {
-            "fname": random.choice(
-                [
-                    "celsius_to_fahrenheit",
-                    "to_uppercase",
-                    "flatten_list",
-                    "words_to_sentence",
-                    "int_to_binary",
-                ]
-            ),
-            "input_desc": random.choice(
-                [
-                    "a temperature in Celsius",
-                    "a string",
-                    "a nested list",
-                    "a list of words",
-                    "an integer",
-                ]
-            ),
-            "output_desc": random.choice(
-                [
-                    "Fahrenheit",
-                    "all uppercase",
-                    "a flat list",
-                    "a single sentence string",
-                    "a binary string representation",
-                ]
-            ),
-        },
-    },
-]
-
-_PYTHON_MEDIUM: list[dict] = [
-    {
-        "instruction": ("Write a Python class called `{cname}` that implements a {ds} " "with methods: {methods}."),
-        "params": lambda: {
-            "cname": random.choice(["Stack", "Queue", "LinkedList", "MinHeap"]),
-            "ds": random.choice(["stack", "queue", "singly linked list", "min-heap"]),
-            "methods": random.choice(
-                [
-                    "push, pop, peek, is_empty, size",
-                    "enqueue, dequeue, peek, is_empty, size",
-                    "append, prepend, delete, search, to_list",
-                    "insert, extract_min, peek, size, is_empty",
-                ]
+            "api_type": random.choice(
+                ["user management", "payment processing", "search", "file upload", "authentication", "notification"]
             ),
         },
     },
     {
         "instruction": (
-            "Write a Python function `{fname}` that {desc}. Handle edge cases "
-            "and raise a ValueError for invalid input."
+            "Generate a JSON object representing a {workflow} workflow definition "
+            'with at least {n} steps. Each step must have an "id", "name", '
+            '"type" (one of "action", "condition", "loop"), "config" '
+            '(nested object), and "next" (string or null).'
         ),
         "params": lambda: {
-            "fname": random.choice(
+            "workflow": random.choice(
                 [
-                    "merge_sorted_lists",
-                    "binary_search",
-                    "matrix_multiply",
-                    "parse_csv_line",
-                    "validate_email",
+                    "data pipeline",
+                    "CI/CD build",
+                    "order fulfillment",
+                    "user onboarding",
+                    "content moderation",
+                    "ETL process",
                 ]
             ),
-            "desc": random.choice(
-                [
-                    "merges two sorted lists into a single sorted list",
-                    "performs binary search on a sorted list and returns the index",
-                    "multiplies two 2D matrices represented as lists of lists",
-                    "parses a CSV line respecting quoted fields into a list of strings",
-                    "validates an email address format and returns True/False",
-                ]
-            ),
+            "n": random.randint(4, 6),
         },
     },
     {
         "instruction": (
-            "Write a Python class `{cname}` that {desc}. Include type hints " "for all methods and a __repr__ method."
+            "Generate a JSON object representing a dashboard configuration with "
+            '{n} widgets. Each widget has "id", "type" (chart, table, metric, '
+            'or map), "title", "position" (object with x, y, w, h), and a '
+            '"data_source" object with "endpoint" (string), "params" (object), '
+            'and "refresh_interval" (integer).'
         ),
         "params": lambda: {
-            "cname": random.choice(
-                [
-                    "BankAccount",
-                    "Matrix",
-                    "Polynomial",
-                    "Interval",
-                    "Vector2D",
-                ]
-            ),
-            "desc": random.choice(
-                [
-                    "models a bank account with deposit, withdraw, and balance methods",
-                    "represents a 2D matrix supporting addition and multiplication",
-                    "represents a polynomial supporting addition and evaluation at a point",
-                    "represents a numeric interval supporting overlap checking and merge",
-                    "represents a 2D vector supporting addition, dot product, and magnitude",
-                ]
-            ),
-        },
-    },
-]
-
-_PYTHON_HARD: list[dict] = [
-    {
-        "instruction": (
-            "Write a Python decorator called `{dname}` that {desc}. "
-            "The decorator should work with functions that have any signature."
-        ),
-        "params": lambda: {
-            "dname": random.choice(
-                [
-                    "retry",
-                    "cache_with_ttl",
-                    "rate_limiter",
-                    "log_calls",
-                    "validate_types",
-                ]
-            ),
-            "desc": random.choice(
-                [
-                    "retries the decorated function up to n times " "on exception with exponential backoff",
-                    "caches function results with a time-to-live (TTL) in seconds",
-                    "limits function calls to at most n per minute, raising RuntimeError if exceeded",
-                    "logs function name, arguments, return value, and execution time",
-                    "validates that arguments match the function's type annotations at runtime",
-                ]
-            ),
+            "n": random.randint(3, 6),
         },
     },
     {
         "instruction": (
-            "Write a Python context manager class called `{cname}` that {desc}. "
-            "Implement both __enter__ and __exit__ methods with proper error handling."
+            "Generate a JSON object representing a {domain} event conforming "
+            "to the CloudEvents specification (version 1.0). Include specversion, "
+            "id, source, type, subject, time, datacontenttype, and a nested data "
+            "object with at least {n} domain-specific fields."
         ),
         "params": lambda: {
-            "cname": random.choice(
+            "domain": random.choice(
                 [
-                    "Timer",
-                    "TempDirectory",
-                    "DatabaseTransaction",
-                    "FileLocker",
-                    "ResourcePool",
+                    "e-commerce purchase",
+                    "IoT temperature alert",
+                    "user authentication",
+                    "deployment completed",
+                    "payment failed",
+                    "inventory low",
                 ]
             ),
-            "desc": random.choice(
-                [
-                    "measures and stores the elapsed time of the code block",
-                    "creates a temporary directory, yields its path, and cleans it up on exit",
-                    "wraps a database transaction with automatic commit/rollback",
-                    "acquires an exclusive file lock and releases it on exit",
-                    "manages a pool of reusable resources with borrow/return semantics",
-                ]
-            ),
+            "n": random.randint(4, 7),
         },
     },
     {
         "instruction": (
-            "Write a Python class `{cname}` implementing the {pattern} design pattern. "
-            "Include a concrete example with at least two {components}."
+            "Generate a JSON object representing a database migration plan with "
+            '{n} operations. Each operation should be an object with "order" '
+            '(integer), "type" (one of "create_table", "add_column", '
+            '"create_index", "add_constraint"), "table" (string), and '
+            '"definition" (nested object describing the change in detail).'
         ),
         "params": lambda: {
-            "cname": random.choice(
-                [
-                    "EventBus",
-                    "CommandHandler",
-                    "PipelineBuilder",
-                    "StateMachine",
-                    "PluginRegistry",
-                ]
-            ),
-            "pattern": random.choice(
-                [
-                    "Observer",
-                    "Command",
-                    "Builder",
-                    "State",
-                    "Strategy",
-                ]
-            ),
-            "components": random.choice(
-                [
-                    "observers",
-                    "commands",
-                    "pipeline stages",
-                    "states and transitions",
-                    "strategy implementations",
-                ]
-            ),
+            "n": random.randint(3, 6),
         },
     },
 ]
@@ -435,28 +446,18 @@ TASK_POOLS = {
     "json_simple": {"templates": _JSON_SIMPLE, "task_type": "json", "difficulty": "simple"},
     "json_medium": {"templates": _JSON_MEDIUM, "task_type": "json", "difficulty": "medium"},
     "json_hard": {"templates": _JSON_HARD, "task_type": "json", "difficulty": "hard"},
-    "python_simple": {"templates": _PYTHON_SIMPLE, "task_type": "python", "difficulty": "simple"},
-    "python_medium": {"templates": _PYTHON_MEDIUM, "task_type": "python", "difficulty": "medium"},
-    "python_hard": {"templates": _PYTHON_HARD, "task_type": "python", "difficulty": "hard"},
 }
 
 # Difficulty distribution weights: more simple/medium, fewer hard
 DIFFICULTY_WEIGHTS = {"simple": 0.40, "medium": 0.35, "hard": 0.25}
-TYPE_WEIGHTS = {"json": 0.50, "python": 0.50}
 
 
 def _build_system_prompt(task_type: str) -> str:
-    """Build the system prompt instructing the model to output in a specific format."""
-    if task_type == "json":
-        return (
-            "You are a helpful assistant that generates valid JSON. "
-            "Respond ONLY with a JSON code block. Do not include any explanation "
-            "before or after the JSON. Wrap your output in ```json and ``` markers."
-        )
+    """Build the system prompt instructing the model to output valid JSON."""
     return (
-        "You are a helpful assistant that generates valid Python code. "
-        "Respond ONLY with a Python code block. Do not include any explanation "
-        "before or after the code. Wrap your output in ```python and ``` markers."
+        "You are a helpful assistant that generates valid JSON. "
+        "Respond ONLY with a JSON code block. Do not include any explanation "
+        "before or after the JSON. Wrap your output in ```json and ``` markers."
     )
 
 
@@ -465,8 +466,8 @@ def generate_sample(rng: random.Random | None = None) -> dict:
     if rng is None:
         rng = random.Random()
 
-    # Pick task type, then difficulty
-    task_type = rng.choices(list(TYPE_WEIGHTS.keys()), weights=list(TYPE_WEIGHTS.values()), k=1)[0]
+    # All tasks are JSON — pick difficulty only
+    task_type = "json"
     difficulty = rng.choices(list(DIFFICULTY_WEIGHTS.keys()), weights=list(DIFFICULTY_WEIGHTS.values()), k=1)[0]
 
     pool_key = f"{task_type}_{difficulty}"
@@ -512,7 +513,7 @@ def generate_dataset(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate synthetic JSON/Python prompt dataset")
+    parser = argparse.ArgumentParser(description="Generate synthetic JSON prompt dataset")
     parser.add_argument("--output", type=str, default="data/synthetic", help="Output directory")
     parser.add_argument("--num_samples", type=int, default=5000, help="Total number of samples")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -542,13 +543,11 @@ def main() -> None:
     # Print distribution stats
     for split_name in ["train", "test"]:
         split = ds[split_name]
-        types = split["task_type"]
         diffs = split["difficulty"]
         print(f"\n  {split_name} distribution:")
-        for tt in ["json", "python"]:
-            for dd in ["simple", "medium", "hard"]:
-                count = sum(1 for t, d in zip(types, diffs) if t == tt and d == dd)
-                print(f"    {tt}/{dd}: {count}")
+        for dd in ["simple", "medium", "hard"]:
+            count = sum(1 for d in diffs if d == dd)
+            print(f"    json/{dd}: {count}")
 
 
 if __name__ == "__main__":

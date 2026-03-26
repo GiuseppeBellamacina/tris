@@ -43,6 +43,7 @@ dev = [
     "isort",
     "black[jupyter]",
     "ruff",
+    "pytest",
 ]
 fast = [
     "unsloth",

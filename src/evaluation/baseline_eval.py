@@ -4,8 +4,6 @@ Supports two inference backends:
   - Standard HuggingFace generate (default)
   - vLLM — up to 10-24x faster offline batch inference
 
-Set  generation.use_vllm: true  in your config YAML to enable vLLM.
-
 Usage:
     python -m src.evaluation.baseline_eval --config experiments/configs/baseline.yaml
 """
@@ -15,28 +13,27 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 import torch
 import wandb
 from dotenv import load_dotenv
+from tqdm import tqdm
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+
+from src.datasets.dataloader import format_prompt_for_model, load_synthetic_dataset
+from src.evaluation.evaluate import compute_detailed_metrics, pass_at_k
+from src.models.model_loader import load_model, load_model_and_tokenizer, load_tokenizer
+from src.utils.config import load_config
 
 load_dotenv()
-from tqdm import tqdm
-
-from src.datasets.dataloader import (
-    format_prompt_for_model,
-    load_config,
-    load_synthetic_dataset,
-)
-from src.evaluation.evaluate import compute_detailed_metrics, pass_at_k
-from src.models.model_loader import load_model, load_tokenizer
 
 
 def generate_completions(
-    model,
-    tokenizer,
+    model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizerBase,
     prompts: list[str],
-    generation_config: dict,
+    generation_config: dict[str, Any],
     num_return_sequences: int = 1,
     batch_size: int = 4,
 ) -> list[list[str]]:
@@ -85,7 +82,7 @@ def generate_completions(
 def generate_completions_vllm(
     model_name: str,
     prompts: list[str],
-    generation_config: dict,
+    generation_config: dict[str, Any],
     num_return_sequences: int = 1,
     quantization: str = "4bit",
 ) -> list[list[str]]:
@@ -145,12 +142,20 @@ def main() -> None:
     )
 
     print(f"Loading model: {model_cfg['name']}")
-    model = load_model(
-        model_name=model_cfg["name"],
-        quantization=model_cfg.get("quantization", "4bit"),
-        dtype=model_cfg.get("dtype", "bfloat16"),
-    )
-    tokenizer = load_tokenizer(model_cfg["name"])
+
+    # Support both Unsloth and standard HuggingFace loading
+    use_unsloth = model_cfg.get("use_unsloth", False)
+    if use_unsloth:
+        # Load via Unsloth (without LoRA — baseline has no adapters)
+        base_config: dict[str, Any] = {"model": model_cfg}
+        model, tokenizer = load_model_and_tokenizer(base_config)
+    else:
+        model = load_model(
+            model_name=model_cfg["name"],
+            quantization=model_cfg.get("quantization", "4bit"),
+            dtype=model_cfg.get("dtype", "bfloat16"),
+        )
+        tokenizer = load_tokenizer(model_cfg["name"])
 
     print("Loading dataset...")
     ds = load_synthetic_dataset(

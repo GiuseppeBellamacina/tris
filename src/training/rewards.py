@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Any, Callable
 
 
 def extract_code_block(text: str, language: str) -> str | None:
@@ -130,20 +131,41 @@ def combined_reward(
 
 
 def build_reward_function(
+    reward_config: dict[str, Any] | None = None,
+    *,
     partial_credit: bool = False,
     reasoning_bonus: float = 0.0,
-):
+) -> Callable[..., list[float]]:
     """Build a reward function compatible with trl GRPOTrainer.
 
-    GRPOTrainer expects: reward_fn(completions: list[str], **kwargs) -> list[float]
-    All tasks are JSON-only.
-    """
+    GRPOTrainer expects: reward_fn(completions, **kwargs) -> list[float]
 
-    def reward_fn(completions: list[str], **kwargs) -> list[float]:
-        rewards = []
+    Completions may arrive as plain strings or as list[dict] (chat format);
+    this function handles both transparently.
+
+    Args:
+        reward_config: If provided, extract partial_credit and reasoning_bonus
+            from this dict (overrides the keyword arguments).
+        partial_credit: Whether to use graduated scoring.
+        reasoning_bonus: Bonus scale for reasoning tags.
+
+    Returns:
+        A callable usable as ``reward_funcs`` in ``GRPOTrainer``.
+    """
+    if reward_config is not None:
+        partial_credit = reward_config.get("partial_credit", False)
+        reasoning_bonus = reward_config.get("reasoning_bonus", 0.0)
+
+    def reward_fn(completions: list[Any], **kwargs: Any) -> list[float]:
+        rewards: list[float] = []
         for completion in completions:
+            # GRPOTrainer may pass list[dict] (chat messages) or plain str
+            if isinstance(completion, list):
+                text: str = completion[0]["content"] if completion else ""
+            else:
+                text = completion
             r = combined_reward(
-                completion,
+                text,
                 task_type="json",
                 partial_credit=partial_credit,
                 reasoning_bonus=reasoning_bonus,

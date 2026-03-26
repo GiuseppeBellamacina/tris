@@ -61,6 +61,7 @@ target-version = ["py312"]
 line-length = 120
 target-version = "py312"
 extend-include = ["*.ipynb"]
+exclude = ["notebooks/reference/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

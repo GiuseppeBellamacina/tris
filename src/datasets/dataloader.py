@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-
-import yaml
+from typing import Any
 
 from datasets import DatasetDict, load_from_disk
 
-
-def load_config(config_path: str) -> dict:
-    """Load a YAML config file."""
-    with open(config_path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+# Re-export for backward compatibility
+from src.utils.config import load_config  # noqa: F401
 
 
 def load_synthetic_dataset(
@@ -50,8 +46,8 @@ def load_synthetic_dataset(
 
 
 def format_prompt_for_model(
-    sample: dict,
-    tokenizer=None,
+    sample: dict[str, Any],
+    tokenizer: Any = None,
 ) -> str:
     """Format a dataset sample into a chat-template prompt string.
 
@@ -74,9 +70,9 @@ def format_prompt_for_model(
     return "\n".join(parts)
 
 
-def prepare_grpo_dataset(ds, tokenizer=None) -> list[dict]:
+def prepare_grpo_dataset(ds: Any, tokenizer: Any = None) -> list[dict[str, str]]:
     """Prepare dataset for GRPOTrainer — returns list of dicts with 'prompt' key."""
-    rows = []
+    rows: list[dict[str, str]] = []
     for i in range(len(ds)):
         sample = ds[i]
         prompt_text = format_prompt_for_model(sample, tokenizer)
@@ -90,7 +86,7 @@ def prepare_grpo_dataset(ds, tokenizer=None) -> list[dict]:
     return rows
 
 
-def prepare_sft_dataset(ds, gold_completions: list[str], tokenizer=None) -> list[dict]:
+def prepare_sft_dataset(ds: Any, gold_completions: list[str], tokenizer: Any = None) -> list[dict[str, str]]:
     """Prepare dataset for SFTTrainer — returns list of dicts with full conversations."""
     rows = []
     for i in range(len(ds)):

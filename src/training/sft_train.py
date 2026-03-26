@@ -9,17 +9,18 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 import wandb
 from dotenv import load_dotenv
-from trl.trainer.sft_config import SFTConfig
-
-load_dotenv()
-from trl.trainer.sft_trainer import SFTTrainer
+from trl import SFTConfig, SFTTrainer
 
 from datasets import Dataset
-from src.datasets.dataloader import load_config, load_synthetic_dataset
+from src.datasets.dataloader import load_synthetic_dataset
 from src.models.model_loader import load_model_and_tokenizer
+from src.utils.config import load_config
+
+load_dotenv()
 
 
 def _generate_gold_json(prompt: str) -> str:
@@ -29,9 +30,9 @@ def _generate_gold_json(prompt: str) -> str:
 
 
 def generate_gold_completions(
-    model,
-    tokenizer,
-    dataset,
+    model: Any,
+    tokenizer: Any,
+    dataset: Any,
 ) -> list[str]:
     """Generate gold-standard completions using the teacher model.
 

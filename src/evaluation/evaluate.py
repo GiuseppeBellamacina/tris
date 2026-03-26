@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from typing import Any
 
 from src.training.rewards import extract_code_block
 
@@ -63,7 +64,7 @@ def compute_detailed_metrics(
     completions: list[str],
     task_types: list[str],
     difficulties: list[str],
-) -> dict:
+) -> dict[str, Any]:
     """Compute detailed evaluation metrics.
 
     Args:

@@ -13,7 +13,13 @@ from typing import Any
 
 import torch
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    PreTrainedModel,
+    PreTrainedTokenizerBase,
+)
 
 
 def get_quantization_config(quantization: str) -> BitsAndBytesConfig | None:
@@ -30,9 +36,9 @@ def get_quantization_config(quantization: str) -> BitsAndBytesConfig | None:
     return None
 
 
-def load_tokenizer(model_name: str) -> AutoTokenizer:
+def load_tokenizer(model_name: str) -> PreTrainedTokenizerBase:
     """Load and configure the tokenizer."""
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"  # required for generation with batched inputs
@@ -44,7 +50,7 @@ def load_model(
     quantization: str = "4bit",
     dtype: str = "bfloat16",
     device_map: str = "auto",
-) -> Any:
+) -> PreTrainedModel:
     """Load a causal LM with optional quantization."""
     torch_dtype = getattr(torch, dtype, torch.bfloat16)
     quant_config = get_quantization_config(quantization)
@@ -60,13 +66,13 @@ def load_model(
 
 
 def apply_lora(
-    model: Any,
+    model: PreTrainedModel,
     r: int = 16,
     lora_alpha: int = 32,
     lora_dropout: float = 0.05,
     target_modules: list[str] | None = None,
     task_type: str = "CAUSAL_LM",
-) -> Any:
+) -> PreTrainedModel:
     """Apply LoRA adapters to the model via PEFT."""
     if target_modules is None:
         target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
@@ -90,8 +96,8 @@ def apply_lora(
 
 
 def load_model_and_tokenizer(
-    config: dict,
-) -> tuple[Any, Any]:
+    config: dict[str, Any],
+) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
     """High-level loader: model + tokenizer from a config dict.
 
     Expected config structure:
@@ -135,7 +141,7 @@ def load_model_and_tokenizer(
 # ── Unsloth backend ──────────────────────────────────────────────────────────
 
 
-def _load_with_unsloth(config: dict) -> tuple[Any, Any]:
+def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
     """Load model + tokenizer via Unsloth's FastLanguageModel.
 
     Unsloth patches the model in-place with fused kernels and handles

@@ -8,116 +8,36 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
 import wandb
 from dotenv import load_dotenv
+from trl import GRPOConfig, GRPOTrainer
+
+from datasets import Dataset
+from src.datasets.dataloader import format_prompt_for_model, load_synthetic_dataset
+from src.models.model_loader import load_model_and_tokenizer
+from src.training.rewards import build_reward_function
+from src.utils.config import load_config
 
 load_dotenv()
 
-from trl.trainer.grpo_config import GRPOConfig
-from trl.trainer.grpo_trainer import GRPOTrainer
 
-from datasets import Dataset
-from src.datasets.dataloader import (
-    format_prompt_for_model,
-    load_config,
-    load_synthetic_dataset,
-)
-from src.models.model_loader import load_model_and_tokenizer
-from src.training.rewards import combined_reward
-
-
-def build_reward_fn(reward_cfg: dict):
-    """Build a reward function from config, compatible with GRPOTrainer.
-
-    GRPOTrainer calls: reward_fn(prompts, completions, **kwargs) -> list[float]
-    """
-    partial_credit = reward_cfg.get("partial_credit", False)
-    reasoning_bonus = reward_cfg.get("reasoning_bonus", 0.0)
-
-    def reward_fn(completions, **kwargs):
-        """Reward function for GRPOTrainer.
-
-        Args:
-            completions: list of completion strings.
-            **kwargs: additional keyword arguments (e.g., prompts).
-
-        Returns:
-            list of float rewards.
-        """
-        rewards = []
-        for completion in completions:
-            text = completion[0]["content"] if isinstance(completion, list) else completion
-            r = combined_reward(
-                text,
-                task_type="json",
-                partial_credit=partial_credit,
-                reasoning_bonus=reasoning_bonus,
-            )
-            rewards.append(r)
-        return rewards
-
-    return reward_fn
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="GRPO training for strict code/JSON generation")
-    parser.add_argument("--config", type=str, required=True, help="Path to config YAML")
-    args = parser.parse_args()
-
-    config = load_config(args.config)
-    training_cfg = config["training"]
-    grpo_cfg = config["grpo"]
-    reward_cfg = config["reward"]
-
-    # Load model and tokenizer (Unsloth viene gestito da model_loader)
-    print(f"Loading model: {config['model']['name']}")
-    model, tokenizer = load_model_and_tokenizer(config)
-
-    # Load and prepare dataset
-    print("Loading dataset...")
-    ds = load_synthetic_dataset(
-        path=config["dataset"]["path"],
-        split=config["dataset"].get("split", "train"),
-        max_samples=config["dataset"].get("max_samples"),
-    )
-    train_ds = ds[config["dataset"].get("split", "train")]
-
-    # Format prompts for the model
-    formatted_prompts = []
-    for i in range(len(train_ds)):
-        sample = train_ds[i]
-        prompt = format_prompt_for_model(sample, tokenizer)
-        formatted_prompts.append({"prompt": prompt, "task_type": sample["task_type"]})
-
-    prompt_dataset = Dataset.from_list([{"prompt": r["prompt"]} for r in formatted_prompts])
-
-    # Build reward function
-    reward_fn = build_reward_fn(reward_cfg)
-
-    # Configure GRPO
+def _build_grpo_config(training_cfg: dict[str, Any], grpo_cfg: dict[str, Any]) -> GRPOConfig:
+    """Build a ``GRPOConfig`` from separated training and GRPO config dicts."""
     output_dir = training_cfg.get("output_dir", "experiments/checkpoints/grpo")
     log_dir = training_cfg.get("log_dir", "experiments/logs/grpo")
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     Path(log_dir).mkdir(parents=True, exist_ok=True)
 
-    # Initialize wandb
-    wandb_cfg = config.get("wandb", {})
-    wandb.init(
-        project=wandb_cfg.get("project", "grpo-strict-generation"),
-        name=wandb_cfg.get("run_name", "grpo-train"),
-        config=config,
-        tags=wandb_cfg.get("tags", ["grpo", config["model"]["name"].split("/")[-1]]),
-    )
-
-    # Warmup: supporta sia warmup_steps che warmup_ratio
-    warmup_kwargs = {}
+    # Warmup: supports both warmup_steps and warmup_ratio
+    warmup_kwargs: dict[str, Any] = {}
     if "warmup_ratio" in training_cfg:
         warmup_kwargs["warmup_ratio"] = training_cfg["warmup_ratio"]
     else:
         warmup_kwargs["warmup_steps"] = training_cfg.get("warmup_steps", 50)
 
-    grpo_config = GRPOConfig(
+    return GRPOConfig(
         output_dir=output_dir,
         max_steps=training_cfg.get("max_steps", 1000),
         per_device_train_batch_size=training_cfg.get("per_device_train_batch_size", 1),
@@ -141,6 +61,55 @@ def main() -> None:
         report_to="wandb",
     )
 
+
+def _prepare_prompt_dataset(config: dict[str, Any], tokenizer: Any) -> Dataset:
+    """Load the synthetic dataset and format prompts for the model."""
+    ds = load_synthetic_dataset(
+        path=config["dataset"]["path"],
+        split=config["dataset"].get("split", "train"),
+        max_samples=config["dataset"].get("max_samples"),
+    )
+    train_ds = ds[config["dataset"].get("split", "train")]
+
+    formatted = []
+    for i in range(len(train_ds)):
+        sample = train_ds[i]
+        prompt = format_prompt_for_model(sample, tokenizer)
+        formatted.append({"prompt": prompt})
+
+    return Dataset.from_list(formatted)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="GRPO training for strict code/JSON generation")
+    parser.add_argument("--config", type=str, required=True, help="Path to config YAML")
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+
+    # Load model and tokenizer
+    print(f"Loading model: {config['model']['name']}")
+    model, tokenizer = load_model_and_tokenizer(config)
+
+    # Prepare dataset
+    print("Loading dataset...")
+    prompt_dataset = _prepare_prompt_dataset(config, tokenizer)
+
+    # Build reward function
+    reward_fn = build_reward_function(config["reward"])
+
+    # Build GRPO config
+    grpo_config = _build_grpo_config(config["training"], config["grpo"])
+
+    # Initialize wandb
+    wandb_cfg = config.get("wandb", {})
+    wandb.init(
+        project=wandb_cfg.get("project", "grpo-strict-generation"),
+        name=wandb_cfg.get("run_name", "grpo-train"),
+        config=config,
+        tags=wandb_cfg.get("tags", ["grpo", config["model"]["name"].split("/")[-1]]),
+    )
+
     # Initialize trainer
     trainer = GRPOTrainer(
         model=model,  # type: ignore[arg-type]
@@ -155,7 +124,7 @@ def main() -> None:
     trainer.train()
 
     # Save final model
-    final_path = Path(output_dir) / "final"
+    final_path = Path(grpo_config.output_dir) / "final"
     trainer.save_model(str(final_path))
     tokenizer.save_pretrained(str(final_path))  # type: ignore[union-attr]
     print(f"Final model saved to {final_path}")

@@ -14,7 +14,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from trl import GRPOConfig, GRPOTrainer
+from trl.trainer.grpo_config import GRPOConfig
+from trl.trainer.grpo_trainer import GRPOTrainer
 
 from datasets import Dataset
 from src.datasets.dataloader import (

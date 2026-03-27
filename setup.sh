@@ -1,23 +1,31 @@
 #!/bin/bash
-# Setup per Google Colab / Linux remoto
+# Setup per Google Colab / Docker / Linux remoto
 # Installa dipendenze + progetto in editable mode
 
 set -e
 
-echo "=== Setup GRPO Strict Generation (Colab) ==="
+echo "=== Setup GRPO Strict Generation ==="
 
-# Step 1: Installa uv (più veloce di pip)
+# Step 1: Installa uv se non presente
 echo ""
-echo "📦 Installazione uv..."
-pip install -q uv
-echo "✅ uv installato"
+if command -v uv &> /dev/null; then
+    echo "✅ uv già installato"
+else
+    echo "📦 Installazione uv..."
+    pip install -q uv
+    echo "✅ uv installato"
+fi
 
-# Step 2: Installa dipendenze + progetto in editable mode (nel Python di sistema)
-# Usa [vllm] per abilitare fast_inference (vLLM backend per GRPO rollouts)
+# Step 2: Installa dipendenze + progetto in editable mode
+# Se esiste un virtualenv attivo lo usa, altrimenti installa nel system python
 echo ""
 echo "📦 Installazione dipendenze + progetto..."
-uv pip install --system -e ".[vllm]"
-echo "✅ Dipendenze installate + progetto in editable mode (con vLLM)"
+if [ -n "$VIRTUAL_ENV" ]; then
+    uv pip install -e ".[dev,vllm]" 2>/dev/null || uv pip install -e ".[dev,fast]"
+else
+    uv pip install --system -e ".[vllm]"
+fi
+echo "✅ Dipendenze installate + progetto in editable mode"
 
 # Step 3: Verifica installazione
 echo ""
@@ -76,5 +84,4 @@ print('='*60)
 
 echo ""
 echo "=== Setup Completato! ==="
-echo "✅ Dipendenze installate nel Python di sistema"
 echo "✅ Progetto installato in editable mode (src importabile)"

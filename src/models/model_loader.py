@@ -5,12 +5,11 @@ Supports two backends:
   - Unsloth (2-5x faster training, ~50-70% less VRAM)
 
 Set  model.use_unsloth: true  in your config YAML to enable Unsloth.
-Set  model.fast_inference: true  to use vLLM-backed generation (Linux only).
+Set  model.fast_inference: true  to use vLLM-backed generation.
 """
 
 from __future__ import annotations
 
-import platform
 import warnings
 from typing import Any
 
@@ -147,22 +146,12 @@ def load_model_and_tokenizer(
 def _resolve_fast_inference(model_cfg: dict[str, Any]) -> bool:
     """Determine if fast_inference (vLLM) can be enabled.
 
-    Returns True only when the config flag is set AND the runtime
-    environment actually supports it (Linux + vLLM installed).
+    Returns True only when the config flag is set AND vLLM is installed.
     """
     requested = model_cfg.get("fast_inference", False)
     if not requested:
         return False
 
-    # vLLM only works on Linux
-    if platform.system() != "Linux":
-        warnings.warn(
-            "fast_inference richiede Linux — disabilitato su questa piattaforma.",
-            stacklevel=2,
-        )
-        return False
-
-    # Check that vllm is actually importable
     try:
         import vllm as _vllm  # noqa: F401
     except ImportError:
@@ -203,7 +192,7 @@ def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrai
     if use_fast_inference:
         fi_kwargs["fast_inference"] = True
         fi_kwargs["max_lora_rank"] = lora_cfg.get("r", 16)
-        fi_kwargs["gpu_memory_utilization"] = model_cfg.get("gpu_memory_utilization", 0.6)
+        fi_kwargs["gpu_memory_utilization"] = model_cfg.get("gpu_memory_utilization", 0.9)
         print("fast_inference abilitato (vLLM backend)")
 
     model, tokenizer = FastLanguageModel.from_pretrained(
@@ -227,7 +216,7 @@ def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrai
             lora_dropout=lora_cfg.get("lora_dropout", 0),
             target_modules=target_modules,
             use_gradient_checkpointing="unsloth",  # 60% less VRAM
-            random_state=42,
+            random_state=lora_cfg.get("random_state", 3407),
         )
 
     if tokenizer.pad_token is None:

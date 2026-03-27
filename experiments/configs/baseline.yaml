@@ -1,11 +1,13 @@
 # Baseline evaluation config — evaluate off-the-shelf LLMs without fine-tuning.
 
 model:
-  name: "Qwen/Qwen2.5-0.5B-Instruct"
-  quantization: "4bit" # "4bit", "8bit", or "none"
+  name: "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+  quantization: "4bit"
   dtype: "bfloat16"
-  use_unsloth: true # 2-5x faster training + less VRAM on Colab
-  fast_inference: true # true = usa vLLM interno per generazione veloce (solo Linux)
+  use_unsloth: true
+  fast_inference: true
+  max_seq_length: 2048
+  gpu_memory_utilization: 0.9
 
 dataset:
   path: "data/synthetic"

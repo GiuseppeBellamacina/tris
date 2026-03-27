@@ -43,13 +43,10 @@ def generate_completions(
     for i in tqdm(range(0, len(prompts), batch_size), desc="Generating"):
         batch_prompts = prompts[i : i + batch_size]
 
-        # padding=False with batch_size=1 avoids Unsloth/Xformers shape
-        # mismatch on Windows; padding=True needed for actual batches.
-        use_padding = len(batch_prompts) > 1
         inputs = tokenizer(
             batch_prompts,
             return_tensors="pt",
-            padding=use_padding,
+            padding=True,
             truncation=True,
             max_length=512,
         ).to(model.device)
@@ -63,7 +60,6 @@ def generate_completions(
                 do_sample=generation_config.get("do_sample", True),
                 num_return_sequences=num_return_sequences,
                 pad_token_id=tokenizer.pad_token_id,
-                use_cache=generation_config.get("use_cache", True),
             )
 
         # Decode only the generated tokens (skip the input)

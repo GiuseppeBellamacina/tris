@@ -47,6 +47,7 @@ def _build_grpo_config(training_cfg: dict[str, Any], grpo_cfg: dict[str, Any]) -
         lr_scheduler_type=training_cfg.get("lr_scheduler_type", "cosine"),
         **warmup_kwargs,
         optim=training_cfg.get("optim", "paged_adamw_8bit"),
+        weight_decay=training_cfg.get("weight_decay", 0.1),
         max_grad_norm=training_cfg.get("max_grad_norm", 0.1),
         bf16=training_cfg.get("bf16", True),
         logging_steps=training_cfg.get("logging_steps", 10),

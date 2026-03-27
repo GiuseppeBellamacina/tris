@@ -4,15 +4,25 @@ model:
   name: "Qwen/Qwen2.5-Coder-0.5B-Instruct"
   quantization: "4bit"
   dtype: "bfloat16"
-  use_unsloth: true # 2-5x faster training + less VRAM on Colab
-  fast_inference: true # true = usa vLLM interno per generazione veloce (solo Linux)
+  use_unsloth: true
+  fast_inference: true # vLLM backend per generazione veloce
+  max_seq_length: 2048
+  gpu_memory_utilization: 0.9
 
 lora:
   r: 16
-  lora_alpha: 32
-  lora_dropout: 0.05
-  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  lora_alpha: 16 # lora_alpha = r (da notebook Unsloth ufficiali)
+  lora_dropout: 0 # 0 consigliato da Unsloth con gradient checkpointing
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
   task_type: "CAUSAL_LM"
+  random_state: 3407
 
 dataset:
   path: "data/synthetic"
@@ -26,8 +36,9 @@ training:
   learning_rate: 5.0e-6
   lr_scheduler_type: "cosine"
   warmup_ratio: 0.1
-  optim: "paged_adamw_8bit" # da notebook ufficiali Unsloth — meno VRAM
-  max_grad_norm: 0.1 # gradient clipping aggressivo — stabilizza GRPO
+  optim: "paged_adamw_8bit"
+  weight_decay: 0.1
+  max_grad_norm: 0.1
   bf16: true
   logging_steps: 10
   save_steps: 200

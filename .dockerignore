@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.env
+*.log
+wandb/
+runs/
+experiments/logs/
+experiments/checkpoints/
+*.pt
+*.bin
+*.safetensors
+*.ckpt
+notebooks/reference/

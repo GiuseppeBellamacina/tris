@@ -4,14 +4,25 @@ model:
   name: "Qwen/Qwen2.5-Coder-0.5B-Instruct"
   quantization: "4bit"
   dtype: "bfloat16"
-  use_unsloth: false # set true for 2-5x faster training + less VRAM
+  use_unsloth: true
+  fast_inference: true
+  max_seq_length: 2048
+  gpu_memory_utilization: 0.9
 
 lora:
   r: 16
-  lora_alpha: 32
-  lora_dropout: 0.05
-  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  lora_alpha: 16
+  lora_dropout: 0
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
   task_type: "CAUSAL_LM"
+  random_state: 3407
 
 dataset:
   path: "data/synthetic"
@@ -25,6 +36,8 @@ training:
   learning_rate: 2.0e-5
   lr_scheduler_type: "cosine"
   warmup_steps: 50
+  optim: "paged_adamw_8bit"
+  weight_decay: 0.1
   bf16: true
   logging_steps: 10
   save_steps: 200

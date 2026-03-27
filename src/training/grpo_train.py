@@ -7,6 +7,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 from typing import Any
 
@@ -86,6 +87,10 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config(args.config)
+
+    # Enable vLLM standby if fast_inference is requested
+    if config.get("model", {}).get("fast_inference", False):
+        os.environ["UNSLOTH_VLLM_STANDBY"] = "1"
 
     # Load model and tokenizer
     print(f"Loading model: {config['model']['name']}")

@@ -5,10 +5,13 @@ Supports two backends:
   - Unsloth (2-5x faster training, ~50-70% less VRAM)
 
 Set  model.use_unsloth: true  in your config YAML to enable Unsloth.
+Set  model.fast_inference: true  to use vLLM-backed generation (Linux only).
 """
 
 from __future__ import annotations
 
+import platform
+import warnings
 from typing import Any
 
 import torch
@@ -141,12 +144,47 @@ def load_model_and_tokenizer(
 # ── Unsloth backend ──────────────────────────────────────────────────────────
 
 
+def _resolve_fast_inference(model_cfg: dict[str, Any]) -> bool:
+    """Determine if fast_inference (vLLM) can be enabled.
+
+    Returns True only when the config flag is set AND the runtime
+    environment actually supports it (Linux + vLLM installed).
+    """
+    requested = model_cfg.get("fast_inference", False)
+    if not requested:
+        return False
+
+    # vLLM only works on Linux
+    if platform.system() != "Linux":
+        warnings.warn(
+            "fast_inference richiede Linux — disabilitato su questa piattaforma.",
+            stacklevel=2,
+        )
+        return False
+
+    # Check that vllm is actually importable
+    try:
+        import vllm as _vllm  # noqa: F401
+    except ImportError:
+        warnings.warn(
+            "fast_inference richiede vllm — pacchetto non trovato, disabilitato.",
+            stacklevel=2,
+        )
+        return False
+
+    return True
+
+
 def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
     """Load model + tokenizer via Unsloth's FastLanguageModel.
 
     Unsloth patches the model in-place with fused kernels and handles
     LoRA + 4-bit quantization internally, so it replaces the
     transformers + peft + bitsandbytes pipeline entirely.
+
+    When ``model.fast_inference`` is ``True`` and the environment supports
+    it, enables vLLM-backed generation for 2-5x faster completions
+    during GRPO rollouts.
     """
     from unsloth import FastLanguageModel
 
@@ -157,11 +195,23 @@ def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrai
     quantization = model_cfg.get("quantization", "4bit")
     load_in_4bit = quantization == "4bit"
 
+    # Resolve fast_inference availability
+    use_fast_inference = _resolve_fast_inference(model_cfg)
+
+    # fast_inference kwargs (vLLM-backed generation)
+    fi_kwargs: dict[str, Any] = {}
+    if use_fast_inference:
+        fi_kwargs["fast_inference"] = True
+        fi_kwargs["max_lora_rank"] = lora_cfg.get("r", 16)
+        fi_kwargs["gpu_memory_utilization"] = model_cfg.get("gpu_memory_utilization", 0.6)
+        print("fast_inference abilitato (vLLM backend)")
+
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=model_cfg["name"],
         max_seq_length=model_cfg.get("max_seq_length", 2048),
         load_in_4bit=load_in_4bit,
         dtype=None,  # auto-detect
+        **fi_kwargs,
     )
 
     # Apply LoRA via Unsloth (uses its own optimised implementation)

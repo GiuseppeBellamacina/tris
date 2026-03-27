@@ -13,10 +13,11 @@ pip install -q uv
 echo "✅ uv installato"
 
 # Step 2: Installa dipendenze + progetto in editable mode (nel Python di sistema)
+# Usa [vllm] per abilitare fast_inference (vLLM backend per GRPO rollouts)
 echo ""
 echo "📦 Installazione dipendenze + progetto..."
-uv pip install --system -e ".[fast]"
-echo "✅ Dipendenze installate + progetto in editable mode"
+uv pip install --system -e ".[vllm]"
+echo "✅ Dipendenze installate + progetto in editable mode (con vLLM)"
 
 # Step 3: Verifica installazione
 echo ""

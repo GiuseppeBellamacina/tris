@@ -1,9 +1,5 @@
 """Baseline evaluation — test off-the-shelf LLMs without any fine-tuning.
 
-Supports two inference backends:
-  - Standard HuggingFace generate (default)
-  - vLLM — up to 10-24x faster offline batch inference
-
 Usage:
     python -m src.evaluation.baseline_eval --config experiments/configs/baseline.yaml
 """
@@ -46,10 +42,14 @@ def generate_completions(
 
     for i in tqdm(range(0, len(prompts), batch_size), desc="Generating"):
         batch_prompts = prompts[i : i + batch_size]
+
+        # padding=False with batch_size=1 avoids Unsloth/Xformers shape
+        # mismatch on Windows; padding=True needed for actual batches.
+        use_padding = len(batch_prompts) > 1
         inputs = tokenizer(
             batch_prompts,
             return_tensors="pt",
-            padding=True,
+            padding=use_padding,
             truncation=True,
             max_length=512,
         ).to(model.device)
@@ -63,6 +63,7 @@ def generate_completions(
                 do_sample=generation_config.get("do_sample", True),
                 num_return_sequences=num_return_sequences,
                 pad_token_id=tokenizer.pad_token_id,
+                use_cache=generation_config.get("use_cache", True),
             )
 
         # Decode only the generated tokens (skip the input)
@@ -75,49 +76,6 @@ def generate_completions(
                 text = tokenizer.decode(generated_ids, skip_special_tokens=True)
                 prompt_completions.append(text)
             all_completions.append(prompt_completions)
-
-    return all_completions
-
-
-def generate_completions_vllm(
-    model_name: str,
-    prompts: list[str],
-    generation_config: dict[str, Any],
-    num_return_sequences: int = 1,
-    quantization: str = "4bit",
-) -> list[list[str]]:
-    """Generate completions using vLLM for much faster batch inference.
-
-    Returns:
-        List of lists — for each prompt, a list of num_return_sequences completions.
-    """
-    from vllm import LLM, SamplingParams
-
-    # Map quantization config to vLLM
-    vllm_kwargs: dict = {
-        "model": model_name,
-        "trust_remote_code": True,
-        "dtype": "auto",
-    }
-    if quantization == "4bit":
-        vllm_kwargs["quantization"] = "bitsandbytes"
-        vllm_kwargs["load_format"] = "bitsandbytes"
-
-    llm = LLM(**vllm_kwargs)
-
-    sampling_params = SamplingParams(
-        max_tokens=generation_config.get("max_new_tokens", 512),
-        temperature=generation_config.get("temperature", 0.7),
-        top_p=generation_config.get("top_p", 0.95),
-        n=num_return_sequences,
-    )
-
-    outputs = llm.generate(prompts, sampling_params)
-
-    all_completions: list[list[str]] = []
-    for output in outputs:
-        completions = [o.text for o in output.outputs]
-        all_completions.append(completions)
 
     return all_completions
 
@@ -171,27 +129,15 @@ def main() -> None:
     difficulties = test_ds["difficulty"]
 
     num_seqs = gen_cfg.get("num_return_sequences", 1)
-    use_vllm = gen_cfg.get("use_vllm", False)
     print(f"Generating {num_seqs} completion(s) per prompt for {len(prompts)} prompts...")
-    if use_vllm:
-        print("Backend: vLLM (fast batch inference)")
 
-    if use_vllm:
-        completions_per_prompt = generate_completions_vllm(
-            model_name=model_cfg["name"],
-            prompts=prompts,
-            generation_config=gen_cfg,
-            num_return_sequences=num_seqs,
-            quantization=model_cfg.get("quantization", "4bit"),
-        )
-    else:
-        completions_per_prompt = generate_completions(
-            model=model,
-            tokenizer=tokenizer,
-            prompts=prompts,
-            generation_config=gen_cfg,
-            num_return_sequences=num_seqs,
-        )
+    completions_per_prompt = generate_completions(
+        model=model,
+        tokenizer=tokenizer,
+        prompts=prompts,
+        generation_config=gen_cfg,
+        num_return_sequences=num_seqs,
+    )
 
     # Pass@k evaluation
     k_values = eval_cfg.get("pass_at_k", [1, 5, 10])

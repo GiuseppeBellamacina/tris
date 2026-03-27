@@ -4,6 +4,8 @@ model:
   name: "Qwen/Qwen2.5-0.5B-Instruct"
   quantization: "4bit" # "4bit", "8bit", or "none"
   dtype: "bfloat16"
+  use_unsloth: true # 2-5x faster training + less VRAM on Colab
+  fast_inference: true # true = usa vLLM interno per generazione veloce (solo Linux)
 
 dataset:
   path: "data/synthetic"
@@ -16,7 +18,6 @@ generation:
   top_p: 0.95
   do_sample: true
   num_return_sequences: 1 # increase for Pass@k with k > 1
-  use_vllm: false # set true for fast batch inference via vLLM
 
 evaluation:
   pass_at_k: [1, 5, 10]

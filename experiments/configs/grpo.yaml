@@ -1,7 +1,7 @@
 # GRPO training config — Group Relative Policy Optimization via trl.
 
 model:
-  name: "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
   quantization: "4bit"
   dtype: "bfloat16"
   use_unsloth: true
@@ -30,7 +30,7 @@ dataset:
   max_samples: null
 
 training:
-  max_steps: 1000
+  max_steps: 300
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 8
   learning_rate: 5.0e-6
@@ -40,8 +40,8 @@ training:
   weight_decay: 0.1
   max_grad_norm: 0.1
   bf16: true
-  logging_steps: 10
-  save_steps: 200
+  logging_steps: 5
+  save_steps: 60
   save_total_limit: 3
   output_dir: "experiments/checkpoints/grpo"
   log_dir: "experiments/logs/grpo"
@@ -54,10 +54,12 @@ grpo:
   temperature: 0.7
 
 reward:
-  partial_credit: true # scala graduale 0.0 / 0.25 / 0.5 / 0.75 / 1.0
-  reasoning_bonus: 0.0 # set > 0 for dual-reward (Extra Obj. 2)
+  weight_format: 0.10 # proper ```json block
+  weight_validity: 0.30 # JSON parses without error (graduated)
+  weight_schema: 0.50 # structural compliance with the prompt constraints
+  weight_reasoning: 0.10 # bonus for <think>...</think> with real content
 
 wandb:
   project: "grpo-strict-generation"
   run_name: null # null = auto-generated
-  tags: ["grpo", "Qwen2.5-Coder-0.5B", "json-only"]
+  tags: ["grpo", "TinyLlama-1.1B", "json-only"]

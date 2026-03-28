@@ -1,8 +1,13 @@
 """Reward functions for GRPO training.
 
-All rewards are rule-based (no neural reward model):
-  - JSON: validated via json.loads
-  - Reasoning bonus: checks for <think>...</think> tags
+All rewards are rule-based (no neural reward model).  Four components:
+  1. format_reward    — proper ```json code block present
+  2. validity_reward  — JSON parses without error (partial credit based on
+                        how far into the text the first error occurs)
+  3. schema_reward    — structural compliance with constraints stated in the
+                        prompt: exact/minimum array count, required key
+                        presence, nesting depth, top-level array vs object
+  4. reasoning_reward — bonus for <think>...</think> with real content
 
 Security: NEVER uses exec() or eval(). Only static parsing.
 """
@@ -13,6 +18,10 @@ import json
 import re
 from typing import Any, Callable
 
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
 
 def extract_code_block(text: str, language: str) -> str | None:
     """Extract the first fenced code block of the given language from text.
@@ -20,19 +29,16 @@ def extract_code_block(text: str, language: str) -> str | None:
     Looks for ```language ... ``` patterns. Falls back to the first
     generic ``` ... ``` block if no language-specific block is found.
     """
-    # Try language-specific block first
     pattern = rf"```{re.escape(language)}\s*\n(.*?)```"
     match = re.search(pattern, text, re.DOTALL)
     if match:
         return match.group(1).strip()
 
-    # Fallback: generic fenced block
     pattern = r"```\s*\n(.*?)```"
     match = re.search(pattern, text, re.DOTALL)
     if match:
         return match.group(1).strip()
 
-    # Last resort: if the entire output looks like raw JSON without fences
     stripped = text.strip()
     if language == "json" and (stripped.startswith("{") or stripped.startswith("[")):
         return stripped
@@ -40,137 +46,350 @@ def extract_code_block(text: str, language: str) -> str | None:
     return None
 
 
-def json_reward(completion: str, partial_credit: bool = False) -> float:
-    """Compute reward for JSON generation.
+def _parse_json_safe(text: str) -> tuple[Any, str | None]:
+    """Try to parse JSON. Returns (parsed_value, error_message_or_None)."""
+    try:
+        return json.loads(text), None
+    except json.JSONDecodeError as e:
+        return None, str(e)
 
-    Args:
-        completion: The model's full completion text.
-        partial_credit: If True, use a graduated scale instead of binary 0/1.
 
-    Returns:
-        If partial_credit is False: 1.0 (valid) or 0.0 (invalid).
-        If partial_credit is True, graduated scale:
-          1.00 — valid JSON that parses successfully
-          0.75 — has code block, looks like JSON structure, error near end (>70%)
-          0.50 — has code block, looks like JSON structure, error in middle
-          0.25 — has code block but content doesn't look like JSON at all
-          0.00 — no code block found
+def _max_nesting_depth(obj: Any, _depth: int = 0) -> int:
+    """Return the maximum nesting depth of a parsed JSON value."""
+    if isinstance(obj, dict):
+        if not obj:
+            return _depth
+        return max(_max_nesting_depth(v, _depth + 1) for v in obj.values())
+    if isinstance(obj, list):
+        if not obj:
+            return _depth
+        return max(_max_nesting_depth(v, _depth) for v in obj)
+    return _depth
+
+
+def _collect_array_lengths(obj: Any) -> list[int]:
+    """Collect the lengths of all JSON arrays in the object (recursive)."""
+    lengths: list[int] = []
+    if isinstance(obj, list):
+        lengths.append(len(obj))
+        for item in obj:
+            lengths.extend(_collect_array_lengths(item))
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            lengths.extend(_collect_array_lengths(v))
+    return lengths
+
+
+def _collect_all_keys(obj: Any) -> set[str]:
+    """Collect all dictionary keys recursively from a parsed JSON value."""
+    keys: set[str] = set()
+    if isinstance(obj, dict):
+        keys.update(obj.keys())
+        for v in obj.values():
+            keys.update(_collect_all_keys(v))
+    elif isinstance(obj, list):
+        for item in obj:
+            keys.update(_collect_all_keys(item))
+    return keys
+
+
+# ---------------------------------------------------------------------------
+# Constraint extraction from natural-language instructions
+# ---------------------------------------------------------------------------
+
+
+def _extract_exact_count(instruction: str) -> int | None:
+    """Extract the primary exact count from phrases like '3 items', '5 steps'."""
+    m = re.search(r"exactly\s+(\d+)", instruction, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    units = r"items?|objects?|elements?|steps?|widgets?|operations?|tasks?|entries?"
+    m = re.search(rf"(\d+)\s+(?:{units})", instruction, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def _extract_min_count(instruction: str) -> int | None:
+    """Extract minimum count from 'at least N' phrases."""
+    m = re.search(r"at\s+least\s+(\d+)", instruction, re.IGNORECASE)
+    return int(m.group(1)) if m else None
+
+
+def _extract_required_keys(instruction: str) -> list[str]:
+    """Extract JSON key names that must appear in the output.
+
+    Looks for two reliable patterns:
+      - ``"key_name" (type description)`` — e.g. ``"id" (integer)``
+      - Explicit field lists in parentheses after words like "fields" or
+        "including": ``fields (page, per_page, total, total_pages)``
+    """
+    keys: list[str] = []
+
+    # Pattern 1: "key_name" (type ...) — key followed by parenthesised type
+    keys.extend(re.findall(r'"(\w+)"\s*\(', instruction))
+
+    # Pattern 2: unquoted word list inside parens after "fields"/"including"
+    m = re.search(
+        r"(?:fields?|including?|attributes?|properties)\s*\(([^)]+)\)",
+        instruction,
+        re.IGNORECASE,
+    )
+    if m:
+        for part in m.group(1).split(","):
+            k = part.strip()
+            if re.match(r"^\w+$", k):
+                keys.append(k)
+
+    # Deduplicate preserving first-seen order
+    seen: set[str] = set()
+    result: list[str] = []
+    for k in keys:
+        if k not in seen:
+            seen.add(k)
+            result.append(k)
+    return result
+
+
+def _extract_required_depth(instruction: str) -> int | None:
+    """Return the minimum nesting depth stated in the instruction, or None."""
+    if not re.search(
+        r"deeply\s+nested|levels?\s+of\s+nesting|at\s+least\s+\d+\s+levels?",
+        instruction,
+        re.IGNORECASE,
+    ):
+        return None
+    m = re.search(r"(\d+)\s+levels?", instruction, re.IGNORECASE)
+    return int(m.group(1)) if m else 4  # default for "deeply nested"
+
+
+def _requires_array_toplevel(instruction: str) -> bool | None:
+    """Return True/False if instruction unambiguously requires array/object at
+    the top level; None if unspecified."""
+    m = re.match(
+        r"Generate\s+a\s+(JSON\s+array|list\s+of|array\s+of|JSON\s+object)",
+        instruction,
+        re.IGNORECASE,
+    )
+    if not m:
+        return None
+    val = m.group(1).lower()
+    if "object" in val:
+        return False
+    return True  # "array" or "list"
+
+
+# ---------------------------------------------------------------------------
+# Individual reward components (all return floats in [0.0, 1.0])
+# ---------------------------------------------------------------------------
+
+
+def format_reward(completion: str) -> float:
+    """1.0 if a proper ```json ... ``` block is present, 0.5 for a generic
+    ``` ... ``` block, 0.0 otherwise."""
+    if re.search(r"```json\s*\n[\s\S]*?```", completion, re.IGNORECASE):
+        return 1.0
+    if re.search(r"```\s*\n[\s\S]*?```", completion):
+        return 0.5
+    return 0.0
+
+
+def validity_reward(completion: str) -> float:
+    """Graduated reward for producing valid, parseable JSON.
+
+    Scale:
+      1.00 — JSON parses without error
+      0.70 — parse error occurs in the last 15 % of the string (almost valid)
+      0.40 — parse error in the middle section (40–85 %)
+      0.20 — parse error in the first 40 % (early structural mistake)
+      0.10 — code block found but content cannot be parsed at all
+      0.00 — no code block
     """
     code = extract_code_block(completion, "json")
     if code is None:
         return 0.0
 
-    try:
-        json.loads(code)
+    parsed, err = _parse_json_safe(code)
+    if parsed is not None:
         return 1.0
-    except json.JSONDecodeError as e:
-        if not partial_credit:
-            return 0.0
 
-        # Check if the content has JSON-like structure (braces/brackets, colons, quotes)
-        has_braces = "{" in code or "[" in code
-        has_colons = ":" in code
-        has_quotes = '"' in code
-        looks_like_json = has_braces and (has_colons or has_quotes)
+    if err:
+        m = re.search(r"char (\d+)", err)
+        if m:
+            ratio = int(m.group(1)) / max(len(code), 1)
+            if ratio > 0.85:
+                return 0.70
+            if ratio > 0.40:
+                return 0.40
+            return 0.20
 
-        if not looks_like_json:
-            return 0.25
+    return 0.10
 
-        # Error position ratio: how far into the text the first error occurs
-        error_pos_ratio = e.pos / max(len(code), 1) if hasattr(e, "pos") and e.pos else 0.0
 
-        if error_pos_ratio > 0.7:
-            return 0.75  # almost valid — likely a trailing comma or missing brace
-        return 0.5  # structural but broken earlier
+def schema_reward(completion: str, instruction: str) -> float:
+    """Score structural compliance with the constraints stated in the instruction.
+
+    Checks (each contributing equally to the final average):
+      1. Exact array count     — if "N items/steps/widgets/…" in instruction
+      2. Minimum count         — if "at least N" in instruction
+      3. Required key presence — keys annotated as ``"key" (type)``
+      4. Nesting depth         — for "deeply nested" / "at least N levels"
+      5. Top-level type        — array vs object when unambiguous
+
+    Returns 0.0 if JSON is unparseable.
+    Returns 1.0 if the JSON is valid but no constraints can be extracted.
+    """
+    code = extract_code_block(completion, "json")
+    if code is None:
+        return 0.0
+
+    parsed, _ = _parse_json_safe(code)
+    if parsed is None:
+        return 0.0
+
+    scores: list[float] = []
+
+    # 1. Exact count
+    exact = _extract_exact_count(instruction)
+    if exact is not None:
+        lengths = _collect_array_lengths(parsed)
+        if lengths:
+            closest = min(lengths, key=lambda n: abs(n - exact))
+            diff = abs(closest - exact)
+            if diff == 0:
+                scores.append(1.0)
+            elif diff == 1:
+                scores.append(0.70)
+            elif diff <= max(1, exact // 3):
+                scores.append(0.40)
+            else:
+                scores.append(0.10)
+        else:
+            scores.append(0.0)
+
+    # 2. Minimum count
+    minimum = _extract_min_count(instruction)
+    if minimum is not None:
+        lengths = _collect_array_lengths(parsed)
+        best = max(lengths) if lengths else (len(parsed) if isinstance(parsed, dict) else 0)
+        scores.append(min(best / minimum, 1.0))
+
+    # 3. Required keys
+    req_keys = _extract_required_keys(instruction)
+    if req_keys:
+        all_keys = _collect_all_keys(parsed)
+        present = sum(1 for k in req_keys if k in all_keys)
+        scores.append(present / len(req_keys))
+
+    # 4. Nesting depth
+    req_depth = _extract_required_depth(instruction)
+    if req_depth is not None:
+        scores.append(min(_max_nesting_depth(parsed) / req_depth, 1.0))
+
+    # 5. Top-level type
+    tl = _requires_array_toplevel(instruction)
+    if tl is True:
+        scores.append(1.0 if isinstance(parsed, list) else 0.0)
+    elif tl is False:
+        scores.append(1.0 if isinstance(parsed, dict) else 0.0)
+
+    # No extractable constraints → full credit if JSON is valid
+    return sum(scores) / len(scores) if scores else 1.0
 
 
 def reasoning_reward(completion: str) -> float:
-    """Bonus reward for including reasoning before the code block.
-
-    Checks for <think>...</think> tags containing non-trivial content.
-
-    Returns:
-        0.2 if reasoning tags found with content, 0.0 otherwise.
-    """
-    pattern = r"<think>(.*?)</think>"
-    match = re.search(pattern, completion, re.DOTALL)
-    if match:
-        content = match.group(1).strip()
-        # Require at least 20 chars of reasoning to count
-        if len(content) >= 20:
-            return 0.2
+    """1.0 if <think>...</think> tags with ≥20 chars of content are present,
+    0.0 otherwise."""
+    m = re.search(r"<think>(.*?)</think>", completion, re.DOTALL)
+    if m and len(m.group(1).strip()) >= 20:
+        return 1.0
     return 0.0
+
+
+# ---------------------------------------------------------------------------
+# Combined reward and factory
+# ---------------------------------------------------------------------------
 
 
 def combined_reward(
     completion: str,
-    task_type: str = "json",
-    partial_credit: bool = False,
-    reasoning_bonus: float = 0.0,
+    instruction: str = "",
+    *,
+    weight_format: float = 0.10,
+    weight_validity: float = 0.30,
+    weight_schema: float = 0.50,
+    weight_reasoning: float = 0.10,
 ) -> float:
-    """Compute the combined reward for a completion.
-
-    Args:
-        completion: The model's full completion text.
-        task_type: Must be "json".
-        partial_credit: Whether to use partial credit scoring.
-        reasoning_bonus: If > 0, add reasoning_reward scaled by this factor.
-
-    Returns:
-        Total reward in [0.0, 1.0 + reasoning_bonus].
-    """
-    if task_type != "json":
-        raise ValueError(f"Unknown task_type: {task_type}. Only 'json' is supported.")
-
-    base = json_reward(completion, partial_credit=partial_credit)
-
-    if reasoning_bonus > 0:
-        base += reasoning_reward(completion) * (reasoning_bonus / 0.2)
-
-    return base
+    """Combine all reward components into a single scalar in [0.0, 1.0]."""
+    return (
+        weight_format * format_reward(completion)
+        + weight_validity * validity_reward(completion)
+        + weight_schema * schema_reward(completion, instruction)
+        + weight_reasoning * reasoning_reward(completion)
+    )
 
 
 def build_reward_function(
     reward_config: dict[str, Any] | None = None,
     *,
-    partial_credit: bool = False,
-    reasoning_bonus: float = 0.0,
+    weight_format: float = 0.10,
+    weight_validity: float = 0.30,
+    weight_schema: float = 0.50,
+    weight_reasoning: float = 0.10,
 ) -> Callable[..., list[float]]:
     """Build a reward function compatible with trl GRPOTrainer.
 
-    GRPOTrainer expects: reward_fn(completions, **kwargs) -> list[float]
+    GRPOTrainer calls: ``reward_fn(completions, prompts=None, **kwargs) -> list[float]``
 
-    Completions may arrive as plain strings or as list[dict] (chat format);
-    this function handles both transparently.
+    The ``prompts`` argument (list of chat-message dicts or plain strings) is
+    used to extract the user instruction for structural-compliance checking.
 
     Args:
-        reward_config: If provided, extract partial_credit and reasoning_bonus
-            from this dict (overrides the keyword arguments).
-        partial_credit: Whether to use graduated scoring.
-        reasoning_bonus: Bonus scale for reasoning tags.
-
-    Returns:
-        A callable usable as ``reward_funcs`` in ``GRPOTrainer``.
+        reward_config: If provided, read weights from this dict (keys:
+            ``weight_format``, ``weight_validity``, ``weight_schema``,
+            ``weight_reasoning``).  Any key absent in the dict falls back to
+            the keyword-argument default.
+        weight_format: Fraction of score from format check.
+        weight_validity: Fraction of score from JSON validity.
+        weight_schema: Fraction of score from structural compliance.
+        weight_reasoning: Fraction of score from reasoning tags.
     """
     if reward_config is not None:
-        partial_credit = reward_config.get("partial_credit", False)
-        reasoning_bonus = reward_config.get("reasoning_bonus", 0.0)
+        weight_format = reward_config.get("weight_format", weight_format)
+        weight_validity = reward_config.get("weight_validity", weight_validity)
+        weight_schema = reward_config.get("weight_schema", weight_schema)
+        weight_reasoning = reward_config.get("weight_reasoning", weight_reasoning)
 
-    def reward_fn(completions: list[Any], **kwargs: Any) -> list[float]:
+    def _instruction_from_prompt(prompt: Any) -> str:
+        if isinstance(prompt, list):
+            for msg in reversed(prompt):
+                if isinstance(msg, dict) and msg.get("role") == "user":
+                    return msg.get("content", "")
+        return str(prompt) if prompt is not None else ""
+
+    def reward_fn(
+        completions: list[Any],
+        prompts: list[Any] | None = None,
+        **kwargs: Any,
+    ) -> list[float]:
+        instructions = (
+            [_instruction_from_prompt(p) for p in prompts]
+            if prompts
+            else [""] * len(completions)
+        )
         rewards: list[float] = []
-        for completion in completions:
-            # GRPOTrainer may pass list[dict] (chat messages) or plain str
-            if isinstance(completion, list):
-                text: str = completion[0]["content"] if completion else ""
-            else:
-                text = completion
-            r = combined_reward(
-                text,
-                task_type="json",
-                partial_credit=partial_credit,
-                reasoning_bonus=reasoning_bonus,
+        for completion, instruction in zip(completions, instructions):
+            text: str = completion[0]["content"] if isinstance(completion, list) else completion
+            rewards.append(
+                combined_reward(
+                    text,
+                    instruction,
+                    weight_format=weight_format,
+                    weight_validity=weight_validity,
+                    weight_schema=weight_schema,
+                    weight_reasoning=weight_reasoning,
+                )
             )
-            rewards.append(r)
         return rewards
 
     return reward_fn

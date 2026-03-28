@@ -1,7 +1,7 @@
 # Baseline evaluation config — evaluate off-the-shelf LLMs without fine-tuning.
 
 model:
-  name: "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
   quantization: "4bit"
   dtype: "bfloat16"
   use_unsloth: true

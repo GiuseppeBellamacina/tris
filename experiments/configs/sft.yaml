@@ -1,19 +1,25 @@
-# SFT training config — Supervised Fine-Tuning for comparison with GRPO.
+# ============================================================================
+# SFT training config — Supervised Fine-Tuning per confronto con GRPO.
+#
+# Usato da:  python -m src.training.sft_train --config experiments/configs/sft.yaml
+# ============================================================================
 
+# --- Modello ---
 model:
-  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-  quantization: "4bit"
-  dtype: "bfloat16"
-  use_unsloth: true
-  fast_inference: true
-  max_seq_length: 2048
-  gpu_memory_utilization: 0.9
+  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" # nome HuggingFace Hub del modello
+  quantization: "4bit" # quantizzazione: "4bit", "8bit", o null (nessuna)
+  dtype: "bfloat16" # tipo di dato: "bfloat16", "float16", "float32"
+  use_unsloth: true # true = backend Unsloth (più veloce, meno VRAM)
+  fast_inference: true # true = usa vLLM per generazione gold completions
+  max_seq_length: 2048 # lunghezza massima sequenza per il modello (Unsloth)
+  gpu_memory_utilization: 0.9 # frazione VRAM per vLLM
 
+# --- LoRA adapters ---
 lora:
-  r: 16
-  lora_alpha: 16
-  lora_dropout: 0
-  target_modules:
+  r: 16 # rango LoRA
+  lora_alpha: 16 # fattore di scala LoRA (tipicamente = r)
+  lora_dropout: 0 # dropout LoRA (0 consigliato con gradient checkpointing)
+  target_modules: # layer a cui applicare LoRA
     - q_proj
     - k_proj
     - v_proj
@@ -21,32 +27,35 @@ lora:
     - gate_proj
     - up_proj
     - down_proj
-  task_type: "CAUSAL_LM"
-  random_state: 3407
+  task_type: "CAUSAL_LM" # tipo di task per PEFT
+  random_state: 3407 # seed per inizializzazione LoRA
 
+# --- Dataset ---
 dataset:
-  path: "data/synthetic"
-  split: "train"
-  max_samples: null
+  path: "data/synthetic" # percorso del DatasetDict salvato su disco
+  split: "train" # split da usare per il training
+  max_samples: null # null = usa tutti; numero intero = tronca a N samples
 
+# --- Iperparametri di training ---
 training:
-  num_train_epochs: 3
-  per_device_train_batch_size: 4
-  gradient_accumulation_steps: 4
-  learning_rate: 2.0e-5
-  lr_scheduler_type: "cosine"
-  warmup_steps: 50
-  optim: "paged_adamw_8bit"
-  weight_decay: 0.1
-  bf16: true
-  logging_steps: 10
-  save_steps: 200
-  save_total_limit: 3
-  max_seq_length: 768
-  output_dir: "experiments/checkpoints/sft"
-  log_dir: "experiments/logs/sft"
+  num_train_epochs: 3 # numero di epoche (alternativa a max_steps per SFT)
+  per_device_train_batch_size: 4 # batch size per GPU
+  gradient_accumulation_steps: 4 # accumula gradienti su N step prima di aggiornare
+  learning_rate: 2.0e-5 # learning rate iniziale
+  lr_scheduler_type: "cosine" # scheduler: "cosine", "linear", "constant", ecc.
+  warmup_steps: 50 # numero di step di warmup
+  optim: "paged_adamw_8bit" # ottimizzatore
+  weight_decay: 0.1 # regolarizzazione L2
+  bf16: true # true = mixed precision bfloat16 (richiede GPU >= Ampere)
+  logging_steps: 10 # logga metriche ogni N step
+  save_steps: 200 # salva checkpoint ogni N step
+  save_total_limit: 3 # mantieni al massimo N checkpoint su disco
+  max_seq_length: 768 # lunghezza massima sequenza per SFTTrainer (truncation)
+  output_dir: "experiments/checkpoints/sft" # cartella per i checkpoint
+  log_dir: "experiments/logs/sft" # cartella per i log
 
+# --- Weights & Biases ---
 wandb:
-  project: "grpo-strict-generation"
-  run_name: null
-  tags: ["sft", "Qwen2.5-Coder-0.5B"]
+  project: "grpo-strict-generation" # nome del progetto su wandb
+  run_name: null # nome del run (null = auto: "sft-train")
+  tags: ["sft", "TinyLlama-1.1B"] # tag per filtrare i run

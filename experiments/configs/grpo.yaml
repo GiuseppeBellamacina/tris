@@ -1,19 +1,26 @@
+# ============================================================================
 # GRPO training config — Group Relative Policy Optimization via trl.
+#
+# Usato da:  python -m src.training.grpo_train --config experiments/configs/grpo.yaml
+# ============================================================================
 
+# --- Modello ---
 model:
-  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-  quantization: "4bit"
-  dtype: "bfloat16"
-  use_unsloth: true
-  fast_inference: true # vLLM backend per generazione veloce
-  max_seq_length: 2048
-  gpu_memory_utilization: 0.75 # standby mode richiede ~0.75 su T4 (0.9 causa OOM)
+  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" # nome HuggingFace Hub del modello
+  quantization: "4bit" # quantizzazione: "4bit", "8bit", o null (nessuna)
+  dtype: "bfloat16" # tipo di dato: "bfloat16", "float16", "float32"
+  use_unsloth: true # true = backend Unsloth (più veloce, meno VRAM)
+  fast_inference: true # true = usa vLLM per generazione veloce durante i rollout
+  max_seq_length: 2048 # lunghezza massima sequenza per il modello (Unsloth)
+  gpu_memory_utilization: 0.75 # frazione VRAM per vLLM (0.75 su T4, 0.9 su A100)
 
+# --- LoRA adapters ---
+# Se questa sezione è assente, il modello viene caricato senza adapters (baseline).
 lora:
-  r: 16
-  lora_alpha: 16 # lora_alpha = r (da notebook Unsloth ufficiali)
-  lora_dropout: 0 # 0 consigliato da Unsloth con gradient checkpointing
-  target_modules:
+  r: 16 # rango LoRA (dimensione delle matrici low-rank)
+  lora_alpha: 16 # fattore di scala LoRA (tipicamente = r)
+  lora_dropout: 0 # dropout LoRA (0 consigliato con gradient checkpointing)
+  target_modules: # layer a cui applicare LoRA
     - q_proj
     - k_proj
     - v_proj
@@ -21,45 +28,52 @@ lora:
     - gate_proj
     - up_proj
     - down_proj
-  task_type: "CAUSAL_LM"
-  random_state: 3407
+  task_type: "CAUSAL_LM" # tipo di task per PEFT
+  random_state: 3407 # seed per inizializzazione LoRA
 
+# --- Dataset ---
 dataset:
-  path: "data/synthetic"
-  split: "train"
-  max_samples: null
+  path: "data/synthetic" # percorso del DatasetDict salvato su disco
+  split: "train" # split da usare: "train" o "test"
+  max_samples: null # null = usa tutti; numero intero = tronca a N samples
 
+# --- Iperparametri di training ---
 training:
-  max_steps: 300
-  per_device_train_batch_size: 1
-  gradient_accumulation_steps: 8
-  learning_rate: 5.0e-6
-  lr_scheduler_type: "cosine"
-  warmup_ratio: 0.1
-  optim: "paged_adamw_8bit"
-  weight_decay: 0.1
-  max_grad_norm: 0.1
-  bf16: true
-  logging_steps: 5
-  save_steps: 60
-  save_total_limit: 3
-  output_dir: "experiments/checkpoints/grpo"
-  log_dir: "experiments/logs/grpo"
+  max_steps: 300 # numero totale di step di ottimizzazione
+  per_device_train_batch_size: 1 # batch size per GPU (1 consigliato con GRPO)
+  gradient_accumulation_steps: 8 # accumula gradienti su N step prima di aggiornare
+  learning_rate: 5.0e-6 # learning rate iniziale
+  lr_scheduler_type: "cosine" # scheduler: "cosine", "linear", "constant", ecc.
+  warmup_ratio: 0.1 # frazione di step per il warmup (alternativa: warmup_steps)
+  # warmup_steps: 50             # numero fisso di step di warmup (usa UNO tra ratio e steps)
+  optim: "paged_adamw_8bit" # ottimizzatore: "paged_adamw_8bit", "adamw_torch", ecc.
+  weight_decay: 0.1 # regolarizzazione L2
+  max_grad_norm: 0.1 # gradient clipping (norma massima)
+  bf16: true # true = mixed precision bfloat16 (richiede GPU >= Ampere)
+  logging_steps: 5 # logga metriche ogni N step
+  save_steps: 60 # salva checkpoint ogni N step
+  save_total_limit: 3 # mantieni al massimo N checkpoint su disco
+  output_dir: "experiments/checkpoints/grpo" # cartella per i checkpoint
+  log_dir: "experiments/logs/grpo" # cartella per i log di TensorBoard/wandb
 
+# --- Parametri GRPO ---
 grpo:
-  num_generations: 8 # group size G — reduce to 4 if OOM
-  max_completion_length: 512
-  max_prompt_length: 256
-  beta: 0.04 # KL penalty coefficient
-  temperature: 0.7
+  num_generations: 8 # G = dimensione del gruppo per i rollout (4 se OOM)
+  max_completion_length: 512 # lunghezza massima delle completion generate
+  max_prompt_length: 256 # lunghezza massima del prompt (troncato se più lungo)
+  beta: 0.04 # coefficiente penalty KL (regola quanto il modello può divergere)
+  temperature: 0.7 # temperatura di campionamento durante i rollout
 
+# --- Pesi della reward function ---
+# Tutti i pesi devono sommare a 1.0.
 reward:
-  weight_format: 0.10 # proper ```json block
-  weight_validity: 0.30 # JSON parses without error (graduated)
-  weight_schema: 0.50 # structural compliance with the prompt constraints
-  weight_reasoning: 0.10 # bonus for <think>...</think> with real content
+  weight_format: 0.10 # presenza di un blocco ```json ... ``` corretto
+  weight_validity: 0.30 # JSON parsabile senza errori (punteggio graduato)
+  weight_schema: 0.50 # conformità strutturale ai vincoli del prompt
+  weight_reasoning: 0.10 # bonus per tag <think>...</think> con contenuto reale
 
+# --- Weights & Biases ---
 wandb:
-  project: "grpo-strict-generation"
-  run_name: null # null = auto-generated
-  tags: ["grpo", "TinyLlama-1.1B", "json-only"]
+  project: "grpo-strict-generation" # nome del progetto su wandb
+  run_name: null # nome del run (null = auto-generato)
+  tags: ["grpo", "TinyLlama-1.1B", "json-only"] # tag per filtrare i run

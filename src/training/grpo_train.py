@@ -109,8 +109,10 @@ def main() -> None:
 
     # Initialize wandb
     wandb_cfg = config.get("wandb", {})
+    wandb_project = wandb_cfg.get("project", "grpo-strict-generation")
+    os.environ["WANDB_PROJECT"] = wandb_project
     wandb.init(
-        project=wandb_cfg.get("project", "grpo-strict-generation"),
+        project=wandb_project,
         name=wandb_cfg.get("run_name", "grpo-train"),
         config=config,
         tags=wandb_cfg.get("tags", ["grpo", config["model"]["name"].split("/")[-1]]),

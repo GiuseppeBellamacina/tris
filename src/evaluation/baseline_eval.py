@@ -194,7 +194,7 @@ def main() -> None:
     print(f"Completions saved to {completions_path}")
 
     # Log to wandb
-    wandb_metrics = {"model": model_cfg["name"]}
+    wandb_metrics: dict[str, float] = {}
     for k_metric, v_metric in pass_k.items():
         wandb_metrics[k_metric] = v_metric
     wandb_metrics["overall_pass_rate"] = detailed["overall_pass_rate"]

@@ -315,27 +315,37 @@ def combined_reward(
     completion: str,
     instruction: str = "",
     *,
-    weight_format: float = 0.10,
-    weight_validity: float = 0.30,
-    weight_schema: float = 0.50,
+    weight_format: float = 0.20,
+    weight_validity: float = 0.35,
+    weight_schema: float = 0.35,
     weight_reasoning: float = 0.10,
 ) -> float:
-    """Combine all reward components into a single scalar in [0.0, 1.0]."""
-    return (
-        weight_format * format_reward(completion)
-        + weight_validity * validity_reward(completion)
+    """Combine all reward components into a single scalar in [0.0, 1.0].
+
+    ``format_reward`` acts as a multiplicative gate: if no code block is
+    present (format=0.0) the whole reward is 0.  A generic ``` block
+    (format=0.5) halves the remaining signal, nudging the model to always
+    use the explicit ```json marker.
+    """
+    fmt = format_reward(completion)
+    if fmt == 0.0:
+        return 0.0
+    content_reward = (
+        weight_validity * validity_reward(completion)
         + weight_schema * schema_reward(completion, instruction)
         + weight_reasoning * reasoning_reward(completion)
     )
+    return fmt * content_reward
 
 
 def build_reward_function(
     reward_config: dict[str, Any] | None = None,
     *,
-    weight_format: float = 0.10,
-    weight_validity: float = 0.30,
-    weight_schema: float = 0.50,
+    weight_format: float = 0.20,
+    weight_validity: float = 0.35,
+    weight_schema: float = 0.35,
     weight_reasoning: float = 0.10,
+    thinking: bool = True,
 ) -> Callable[..., list[float]]:
     """Build a reward function compatible with trl GRPOTrainer.
 
@@ -353,12 +363,30 @@ def build_reward_function(
         weight_validity: Fraction of score from JSON validity.
         weight_schema: Fraction of score from structural compliance.
         weight_reasoning: Fraction of score from reasoning tags.
+        thinking: If False, ``weight_reasoning`` is forced to 0 and its
+            share is redistributed proportionally to validity and schema,
+            so the weights always sum to 1.0.
     """
     if reward_config is not None:
         weight_format = reward_config.get("weight_format", weight_format)
         weight_validity = reward_config.get("weight_validity", weight_validity)
         weight_schema = reward_config.get("weight_schema", weight_schema)
         weight_reasoning = reward_config.get("weight_reasoning", weight_reasoning)
+
+    if not thinking:
+        # Redistribute the reasoning share to validity and schema proportionally
+        reasoning_share = weight_reasoning
+        weight_reasoning = 0.0
+        total_vs = weight_validity + weight_schema
+        if total_vs > 0:
+            weight_validity += reasoning_share * (weight_validity / total_vs)
+            weight_schema += reasoning_share * (weight_schema / total_vs)
+
+    print(
+        f"Reward weights — format={weight_format:.2f} validity={weight_validity:.2f} "
+        f"schema={weight_schema:.2f} reasoning={weight_reasoning:.2f} "
+        f"(thinking={'on' if thinking else 'off'})"
+    )
 
     def _instruction_from_prompt(prompt: Any) -> str:
         if isinstance(prompt, list):

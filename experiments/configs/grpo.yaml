@@ -18,7 +18,7 @@ model:
 # Se questa sezione è assente, il modello viene caricato senza adapters (baseline).
 lora:
   r: 16 # rango LoRA (dimensione delle matrici low-rank)
-  lora_alpha: 16 # fattore di scala LoRA (tipicamente = r)
+  lora_alpha: 32 # fattore di scala LoRA (alpha = 2*r per scaling più forte)
   lora_dropout: 0 # dropout LoRA (0 consigliato con gradient checkpointing)
   target_modules: # layer a cui applicare LoRA
     - q_proj
@@ -36,10 +36,11 @@ dataset:
   path: "data/synthetic" # percorso del DatasetDict salvato su disco
   split: "train" # split da usare: "train" o "test"
   max_samples: null # null = usa tutti; numero intero = tronca a N samples
+  thinking: true # true = system prompt con <think>...</think>; false = solo JSON puro
 
 # --- Iperparametri di training ---
 training:
-  max_steps: 300 # numero totale di step di ottimizzazione
+  max_steps: 600 # numero totale di step di ottimizzazione
   per_device_train_batch_size: 1 # batch size per GPU (1 consigliato con GRPO)
   gradient_accumulation_steps: 8 # accumula gradienti su N step prima di aggiornare
   learning_rate: 5.0e-6 # learning rate iniziale
@@ -60,17 +61,17 @@ training:
 grpo:
   num_generations: 8 # G = dimensione del gruppo per i rollout (4 se OOM)
   max_completion_length: 512 # lunghezza massima delle completion generate
-  max_prompt_length: 256 # lunghezza massima del prompt (troncato se più lungo)
+  max_prompt_length: 512 # lunghezza massima del prompt (troncato se più lungo)
   beta: 0.04 # coefficiente penalty KL (regola quanto il modello può divergere)
-  temperature: 0.7 # temperatura di campionamento durante i rollout
+  temperature: 0.9 # temperatura di campionamento durante i rollout (più diversità nel gruppo)
 
 # --- Pesi della reward function ---
 # Tutti i pesi devono sommare a 1.0.
 reward:
-  weight_format: 0.10 # presenza di un blocco ```json ... ``` corretto
-  weight_validity: 0.30 # JSON parsabile senza errori (punteggio graduato)
-  weight_schema: 0.50 # conformità strutturale ai vincoli del prompt
-  weight_reasoning: 0.10 # bonus per tag <think>...</think> con contenuto reale
+  weight_format: 0.20 # presenza di un blocco ```json ... ``` corretto (usato come gate moltiplicativo)
+  weight_validity: 0.35 # JSON parsabile senza errori (punteggio graduato)
+  weight_schema: 0.35 # conformità strutturale ai vincoli del prompt
+  weight_reasoning: 0.10 # bonus per <think>...</think> con contenuto reale (ora allineato al system prompt)
 
 # --- Weights & Biases ---
 wandb:

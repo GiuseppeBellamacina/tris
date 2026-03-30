@@ -102,7 +102,8 @@ def main() -> None:
     prompt_dataset = _prepare_prompt_dataset(config, tokenizer)
 
     # Build reward function
-    reward_fn = build_reward_function(config["reward"])
+    thinking = config.get("dataset", {}).get("thinking", True)
+    reward_fn = build_reward_function(config["reward"], thinking=thinking)
 
     # Build GRPO config
     grpo_config = _build_grpo_config(config["training"], config["grpo"])

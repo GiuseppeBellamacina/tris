@@ -18,8 +18,22 @@ from datasets import Dataset, DatasetDict
 from src.datasets.templates import DIFFICULTY_WEIGHTS, POOLS
 
 
-def _build_system_prompt(task_type: str) -> str:
-    """Build the system prompt instructing the model to output valid JSON."""
+def _build_system_prompt(thinking: bool = True) -> str:
+    """Build the system prompt instructing the model to output valid JSON.
+
+    Args:
+        task_type: Unused for now, reserved for future multi-task support.
+        thinking: If True, the model is asked to reason in <think>...</think>
+            before producing the JSON block. If False, only the JSON block is
+            expected (stricter, no chain-of-thought).
+    """
+    if thinking:
+        return (
+            "You are a helpful assistant that generates valid JSON. "
+            "Think through the problem inside <think>...</think> tags, then respond "
+            "with a JSON code block wrapped in ```json and ``` markers. "
+            "No other text is allowed outside the think block and the JSON block."
+        )
     return (
         "You are a helpful assistant that generates valid JSON. "
         "Respond ONLY with a JSON code block. Do not include any explanation "
@@ -27,30 +41,28 @@ def _build_system_prompt(task_type: str) -> str:
     )
 
 
-def generate_sample(rng: random.Random | None = None) -> dict[str, str]:
+def generate_sample(rng: random.Random | None = None, thinking: bool = True) -> dict[str, str]:
     """Generate a single prompt sample with metadata."""
     if rng is None:
         rng = random.Random()
 
-    task_type = "json"
     difficulty = rng.choices(
         list(DIFFICULTY_WEIGHTS.keys()),
         weights=list(DIFFICULTY_WEIGHTS.values()),
         k=1,
     )[0]
 
-    pool_key = f"{task_type}_{difficulty}"
+    pool_key = f"json_{difficulty}"
     pool = POOLS[pool_key]
     template = rng.choice(pool["templates"])  # type: ignore[arg-type]
 
     params = template["params"]()  # type: ignore[operator]
     instruction = template["instruction"].format(**params)  # type: ignore[union-attr]
-    system_prompt = _build_system_prompt(task_type)
+    system_prompt = _build_system_prompt(thinking)
 
     return {
         "system_prompt": system_prompt,
         "prompt": instruction,
-        "task_type": task_type,
         "difficulty": difficulty,
     }
 
@@ -59,10 +71,11 @@ def generate_dataset(
     num_samples: int = 5000,
     seed: int = 42,
     test_ratio: float = 0.2,
+    thinking: bool = True,
 ) -> DatasetDict:
     """Generate the full synthetic dataset as a HuggingFace DatasetDict."""
     rng = random.Random(seed)
-    samples = [generate_sample(rng) for _ in range(num_samples)]
+    samples = [generate_sample(rng, thinking=thinking) for _ in range(num_samples)]
 
     # Deterministic split
     rng.shuffle(samples)
@@ -87,13 +100,29 @@ def main() -> None:
     parser.add_argument("--num_samples", type=int, default=5000, help="Total number of samples")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--test_ratio", type=float, default=0.2, help="Fraction for test split")
+    parser.add_argument("--config", type=str, default=None, help="Path to YAML config (legge dataset.thinking)")
+    thinking_group = parser.add_mutually_exclusive_group()
+    thinking_group.add_argument("--thinking", dest="thinking", action="store_true", default=None,
+                                help="Abilita <think>...</think> nel system prompt (override config)")
+    thinking_group.add_argument("--no-thinking", dest="thinking", action="store_false",
+                                help="Disabilita thinking (override config)")
     args = parser.parse_args()
 
-    print(f"Generating {args.num_samples} samples (seed={args.seed})...")
+    # Resolve thinking flag: CLI > config file > default (True)
+    thinking: bool = True
+    if args.config is not None:
+        from src.utils.config import load_config as _load_config
+        cfg = _load_config(args.config)
+        thinking = cfg.get("dataset", {}).get("thinking", True)
+    if args.thinking is not None:  # CLI flag overrides config
+        thinking = args.thinking
+
+    print(f"Generating {args.num_samples} samples (seed={args.seed}, thinking={thinking})...")
     ds = generate_dataset(
         num_samples=args.num_samples,
         seed=args.seed,
         test_ratio=args.test_ratio,
+        thinking=thinking,
     )
 
     out_path = Path(args.output)

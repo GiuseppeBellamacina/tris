@@ -1,73 +1,140 @@
-# Align a Small LLM with GRPO for Strict Code/JSON Generation
+# Align a Small LLM with GRPO for Strict JSON Generation
 
 [![Report](https://img.shields.io/badge/Paper-REPORT.md-blue)](docs/REPORT.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Group and Project Information
+## Project Information
 
-- **Project ID**: 23
-- **Track**: Align a Small LLM with GRPO for Strict Code or JSON Generation
-- **Reference Module**: Reinforcement Learning
-- **Suggested Size**: Large
+| Field | Value |
+|---|---|
+| **Project ID** | 23 |
+| **Track** | Align a Small LLM with GRPO for Strict Code or JSON Generation |
+| **Module** | Reinforcement Learning |
 
-## Project Description
+## Overview
 
-This project applies **Group Relative Policy Optimization (GRPO)** to fine-tune a small open-weight LLM (~0.5B–1.5B parameters) so that it generates **syntactically valid JSON and Python code**. Instead of using a neural reward model, rewards are computed programmatically via `json.loads` and `ast.parse`, providing a strict binary signal. The model is trained with LoRA/PEFT for memory efficiency and evaluated on Pass@k metrics comparing pre- and post-training syntactic adherence.
+This project applies **Group Relative Policy Optimization (GRPO)** to fine-tune
+**TinyLlama-1.1B** so that it generates **syntactically valid, schema-conformant JSON**.
+Instead of a neural reward model, four rule-based reward components score each
+completion (format, validity, schema, reasoning), providing a dense additive signal.
+The model is trained with **4-bit quantization** and **LoRA** via
+[Unsloth](https://github.com/unslothai/unsloth) + vLLM for fast rollouts on a
+single T4 GPU (Google Colab).
 
-> **Official Report**: For all theoretical details, performance analysis, the architecture used, and contributions, please refer to our formal paper: **[REPORT.md](docs/REPORT.md)**.
+> For theoretical details, ablations, and results see **[REPORT.md](docs/REPORT.md)**.
 
-## Technical Reproducibility
+## Repository Structure
 
-### 1. Environment Setup
-
-**Prerequisites**: Python 3.10+ and [uv](https://docs.astral.sh/uv/).
-
-```bash
-git clone https://github.com/yourusername/your-repo.git
-cd your-repo
-
-# Install uv (if not already installed)
-pip install uv
-
-# Create virtual environment and install all dependencies
-uv sync
-
-# Include dev tools (ruff, pytest, ipykernel)
-uv sync --extra dev
+```
+src/
+  datasets/          Synthetic dataset generation and prompt formatting
+  models/            Model/tokenizer loading (Unsloth & HuggingFace backends)
+  training/          GRPO and SFT training loops, reward functions, callbacks
+  evaluation/        Baseline and post-training evaluation
+  utils/             Config loader and visualization helpers
+experiments/
+  configs/           YAML configs for baseline, GRPO, and SFT
+notebooks/           Colab notebooks (full pipeline + reference implementations)
+docs/                Final report (REPORT.md)
+figures/             Generated plots and charts
+data/                Synthetic dataset (generated, not committed)
 ```
 
-**Dataset**: The synthetic dataset is generated programmatically. No external download is needed.
+## Setup
+
+**Prerequisites**: Python 3.10–3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv run python -m src.datasets.synthetic_dataset --output data/synthetic --num_samples 5000
+git clone https://github.com/GiuseppeBellamacina/grpo-strict-generation.git
+cd grpo-strict-generation
+
+pip install uv          # if not already installed
+uv sync                 # core dependencies
+uv sync --extra dev     # + ruff, pytest, black
+uv sync --extra fast    # + unsloth, vllm (GPU required)
 ```
 
-### 2. Network Training
+On **Google Colab** the notebook installs Unsloth and dependencies automatically
+— see [`notebooks/03_full_pipeline.ipynb`](notebooks/03_full_pipeline.ipynb).
 
-**Baseline Evaluation** (no training, off-the-shelf model):
+## Usage
+
+### 1. Generate the Synthetic Dataset
 
 ```bash
-uv run python -m src.evaluation.baseline_eval --config experiments/configs/baseline.yaml
+uv run python -m src.datasets.synthetic_dataset \
+    --output data/synthetic \
+    --num_samples 5000 \
+    --test_ratio 0.2
 ```
+
+### 2. Baseline Evaluation
+
+Evaluate the off-the-shelf model (no fine-tuning):
+
+```bash
+uv run python -m src.evaluation.baseline_eval \
+    --config experiments/configs/baseline.yaml
+```
+
+### 3. Training
+
+The unified entry point auto-detects the training mode from the config
+(`grpo:` section → GRPO, `sft:` section → SFT) and ensures Unsloth is
+imported before torch/transformers when `use_unsloth: true`.
 
 **GRPO Training**:
 
 ```bash
-uv run python -m src.training.grpo_train --config experiments/configs/grpo.yaml
+uv run python -m src.training --config experiments/configs/grpo.yaml
 ```
 
 **SFT Training** (for comparison):
 
 ```bash
-uv run python -m src.training.sft_train --config experiments/configs/sft.yaml
+uv run python -m src.training --config experiments/configs/sft.yaml
 ```
 
-### 3. Evaluation
+**Resume from checkpoint**:
+
+```bash
+uv run python -m src.training --config experiments/configs/grpo.yaml --resume
+```
+
+**Evaluate checkpoints only** (no training):
+
+```bash
+uv run python -m src.training \
+    --config experiments/configs/grpo.yaml \
+    --eval-only experiments/checkpoints/grpo
+```
+
+### 4. Post-Training Evaluation
 
 ```bash
 uv run python -m src.evaluation.evaluate --config experiments/configs/grpo.yaml
 ```
 
----
+## Reward Function
 
-_For the declaration of individual tasks and the use of AI, refer to `docs/REPORT.md`._
+All four components are **additive** and their weights sum to 1.0.
+When `thinking: false`, the reasoning weight is redistributed to the others.
+
+| Component | Weight | Description |
+|---|---|---|
+| **Format** | 0.20 | Presence of a ` ```json ... ``` ` code block (0.5 for generic ` ``` `) |
+| **Validity** | 0.35 | JSON parseable by `json.loads` (graded score) |
+| **Schema** | 0.35 | Structural conformance to prompt constraints (keys, types, counts) |
+| **Reasoning** | 0.10 | `<think>…</think>` block with real content (0 when `thinking: false`) |
+
+## Configs
+
+| Config | Purpose | Key Parameters |
+|---|---|---|
+| [`baseline.yaml`](experiments/configs/baseline.yaml) | Off-the-shelf model evaluation | `temperature: 0.7`, `max_new_tokens: 512` |
+| [`grpo.yaml`](experiments/configs/grpo.yaml) | GRPO fine-tuning | `num_generations: 4`, `max_completion_length: 768`, `beta: 0.04` |
+| [`sft.yaml`](experiments/configs/sft.yaml) | Supervised fine-tuning | `epochs: 3`, `batch_size: 4`, `lr: 2e-5` |
+
+## License
+
+[MIT](LICENSE)

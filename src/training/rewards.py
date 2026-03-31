@@ -322,10 +322,12 @@ def combined_reward(
 ) -> float:
     """Combine all reward components into a single scalar in [0.0, 1.0].
 
-    ``format_reward`` acts as a multiplicative gate: if no code block is
-    present (format=0.0) the whole reward is 0.  A generic ``` block
-    (format=0.5) halves the remaining signal, nudging the model to always
-    use the explicit ```json marker.
+    ``format_reward`` acts as a hard gate: if no code block is present
+    (format=0.0) the whole reward is 0.  Otherwise the format score
+    contributes additively via ``weight_format``, so all four weights are
+    live and the reward can reach 1.0 when every component scores 1.0.
+    A generic ``` block (format=0.5) penalises only the format share,
+    nudging the model to always use the explicit ```json marker.
     """
     fmt = format_reward(completion)
     if fmt == 0.0:
@@ -335,7 +337,7 @@ def combined_reward(
         + weight_schema * schema_reward(completion, instruction)
         + weight_reasoning * reasoning_reward(completion)
     )
-    return fmt * content_reward
+    return weight_format * fmt + content_reward
 
 
 def build_reward_function(

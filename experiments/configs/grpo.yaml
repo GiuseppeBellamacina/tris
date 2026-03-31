@@ -36,7 +36,7 @@ dataset:
   path: "data/synthetic" # percorso del DatasetDict salvato su disco
   split: "train" # split da usare: "train" o "test"
   max_samples: null # null = usa tutti; numero intero = tronca a N samples
-  thinking: true # true = system prompt con <think>...</think>; false = solo JSON puro
+  thinking: false # true = system prompt con <think>...</think>; false = solo JSON puro
 
 # --- Iperparametri di training ---
 training:

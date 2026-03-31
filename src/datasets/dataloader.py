@@ -29,20 +29,32 @@ def load_synthetic_dataset(
     ds_path = Path(path)
     if not ds_path.exists():
         raise FileNotFoundError(
-            f"Dataset not found at {ds_path}. " "Run: python -m src.datasets.synthetic_dataset --output data/synthetic"
+            f"Dataset not found at {ds_path}. "
+            "Run: python -m src.datasets.synthetic_dataset --output data/synthetic"
         )
 
     ds: DatasetDict = load_from_disk(str(ds_path))  # type: ignore[assignment]
-    print(f"[dataset] Loaded from {ds_path}: {{{', '.join(f'{k}: {len(v)}' for k, v in ds.items())}}}")
+    print(
+        f"[dataset] Loaded from {ds_path}: {{{', '.join(f'{k}: {len(v)}' for k, v in ds.items())}}}"
+    )
 
     if split is not None:
         if split not in ds:
-            raise ValueError(f"Split '{split}' not found. Available: {list(ds.keys())}")
+            raise ValueError(
+                f"Split '{split}' not found. Available: {list(ds.keys())}"
+            )
         ds = DatasetDict({split: ds[split]})  # type: ignore[arg-type]
-        print(f"[dataset] Filtered to split='{split}' ({len(ds[split])} samples)")
+        print(
+            f"[dataset] Filtered to split='{split}' ({len(ds[split])} samples)"
+        )
 
     if max_samples is not None:
-        ds = DatasetDict({k: v.select(range(min(max_samples, len(v)))) for k, v in ds.items()})
+        ds = DatasetDict(
+            {
+                k: v.select(range(min(max_samples, len(v))))
+                for k, v in ds.items()
+            }
+        )
         print(f"[dataset] Truncated to max_samples={max_samples}")
 
     return ds
@@ -63,7 +75,9 @@ def format_prompt_for_model(
     ]
 
     if tokenizer is not None and hasattr(tokenizer, "apply_chat_template"):
-        return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        return tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
 
     # Fallback: ChatML format
     parts = []
@@ -73,7 +87,9 @@ def format_prompt_for_model(
     return "\n".join(parts)
 
 
-def prepare_grpo_dataset(ds: Any, tokenizer: Any = None) -> list[dict[str, str]]:
+def prepare_grpo_dataset(
+    ds: Any, tokenizer: Any = None
+) -> list[dict[str, str]]:
     """Prepare dataset for GRPOTrainer — returns list of dicts with 'prompt' key."""
     rows: list[dict[str, str]] = []
     for i in range(len(ds)):
@@ -88,7 +104,9 @@ def prepare_grpo_dataset(ds: Any, tokenizer: Any = None) -> list[dict[str, str]]
     return rows
 
 
-def prepare_sft_dataset(ds: Any, gold_completions: list[str], tokenizer: Any = None) -> list[dict[str, str]]:
+def prepare_sft_dataset(
+    ds: Any, gold_completions: list[str], tokenizer: Any = None
+) -> list[dict[str, str]]:
     """Prepare dataset for SFTTrainer — returns list of dicts with full conversations."""
     rows = []
     for i in range(len(ds)):
@@ -104,7 +122,9 @@ def prepare_sft_dataset(ds: Any, gold_completions: list[str], tokenizer: Any = N
         else:
             parts = []
             for msg in messages:
-                parts.append(f"<|im_start|>{msg['role']}\n{msg['content']}<|im_end|>")
+                parts.append(
+                    f"<|im_start|>{msg['role']}\n{msg['content']}<|im_end|>"
+                )
             text = "\n".join(parts)
 
         rows.append({"text": text})

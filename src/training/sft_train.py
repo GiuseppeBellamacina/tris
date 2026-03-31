@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -113,6 +114,7 @@ def main() -> None:
         max_samples=config["dataset"].get("max_samples"),
     )
     train_ds = ds[config["dataset"].get("split", "train")]
+    print(f"[sft] Training samples: {len(train_ds)}")
 
     # Generate or load gold completions
     output_dir = training_cfg.get("output_dir", "experiments/checkpoints/sft")
@@ -133,19 +135,23 @@ def main() -> None:
 
     sft_data = prepare_sft_dataset(train_ds, gold_completions, tokenizer)
     sft_dataset = Dataset.from_list(sft_data)
+    print(f"[sft] SFT dataset: {len(sft_dataset)} conversation pairs")
 
     # Configure SFT
     log_dir = training_cfg.get("log_dir", "experiments/logs/sft")
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     Path(log_dir).mkdir(parents=True, exist_ok=True)
+    print(f"[sft] output_dir={output_dir} log_dir={log_dir}")
 
     # Initialize wandb
     wandb_cfg = config.get("wandb", {})
     wandb_project = wandb_cfg.get("project", "grpo-strict-generation")
+    wandb_run_name = wandb_cfg.get("run_name", "sft-train")
     os.environ["WANDB_PROJECT"] = wandb_project
+    print(f"[wandb] project={wandb_project} run={wandb_run_name}")
     wandb.init(
         project=wandb_project,
-        name=wandb_cfg.get("run_name", "sft-train"),
+        name=wandb_run_name,
         config=config,
         tags=wandb_cfg.get("tags", ["sft", config["model"]["name"].split("/")[-1]]),
     )
@@ -168,6 +174,7 @@ def main() -> None:
     )
 
     # Initialize trainer
+    print("[sft] Initializing SFTTrainer...")
     trainer = SFTTrainer(
         model=model,
         args=sft_config,

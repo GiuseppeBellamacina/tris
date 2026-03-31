@@ -74,11 +74,11 @@ class TestSchemaReward:
         assert schema_reward("```json\n{bad}\n```", "Generate 3 items.") == 0.0
 
     def test_exact_array_count_match(self):
-        text = '```json\n[1, 2, 3]\n```'
+        text = "```json\n[1, 2, 3]\n```"
         assert schema_reward(text, "Generate an array of 3 items.") == 1.0
 
     def test_exact_array_count_off_by_one(self):
-        text = '```json\n[1, 2]\n```'
+        text = "```json\n[1, 2]\n```"
         score = schema_reward(text, "Generate an array of 3 items.")
         assert score == 0.70
 
@@ -97,11 +97,11 @@ class TestSchemaReward:
         assert schema_reward(text, "Generate a JSON object.") == 1.0
 
     def test_toplevel_array_required(self):
-        text = '```json\n[1, 2]\n```'
+        text = "```json\n[1, 2]\n```"
         assert schema_reward(text, "Generate a JSON array of numbers.") == 1.0
 
     def test_toplevel_object_required_but_got_array(self):
-        text = '```json\n[1, 2]\n```'
+        text = "```json\n[1, 2]\n```"
         assert schema_reward(text, "Generate a JSON object with keys.") == 0.0
 
 
@@ -144,8 +144,7 @@ class TestCombinedReward:
     def test_custom_weights(self):
         text = '```json\n{"x": 1}\n```'
         score = combined_reward(
-            text, weight_format=0.25, weight_validity=0.25,
-            weight_schema=0.25, weight_reasoning=0.25
+            text, weight_format=0.25, weight_validity=0.25, weight_schema=0.25, weight_reasoning=0.25
         )
         assert score == pytest.approx(0.25 + 0.25 + 0.25 + 0.0)
 

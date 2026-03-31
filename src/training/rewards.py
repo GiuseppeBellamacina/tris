@@ -322,22 +322,27 @@ def combined_reward(
 ) -> float:
     """Combine all reward components into a single scalar in [0.0, 1.0].
 
-    ``format_reward`` acts as a hard gate: if no code block is present
-    (format=0.0) the whole reward is 0.  Otherwise the format score
-    contributes additively via ``weight_format``, so all four weights are
-    live and the reward can reach 1.0 when every component scores 1.0.
-    A generic ``` block (format=0.5) penalises only the format share,
-    nudging the model to always use the explicit ```json marker.
+    All four components contribute additively so the function always
+    produces a real signal rather than collapsing to 0 when no code block
+    is present.  This is critical for GRPO: if every completion in the
+    group scored 0 (hard gate triggered for all), the group advantage
+    std = 0 and the policy gradient is exactly 0 — the model never learns
+    to produce code blocks.
+
+    Without a code block:
+      * ``format_reward`` → 0.0  (no penalty elsewhere)
+      * ``validity_reward`` / ``schema_reward`` still try the raw text
+        fallback (``extract_code_block`` parses bare ``{``/``[`` text),
+        so completions containing raw valid JSON still receive partial
+        credit and create the variance GRPO needs.
+      * A generic ``` block (format=0.5) penalises only the format share.
     """
-    fmt = format_reward(completion)
-    if fmt == 0.0:
-        return 0.0
-    content_reward = (
-        weight_validity * validity_reward(completion)
+    return (
+        weight_format * format_reward(completion)
+        + weight_validity * validity_reward(completion)
         + weight_schema * schema_reward(completion, instruction)
         + weight_reasoning * reasoning_reward(completion)
     )
-    return weight_format * fmt + content_reward
 
 
 def build_reward_function(
@@ -402,11 +407,7 @@ def build_reward_function(
         prompts: list[Any] | None = None,
         **kwargs: Any,
     ) -> list[float]:
-        instructions = (
-            [_instruction_from_prompt(p) for p in prompts]
-            if prompts
-            else [""] * len(completions)
-        )
+        instructions = [_instruction_from_prompt(p) for p in prompts] if prompts else [""] * len(completions)
         rewards: list[float] = []
         for completion, instruction in zip(completions, instructions):
             text: str = completion[0]["content"] if isinstance(completion, list) else completion

@@ -59,8 +59,8 @@ training:
 
 # --- Parametri GRPO ---
 grpo:
-  num_generations: 8 # G = dimensione del gruppo per i rollout (4 se OOM)
-  max_completion_length: 512 # lunghezza massima delle completion generate
+  num_generations: 4 # G = dimensione del gruppo per i rollout (ridotto da 8 per bilanciare VRAM con max_completion_length più alto)
+  max_completion_length: 768 # lunghezza massima delle completion generate (alzato da 512 per ridurre clipped_ratio)
   max_prompt_length: 512 # lunghezza massima del prompt (troncato se più lungo)
   beta: 0.04 # coefficiente penalty KL (regola quanto il modello può divergere)
   temperature: 0.9 # temperatura di campionamento durante i rollout (più diversità nel gruppo)
@@ -68,7 +68,7 @@ grpo:
 # --- Pesi della reward function ---
 # Tutti i pesi devono sommare a 1.0.
 reward:
-  weight_format: 0.20 # presenza di un blocco ```json ... ``` corretto (gate duro a 0 se assente; contributo additivo altrimenti)
+  weight_format: 0.20 # presenza di un blocco ```json ... ``` corretto (componente additiva; 0.5 per ``` generico)
   weight_validity: 0.35 # JSON parsabile senza errori (punteggio graduato)
   weight_schema: 0.35 # conformità strutturale ai vincoli del prompt
   weight_reasoning: 0.10 # bonus per <think>...</think> con contenuto reale (ora allineato al system prompt)

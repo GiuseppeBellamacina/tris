@@ -40,10 +40,13 @@ def get_quantization_config(quantization: str) -> BitsAndBytesConfig | None:
 
 def load_tokenizer(model_name: str) -> PreTrainedTokenizerBase:
     """Load and configure the tokenizer."""
+    print(f"[tokenizer] Loading tokenizer: {model_name}")
     tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+        print(f"[tokenizer] pad_token not set → using eos_token ({tokenizer.eos_token!r})")
     tokenizer.padding_side = "left"  # required for generation with batched inputs
+    print(f"[tokenizer] padding_side=left, vocab_size={tokenizer.vocab_size}")
     return tokenizer
 
 
@@ -56,6 +59,7 @@ def load_model(
     """Load a causal LM with optional quantization."""
     torch_dtype = getattr(torch, dtype, torch.bfloat16)
     quant_config = get_quantization_config(quantization)
+    print(f"[model] Loading {model_name} (quantization={quantization}, dtype={dtype}, device_map={device_map})")
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
@@ -78,6 +82,8 @@ def apply_lora(
     """Apply LoRA adapters to the model via PEFT."""
     if target_modules is None:
         target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+    print(f"[lora] Applying LoRA: r={r}, alpha={lora_alpha}, dropout={lora_dropout}, targets={target_modules}")
 
     # Prepare for k-bit training if quantized
     if getattr(model, "is_loaded_in_4bit", False) or getattr(model, "is_loaded_in_8bit", False):
@@ -117,8 +123,10 @@ def load_model_and_tokenizer(
     use_unsloth = model_cfg.get("use_unsloth", False)
 
     if use_unsloth:
+        print("[model] Backend: Unsloth")
         return _load_with_unsloth(config)
 
+    print("[model] Backend: HuggingFace (transformers + peft)")
     model = load_model(
         model_name=model_cfg["name"],
         quantization=model_cfg.get("quantization", "4bit"),
@@ -183,6 +191,9 @@ def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrai
     # Map quantization string to load_in_4bit flag
     quantization = model_cfg.get("quantization", "4bit")
     load_in_4bit = quantization == "4bit"
+    print(
+        f"[unsloth] Loading {model_cfg['name']} (quantization={quantization}, max_seq_length={model_cfg.get('max_seq_length', 2048)})"
+    )
 
     # Resolve fast_inference availability
     use_fast_inference = _resolve_fast_inference(model_cfg)
@@ -208,6 +219,9 @@ def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrai
         target_modules = lora_cfg.get(
             "target_modules",
             ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        )
+        print(
+            f"[unsloth-lora] r={lora_cfg.get('r', 16)}, alpha={lora_cfg.get('lora_alpha', 32)}, targets={target_modules}"
         )
         model = FastLanguageModel.get_peft_model(
             model,

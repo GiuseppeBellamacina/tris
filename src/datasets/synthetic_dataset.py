@@ -101,16 +101,23 @@ def main() -> None:
     parser.add_argument("--test_ratio", type=float, default=0.2, help="Fraction for test split")
     parser.add_argument("--config", type=str, default=None, help="Path to YAML config (legge dataset.thinking)")
     thinking_group = parser.add_mutually_exclusive_group()
-    thinking_group.add_argument("--thinking", dest="thinking", action="store_true", default=None,
-                                help="Abilita <think>...</think> nel system prompt (override config)")
-    thinking_group.add_argument("--no-thinking", dest="thinking", action="store_false",
-                                help="Disabilita thinking (override config)")
+    thinking_group.add_argument(
+        "--thinking",
+        dest="thinking",
+        action="store_true",
+        default=None,
+        help="Abilita <think>...</think> nel system prompt (override config)",
+    )
+    thinking_group.add_argument(
+        "--no-thinking", dest="thinking", action="store_false", help="Disabilita thinking (override config)"
+    )
     args = parser.parse_args()
 
     # Resolve thinking flag: CLI > config file > default (True)
     thinking: bool = True
     if args.config is not None:
         from src.utils.config import load_config as _load_config
+
         cfg = _load_config(args.config)
         thinking = cfg.get("dataset", {}).get("thinking", True)
     if args.thinking is not None:  # CLI flag overrides config

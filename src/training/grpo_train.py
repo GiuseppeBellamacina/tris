@@ -1,6 +1,11 @@
 """GRPO training script using trl GRPOTrainer.
 
-Usage:
+Preferred entry point (ensures Unsloth is imported before torch/trl)::
+
+    python -m src.training --config experiments/configs/grpo.yaml
+
+Direct invocation (Unsloth NOT guaranteed to patch before torch)::
+
     python -m src.training.grpo_train --config experiments/configs/grpo.yaml
 """
 
@@ -8,16 +13,21 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
+import torch
 import wandb
 from dotenv import load_dotenv
 from trl import GRPOConfig, GRPOTrainer
 
 from datasets import Dataset
 from src.datasets.dataloader import format_prompt_for_model, load_synthetic_dataset
+from src.evaluation.baseline_eval import generate_completions
+from src.evaluation.evaluate import compute_detailed_metrics
 from src.models.model_loader import load_model_and_tokenizer
+from src.training.callbacks import HighPrecisionLogCallback
 from src.training.rewards import build_reward_function
 from src.utils.config import load_config
 
@@ -85,13 +95,32 @@ def _prepare_prompt_dataset(config: dict[str, Any], tokenizer: Any) -> Dataset:
 def main() -> None:
     parser = argparse.ArgumentParser(description="GRPO training for strict code/JSON generation")
     parser.add_argument("--config", type=str, required=True, help="Path to config YAML")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume training from the latest checkpoint in output_dir",
+    )
+    parser.add_argument(
+        "--eval-only",
+        type=str,
+        default=None,
+        metavar="CHECKPOINT_DIR",
+        help="Skip training. Evaluate checkpoints in the given directory "
+        "(e.g. experiments/checkpoints/grpo) and select the best one.",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
 
+    # ── Eval-only mode ────────────────────────────────────────────────────
+    if args.eval_only:
+        _select_best_checkpoint(config, args.eval_only)
+        return
+
     # Enable vLLM standby if fast_inference is requested
     if config.get("model", {}).get("fast_inference", False):
         os.environ["UNSLOTH_VLLM_STANDBY"] = "1"
+        print("[grpo] UNSLOTH_VLLM_STANDBY=1 (fast_inference requested)")
 
     # Load model and tokenizer
     print(f"Loading model: {config['model']['name']}")
@@ -100,46 +129,178 @@ def main() -> None:
     # Prepare dataset
     print("Loading dataset...")
     prompt_dataset = _prepare_prompt_dataset(config, tokenizer)
+    print(f"[grpo] Training dataset: {len(prompt_dataset)} prompts")
 
     # Build reward function
     thinking = config.get("dataset", {}).get("thinking", True)
+    print(f"[grpo] thinking={'on' if thinking else 'off'}")
     reward_fn = build_reward_function(config["reward"], thinking=thinking)
 
     # Build GRPO config
     grpo_config = _build_grpo_config(config["training"], config["grpo"])
+    print(
+        f"[grpo] Hyperparams: max_steps={grpo_config.max_steps} "
+        f"batch={grpo_config.per_device_train_batch_size} "
+        f"grad_accum={grpo_config.gradient_accumulation_steps} "
+        f"lr={grpo_config.learning_rate} "
+        f"num_gen={grpo_config.num_generations} "
+        f"beta={grpo_config.beta} "
+        f"max_completion={grpo_config.max_completion_length}"
+    )
+
+    # ── Find resume checkpoint ────────────────────────────────────────────
+    resume_from: str | None = None
+    if args.resume:
+        ckpts = sorted(Path(grpo_config.output_dir).glob("checkpoint-*"))
+        if ckpts:
+            resume_from = str(ckpts[-1])
+            print(f"Resuming from {resume_from}")
+        else:
+            print("No checkpoint found, starting from scratch.")
 
     # Initialize wandb
     wandb_cfg = config.get("wandb", {})
     wandb_project = wandb_cfg.get("project", "grpo-strict-generation")
+    wandb_run_name = wandb_cfg.get("run_name", "grpo-train")
     os.environ["WANDB_PROJECT"] = wandb_project
+    print(f"[wandb] project={wandb_project} run={wandb_run_name}")
     wandb.init(
         project=wandb_project,
-        name=wandb_cfg.get("run_name", "grpo-train"),
+        name=wandb_run_name,
         config=config,
         tags=wandb_cfg.get("tags", ["grpo", config["model"]["name"].split("/")[-1]]),
+        resume="allow" if args.resume else None,
     )
 
     # Initialize trainer
+    print("[grpo] Initializing GRPOTrainer...")
     trainer = GRPOTrainer(
         model=model,  # type: ignore[arg-type]
         args=grpo_config,
         train_dataset=prompt_dataset,
         reward_funcs=reward_fn,  # type: ignore[arg-type]
         processing_class=tokenizer,  # type: ignore[arg-type]
+        callbacks=[HighPrecisionLogCallback()],
     )
 
     # Train
     print("Starting GRPO training...")
-    trainer.train()
+    trainer.train(resume_from_checkpoint=resume_from)
 
     # Save final model
     final_path = Path(grpo_config.output_dir) / "final"
+    print(f"[grpo] Saving final model to {final_path}...")
     trainer.save_model(str(final_path))
     tokenizer.save_pretrained(str(final_path))  # type: ignore[union-attr]
     print(f"Final model saved to {final_path}")
 
     wandb.finish()
 
+    # ── Post-training checkpoint evaluation ───────────────────────────────
+    # Evaluate all saved checkpoints + final on a fixed test set and pick
+    # the one with the highest overall pass rate.
+    _select_best_checkpoint(config, grpo_config.output_dir)
+
+
+def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
+    """Evaluate each checkpoint on the test set and symlink the best one."""
+    output_path = Path(output_dir)
+
+    # Collect all candidate directories
+    candidates: list[Path] = []
+    final = output_path / "final"
+    if final.exists():
+        candidates.append(final)
+    for ckpt in sorted(output_path.glob("checkpoint-*")):
+        if ckpt.is_dir():
+            candidates.append(ckpt)
+
+    if len(candidates) <= 1:
+        print("Only one checkpoint found, skipping selection.")
+        return
+
+    # Load test set
+    ds = load_synthetic_dataset(
+        path=config["dataset"]["path"],
+        split="test",
+    )
+    test_ds = ds["test"]
+    max_eval = min(200, len(test_ds))
+    eval_ds = test_ds.select(range(max_eval))
+    difficulties = list(eval_ds["difficulty"])
+
+    gen_config = {
+        "max_new_tokens": config["grpo"].get("max_completion_length", 512),
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "do_sample": True,
+    }
+
+    best_path: Path | None = None
+    best_pass_rate: float = -1.0
+    results: list[tuple[str, float]] = []
+
+    # Build a config without LoRA (adapters are merged in checkpoints)
+    # and without fast_inference to avoid vLLM conflicts
+    eval_model_config = {"model": {**config["model"], "fast_inference": False}}
+    if "lora" in eval_model_config:
+        del eval_model_config["lora"]
+
+    for ckpt_path in candidates:
+        print(f"\nEvaluating {ckpt_path.name}...")
+        # Override model name to load from checkpoint
+        ckpt_config = {**eval_model_config, "model": {**eval_model_config["model"], "name": str(ckpt_path)}}
+        try:
+            ckpt_model, ckpt_tokenizer = load_model_and_tokenizer(ckpt_config)
+        except Exception as e:
+            print(f"  Failed to load {ckpt_path.name}: {e}")
+            continue
+
+        prompts = [format_prompt_for_model(eval_ds[i], ckpt_tokenizer) for i in range(len(eval_ds))]
+        completions = generate_completions(
+            model=ckpt_model,
+            tokenizer=ckpt_tokenizer,
+            prompts=prompts,
+            generation_config=gen_config,
+            num_return_sequences=1,
+            batch_size=4,
+        )
+        first = [c[0] for c in completions]
+        metrics = compute_detailed_metrics(first, difficulties)
+        pr = metrics["overall_pass_rate"]
+        results.append((ckpt_path.name, pr))
+        print(f"  {ckpt_path.name}: pass@1 = {pr:.4f}")
+
+        if pr > best_pass_rate:
+            best_pass_rate = pr
+            best_path = ckpt_path
+
+        # Free memory
+        del ckpt_model, ckpt_tokenizer
+        torch.cuda.empty_cache()
+
+    # Summary
+    print(f"\n{'='*50}")
+    print("Checkpoint evaluation results:")
+    print(f"{'='*50}")
+    for name, pr in results:
+        marker = " <-- BEST" if name == (best_path.name if best_path else "") else ""
+        print(f"  {name}: {pr:.4f}{marker}")
+
+    if best_path and best_path.name != "final":
+        # Copy best checkpoint as "best"
+        best_dest = output_path / "best"
+        if best_dest.exists():
+            shutil.rmtree(best_dest)
+        shutil.copytree(best_path, best_dest)
+        print(f"\nBest checkpoint ({best_path.name}) copied to {best_dest}")
+    elif best_path:
+        print(f"\nFinal model is already the best (pass@1 = {best_pass_rate:.4f})")
+
 
 if __name__ == "__main__":
+    print(
+        "WARNING: prefer 'python -m src.training --config ...' to ensure "
+        "Unsloth is imported before torch/transformers/trl."
+    )
     main()

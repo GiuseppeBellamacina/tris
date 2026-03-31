@@ -33,14 +33,17 @@ def load_synthetic_dataset(
         )
 
     ds: DatasetDict = load_from_disk(str(ds_path))  # type: ignore[assignment]
+    print(f"[dataset] Loaded from {ds_path}: {{{', '.join(f'{k}: {len(v)}' for k, v in ds.items())}}}")
 
     if split is not None:
         if split not in ds:
             raise ValueError(f"Split '{split}' not found. Available: {list(ds.keys())}")
         ds = DatasetDict({split: ds[split]})  # type: ignore[arg-type]
+        print(f"[dataset] Filtered to split='{split}' ({len(ds[split])} samples)")
 
     if max_samples is not None:
         ds = DatasetDict({k: v.select(range(min(max_samples, len(v)))) for k, v in ds.items()})
+        print(f"[dataset] Truncated to max_samples={max_samples}")
 
     return ds
 

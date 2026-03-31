@@ -12,11 +12,16 @@ Direct invocation (Unsloth NOT guaranteed to patch before torch)::
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 from pathlib import Path
 from typing import Any
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import torch
 import wandb
 from dotenv import load_dotenv
@@ -27,7 +32,7 @@ from src.datasets.dataloader import format_prompt_for_model, load_synthetic_data
 from src.evaluation.baseline_eval import generate_completions
 from src.evaluation.evaluate import compute_detailed_metrics
 from src.models.model_loader import load_model_and_tokenizer
-from src.training.callbacks import HighPrecisionLogCallback
+from src.training.callbacks import HighPrecisionLogCallback, WandbAlertCallback
 from src.training.rewards import build_reward_function
 from src.utils.config import load_config
 
@@ -180,7 +185,7 @@ def main() -> None:
         train_dataset=prompt_dataset,
         reward_funcs=reward_fn,  # type: ignore[arg-type]
         processing_class=tokenizer,  # type: ignore[arg-type]
-        callbacks=[HighPrecisionLogCallback()],
+        callbacks=[HighPrecisionLogCallback(), WandbAlertCallback()],
     )
 
     # Train
@@ -297,10 +302,37 @@ def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
     elif best_path:
         print(f"\nFinal model is already the best (pass@1 = {best_pass_rate:.4f})")
 
+    # ── Save results as JSON ──────────────────────────────────────────
+    results_json = {
+        "checkpoints": [{"name": n, "pass_rate": p} for n, p in results],
+        "best": best_path.name if best_path else None,
+        "best_pass_rate": best_pass_rate,
+    }
+    json_path = output_path / "checkpoint_eval_results.json"
+    json_path.write_text(json.dumps(results_json, indent=2), encoding="utf-8")
+    print(f"Checkpoint eval results saved to {json_path}")
+
+    # ── Save comparison figure ────────────────────────────────────────
+    if results:
+        names = [n for n, _ in results]
+        rates = [p for _, p in results]
+        fig, ax = plt.subplots(figsize=(max(6, len(names) * 1.2), 4))
+        colors = ["#4CAF50" if n == (best_path.name if best_path else "") else "#2196F3" for n in names]
+        ax.bar(names, rates, color=colors)
+        ax.set_ylabel("Pass@1")
+        ax.set_title("Checkpoint Evaluation – Pass@1")
+        ax.set_ylim(0, 1)
+        for i, v in enumerate(rates):
+            ax.text(i, v + 0.02, f"{v:.3f}", ha="center", fontsize=9)
+        fig.tight_layout()
+        figures_dir = Path("figures")
+        figures_dir.mkdir(parents=True, exist_ok=True)
+        fig_path = figures_dir / "checkpoint_eval_pass_rates.png"
+        fig.savefig(fig_path, dpi=150)
+        plt.close(fig)
+        print(f"Figure saved to {fig_path}")
+
 
 if __name__ == "__main__":
-    print(
-        "WARNING: prefer 'python -m src.training --config ...' to ensure "
-        "Unsloth is imported before torch/transformers/trl."
-    )
+    print("WARNING: prefer 'python -m src.training --config ...' to ensure " "Unsloth is imported before torch/transformers/trl.")
     main()

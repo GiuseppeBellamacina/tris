@@ -20,8 +20,7 @@ Template = dict[str, str | Callable[[], dict[str, Any]]]
 SIMPLE: list[Template] = [
     {
         "instruction": (
-            "Generate a valid JSON object with the following keys: "
-            '"{k1}" (string), "{k2}" (integer), "{k3}" (boolean).'
+            "Generate a valid JSON object with the following keys: " '"{k1}" (string), "{k2}" (integer), "{k3}" (boolean).'
         ),
         "params": lambda: {
             "k1": random.choice(["name", "title", "label", "city", "color", "brand", "category"]),
@@ -98,8 +97,7 @@ SIMPLE: list[Template] = [
     },
     {
         "instruction": (
-            "Generate a JSON array of exactly {n} objects, each containing "
-            'only a "{k1}" (string) and a "{k2}" (integer).'
+            "Generate a JSON array of exactly {n} objects, each containing " 'only a "{k1}" (string) and a "{k2}" (integer).'
         ),
         "params": lambda: {
             "n": random.randint(2, 5),
@@ -109,8 +107,7 @@ SIMPLE: list[Template] = [
     },
     {
         "instruction": (
-            'Generate a JSON object with a "{k1}" key (string) and a "{k2}" key '
-            "containing a flat array of {n} {elem_type}."
+            'Generate a JSON object with a "{k1}" key (string) and a "{k2}" key ' "containing a flat array of {n} {elem_type}."
         ),
         "params": lambda: {
             "k1": random.choice(["category", "group", "type", "section"]),
@@ -121,8 +118,7 @@ SIMPLE: list[Template] = [
     },
     {
         "instruction": (
-            "Generate a valid JSON object representing a key-value mapping "
-            "of {n} {domain} abbreviations to their full names."
+            "Generate a valid JSON object representing a key-value mapping " "of {n} {domain} abbreviations to their full names."
         ),
         "params": lambda: {
             "n": random.randint(3, 6),
@@ -225,9 +221,7 @@ MEDIUM: list[Template] = [
                 ]
             ),
             "n": random.randint(2, 5),
-            "sub_entity": random.choice(
-                ["students", "items", "tracks", "tasks", "members", "dishes", "stops", "products"]
-            ),
+            "sub_entity": random.choice(["students", "items", "tracks", "tasks", "members", "dishes", "stops", "products"]),
         },
     },
     {

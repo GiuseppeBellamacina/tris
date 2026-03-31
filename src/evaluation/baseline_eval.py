@@ -11,6 +11,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import torch
 import wandb
 from dotenv import load_dotenv
@@ -198,7 +202,35 @@ def main() -> None:
     wandb_metrics["overall_pass_rate"] = detailed["overall_pass_rate"]
     for cat, stats in detailed["per_category"].items():
         wandb_metrics[f"pass_rate/{cat}"] = stats["pass_rate"]
-    wandb.log(wandb_metrics)
+
+    # Bar chart + scalari per wandb
+    table_data = [[k, v] for k, v in wandb_metrics.items()]
+    bar_table = wandb.Table(data=table_data, columns=["metric", "value"])
+    wandb.log(
+        {
+            "eval/pass_rates": wandb.plot.bar(bar_table, "metric", "value", title="Evaluation Pass Rates"),
+            **wandb_metrics,
+        }
+    )
+
+    # ── Save comparison figure ────────────────────────────────────────
+    categories = list(detailed["per_category"].keys())
+    cat_rates = [detailed["per_category"][c]["pass_rate"] for c in categories]
+    fig, ax = plt.subplots(figsize=(max(6, len(categories) * 1.2), 4))
+    ax.bar(categories, cat_rates, color="#2196F3")
+    ax.set_ylabel("Pass@1")
+    ax.set_title(f"Baseline Evaluation – {model_cfg['name'].split('/')[-1]}")
+    ax.set_ylim(0, 1)
+    for i, v in enumerate(cat_rates):
+        ax.text(i, v + 0.02, f"{v:.3f}", ha="center", fontsize=9)
+    fig.tight_layout()
+    figures_dir = Path("figures")
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    fig_path = figures_dir / "baseline_eval_pass_rates.png"
+    fig.savefig(fig_path, dpi=150)
+    plt.close(fig)
+    print(f"Figure saved to {fig_path}")
+
     wandb.finish()
 
 

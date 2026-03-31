@@ -253,6 +253,10 @@ def schema_reward(completion: str, instruction: str) -> float:
     exact = _extract_exact_count(instruction)
     if exact is not None:
         lengths = _collect_array_lengths(parsed)
+        # Fallback: if no arrays found and top-level is a dict, use the
+        # number of keys (handles "exactly N key-value pairs" templates).
+        if not lengths and isinstance(parsed, dict):
+            lengths.append(len(parsed))
         if lengths:
             closest = min(lengths, key=lambda n: abs(n - exact))
             diff = abs(closest - exact)

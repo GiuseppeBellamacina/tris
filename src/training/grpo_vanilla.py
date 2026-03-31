@@ -301,14 +301,10 @@ def train(cfg: GRPOConfig) -> None:
     tokenizer.padding_side = "left"
 
     # Active policy π_θ (will be updated)
-    model = AutoModelForCausalLM.from_pretrained(cfg.model_name, dtype=torch.bfloat16, trust_remote_code=True).to(
-        device
-    )
+    model = AutoModelForCausalLM.from_pretrained(cfg.model_name, dtype=torch.bfloat16, trust_remote_code=True).to(device)
 
     # Reference policy π_ref (frozen copy — never updated)
-    ref_model = AutoModelForCausalLM.from_pretrained(cfg.model_name, dtype=torch.bfloat16, trust_remote_code=True).to(
-        device
-    )
+    ref_model = AutoModelForCausalLM.from_pretrained(cfg.model_name, dtype=torch.bfloat16, trust_remote_code=True).to(device)
     ref_model.eval()
     for p in ref_model.parameters():
         p.requires_grad = False

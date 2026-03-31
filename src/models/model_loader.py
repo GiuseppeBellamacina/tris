@@ -220,9 +220,7 @@ def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrai
             "target_modules",
             ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         )
-        print(
-            f"[unsloth-lora] r={lora_cfg.get('r', 16)}, alpha={lora_cfg.get('lora_alpha', 32)}, targets={target_modules}"
-        )
+        print(f"[unsloth-lora] r={lora_cfg.get('r', 16)}, alpha={lora_cfg.get('lora_alpha', 32)}, targets={target_modules}")
         model = FastLanguageModel.get_peft_model(
             model,
             r=lora_cfg.get("r", 16),

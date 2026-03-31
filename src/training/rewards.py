@@ -40,7 +40,9 @@ def extract_code_block(text: str, language: str) -> str | None:
         return match.group(1).strip()
 
     stripped = text.strip()
-    if language == "json" and (stripped.startswith("{") or stripped.startswith("[")):
+    if language == "json" and (
+        stripped.startswith("{") or stripped.startswith("[")
+    ):
         return stripped
 
     return None
@@ -103,7 +105,9 @@ def _extract_exact_count(instruction: str) -> int | None:
     m = re.search(r"exactly\s+(\d+)", instruction, re.IGNORECASE)
     if m:
         return int(m.group(1))
-    units = r"items?|objects?|elements?|steps?|widgets?|operations?|tasks?|entries?"
+    units = (
+        r"items?|objects?|elements?|steps?|widgets?|operations?|tasks?|entries?"
+    )
     m = re.search(rf"(\d+)\s+(?:{units})", instruction, re.IGNORECASE)
     if m:
         return int(m.group(1))
@@ -275,7 +279,11 @@ def schema_reward(completion: str, instruction: str) -> float:
     minimum = _extract_min_count(instruction)
     if minimum is not None:
         lengths = _collect_array_lengths(parsed)
-        best = max(lengths) if lengths else (len(parsed) if isinstance(parsed, dict) else 0)
+        best = (
+            max(lengths)
+            if lengths
+            else (len(parsed) if isinstance(parsed, dict) else 0)
+        )
         scores.append(min(best / minimum, 1.0))
 
     # 3. Required keys
@@ -382,7 +390,9 @@ def build_reward_function(
         weight_format = reward_config.get("weight_format", weight_format)
         weight_validity = reward_config.get("weight_validity", weight_validity)
         weight_schema = reward_config.get("weight_schema", weight_schema)
-        weight_reasoning = reward_config.get("weight_reasoning", weight_reasoning)
+        weight_reasoning = reward_config.get(
+            "weight_reasoning", weight_reasoning
+        )
 
     if not thinking:
         # Redistribute the reasoning share to validity and schema proportionally
@@ -411,10 +421,18 @@ def build_reward_function(
         prompts: list[Any] | None = None,
         **kwargs: Any,
     ) -> list[float]:
-        instructions = [_instruction_from_prompt(p) for p in prompts] if prompts else [""] * len(completions)
+        instructions = (
+            [_instruction_from_prompt(p) for p in prompts]
+            if prompts
+            else [""] * len(completions)
+        )
         rewards: list[float] = []
         for completion, instruction in zip(completions, instructions):
-            text: str = completion[0]["content"] if isinstance(completion, list) else completion
+            text: str = (
+                completion[0]["content"]
+                if isinstance(completion, list)
+                else completion
+            )
             rewards.append(
                 combined_reward(
                     text,

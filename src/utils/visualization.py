@@ -31,7 +31,13 @@ def plot_pass_at_k_comparison(
     for i, model_name in enumerate(models):
         values = [results[model_name].get(m, 0) for m in metrics]
         offset = (i - len(models) / 2 + 0.5) * width
-        bars = ax.bar([xi + offset for xi in x], values, width, label=model_name, alpha=0.85)
+        bars = ax.bar(
+            [xi + offset for xi in x],
+            values,
+            width,
+            label=model_name,
+            alpha=0.85,
+        )
         for bar, val in zip(bars, values):
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
@@ -113,11 +119,18 @@ def plot_error_distribution(
         return
 
     # Top 10 errors
-    sorted_errors = sorted(errors.items(), key=lambda x: x[1], reverse=True)[:10]
+    sorted_errors = sorted(errors.items(), key=lambda x: x[1], reverse=True)[
+        :10
+    ]
     labels, counts = zip(*sorted_errors)
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.barh(labels, counts, color=sns.color_palette("Reds_r", len(labels)), alpha=0.85)
+    ax.barh(
+        labels,
+        counts,
+        color=sns.color_palette("Reds_r", len(labels)),
+        alpha=0.85,
+    )
     ax.set_xlabel("Count")
     ax.set_title("Top Error Types")
     ax.invert_yaxis()
@@ -151,7 +164,9 @@ def plot_training_reward_curve(
                 break
 
     if not state_path.exists():
-        print(f"No trainer_state.json found near {log_dir}. Skipping reward curve.")
+        print(
+            f"No trainer_state.json found near {log_dir}. Skipping reward curve."
+        )
         return
 
     state = json.loads(state_path.read_text(encoding="utf-8"))

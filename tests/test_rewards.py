@@ -108,7 +108,9 @@ class TestSchemaReward:
 class TestReasoningReward:
     def test_with_reasoning(self):
         text = (
-            "<think>Let me think about this problem carefully" " and plan the solution step by step.</think>\n" "```json\n{}\n```"
+            "<think>Let me think about this problem carefully"
+            " and plan the solution step by step.</think>\n"
+            "```json\n{}\n```"
         )
         assert reasoning_reward(text) == 1.0
 
@@ -141,7 +143,13 @@ class TestCombinedReward:
 
     def test_custom_weights(self):
         text = '```json\n{"x": 1}\n```'
-        score = combined_reward(text, weight_format=0.25, weight_validity=0.25, weight_schema=0.25, weight_reasoning=0.25)
+        score = combined_reward(
+            text,
+            weight_format=0.25,
+            weight_validity=0.25,
+            weight_schema=0.25,
+            weight_reasoning=0.25,
+        )
         assert score == pytest.approx(0.25 + 0.25 + 0.25 + 0.0)
 
 

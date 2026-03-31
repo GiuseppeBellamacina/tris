@@ -28,7 +28,10 @@ from dotenv import load_dotenv
 from trl import GRPOConfig, GRPOTrainer
 
 from datasets import Dataset
-from src.datasets.dataloader import format_prompt_for_model, load_synthetic_dataset
+from src.datasets.dataloader import (
+    format_prompt_for_model,
+    load_synthetic_dataset,
+)
 from src.evaluation.baseline_eval import generate_completions
 from src.evaluation.evaluate import compute_detailed_metrics
 from src.models.model_loader import load_model_and_tokenizer
@@ -39,7 +42,9 @@ from src.utils.config import load_config
 load_dotenv()
 
 
-def _build_grpo_config(training_cfg: dict[str, Any], grpo_cfg: dict[str, Any]) -> GRPOConfig:
+def _build_grpo_config(
+    training_cfg: dict[str, Any], grpo_cfg: dict[str, Any]
+) -> GRPOConfig:
     """Build a ``GRPOConfig`` from separated training and GRPO config dicts."""
     output_dir = training_cfg.get("output_dir", "experiments/checkpoints/grpo")
     log_dir = training_cfg.get("log_dir", "experiments/logs/grpo")
@@ -56,8 +61,12 @@ def _build_grpo_config(training_cfg: dict[str, Any], grpo_cfg: dict[str, Any]) -
     return GRPOConfig(
         output_dir=output_dir,
         max_steps=training_cfg.get("max_steps", 1000),
-        per_device_train_batch_size=training_cfg.get("per_device_train_batch_size", 1),
-        gradient_accumulation_steps=training_cfg.get("gradient_accumulation_steps", 8),
+        per_device_train_batch_size=training_cfg.get(
+            "per_device_train_batch_size", 1
+        ),
+        gradient_accumulation_steps=training_cfg.get(
+            "gradient_accumulation_steps", 8
+        ),
         learning_rate=training_cfg.get("learning_rate", 5e-6),
         lr_scheduler_type=training_cfg.get("lr_scheduler_type", "cosine"),
         **warmup_kwargs,
@@ -98,8 +107,12 @@ def _prepare_prompt_dataset(config: dict[str, Any], tokenizer: Any) -> Dataset:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="GRPO training for strict code/JSON generation")
-    parser.add_argument("--config", type=str, required=True, help="Path to config YAML")
+    parser = argparse.ArgumentParser(
+        description="GRPO training for strict code/JSON generation"
+    )
+    parser.add_argument(
+        "--config", type=str, required=True, help="Path to config YAML"
+    )
     parser.add_argument(
         "--resume",
         action="store_true",
@@ -173,7 +186,9 @@ def main() -> None:
         project=wandb_project,
         name=wandb_run_name,
         config=config,
-        tags=wandb_cfg.get("tags", ["grpo", config["model"]["name"].split("/")[-1]]),
+        tags=wandb_cfg.get(
+            "tags", ["grpo", config["model"]["name"].split("/")[-1]]
+        ),
         resume="allow" if args.resume else None,
     )
 
@@ -254,14 +269,20 @@ def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
     for ckpt_path in candidates:
         print(f"\nEvaluating {ckpt_path.name}...")
         # Override model name to load from checkpoint
-        ckpt_config = {**eval_model_config, "model": {**eval_model_config["model"], "name": str(ckpt_path)}}
+        ckpt_config = {
+            **eval_model_config,
+            "model": {**eval_model_config["model"], "name": str(ckpt_path)},
+        }
         try:
             ckpt_model, ckpt_tokenizer = load_model_and_tokenizer(ckpt_config)
         except Exception as e:
             print(f"  Failed to load {ckpt_path.name}: {e}")
             continue
 
-        prompts = [format_prompt_for_model(eval_ds[i], ckpt_tokenizer) for i in range(len(eval_ds))]
+        prompts = [
+            format_prompt_for_model(eval_ds[i], ckpt_tokenizer)
+            for i in range(len(eval_ds))
+        ]
         completions = generate_completions(
             model=ckpt_model,
             tokenizer=ckpt_tokenizer,
@@ -289,7 +310,9 @@ def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
     print("Checkpoint evaluation results:")
     print(f"{'='*50}")
     for name, pr in results:
-        marker = " <-- BEST" if name == (best_path.name if best_path else "") else ""
+        marker = (
+            " <-- BEST" if name == (best_path.name if best_path else "") else ""
+        )
         print(f"  {name}: {pr:.4f}{marker}")
 
     if best_path and best_path.name != "final":
@@ -300,7 +323,9 @@ def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
         shutil.copytree(best_path, best_dest)
         print(f"\nBest checkpoint ({best_path.name}) copied to {best_dest}")
     elif best_path:
-        print(f"\nFinal model is already the best (pass@1 = {best_pass_rate:.4f})")
+        print(
+            f"\nFinal model is already the best (pass@1 = {best_pass_rate:.4f})"
+        )
 
     # ── Save results as JSON ──────────────────────────────────────────
     results_json = {
@@ -317,7 +342,14 @@ def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
         names = [n for n, _ in results]
         rates = [p for _, p in results]
         fig, ax = plt.subplots(figsize=(max(6, len(names) * 1.2), 4))
-        colors = ["#4CAF50" if n == (best_path.name if best_path else "") else "#2196F3" for n in names]
+        colors = [
+            (
+                "#4CAF50"
+                if n == (best_path.name if best_path else "")
+                else "#2196F3"
+            )
+            for n in names
+        ]
         ax.bar(names, rates, color=colors)
         ax.set_ylabel("Pass@1")
         ax.set_title("Checkpoint Evaluation – Pass@1")
@@ -334,5 +366,8 @@ def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
 
 
 if __name__ == "__main__":
-    print("WARNING: prefer 'python -m src.training --config ...' to ensure " "Unsloth is imported before torch/transformers/trl.")
+    print(
+        "WARNING: prefer 'python -m src.training --config ...' to ensure "
+        "Unsloth is imported before torch/transformers/trl."
+    )
     main()

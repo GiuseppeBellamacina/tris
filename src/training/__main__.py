@@ -47,7 +47,9 @@ _cfg = _peek_config(_early_args.config) if _early_args.config else {}
 
 # Unsloth early import — must happen before torch/transformers/trl
 if _cfg.get("model", {}).get("use_unsloth", False):
-    print("[bootstrap] use_unsloth=True → importing Unsloth before torch/transformers/trl")
+    print(
+        "[bootstrap] use_unsloth=True → importing Unsloth before torch/transformers/trl"
+    )
     import unsloth as _unsloth  # noqa: F401
 
 # Dispatch to the correct training script

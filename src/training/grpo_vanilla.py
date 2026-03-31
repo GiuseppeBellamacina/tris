@@ -70,7 +70,9 @@ def _extract_code_block(text: str, language: str) -> str | None:
     if m:
         return m.group(1).strip()
     stripped = text.strip()
-    if language == "json" and (stripped.startswith("{") or stripped.startswith("[")):
+    if language == "json" and (
+        stripped.startswith("{") or stripped.startswith("[")
+    ):
         return stripped
     return None
 
@@ -92,21 +94,27 @@ def compute_reward(completion: str) -> float:
 
 DEMO_PROMPTS = [
     {
-        "system": "You are a helpful assistant that generates valid JSON. " "Respond ONLY with a JSON code block.",
+        "system": "You are a helpful assistant that generates valid JSON. "
+        "Respond ONLY with a JSON code block.",
         "user": 'Generate a JSON object with keys "name" (string), "age" (integer), "active" (boolean).',
     },
     {
-        "system": "You are a helpful assistant that generates valid JSON. " "Respond ONLY with a JSON code block.",
-        "user": "Generate a JSON array of 3 objects, each with keys " '"id" (integer) and "value" (string).',
+        "system": "You are a helpful assistant that generates valid JSON. "
+        "Respond ONLY with a JSON code block.",
+        "user": "Generate a JSON array of 3 objects, each with keys "
+        '"id" (integer) and "value" (string).',
     },
     {
-        "system": "You are a helpful assistant that generates valid JSON. " "Respond ONLY with a JSON code block.",
+        "system": "You are a helpful assistant that generates valid JSON. "
+        "Respond ONLY with a JSON code block.",
         "user": 'Generate a JSON object representing a user profile with "username" (string), '
         '"email" (string), "age" (integer), and "is_active" (boolean).',
     },
     {
-        "system": "You are a helpful assistant that generates valid JSON. " "Respond ONLY with a JSON code block.",
-        "user": 'Generate a JSON object with a "title" (string) and a "tags" key ' "containing an array of 4 strings.",
+        "system": "You are a helpful assistant that generates valid JSON. "
+        "Respond ONLY with a JSON code block.",
+        "user": 'Generate a JSON object with a "title" (string) and a "tags" key '
+        "containing an array of 4 strings.",
     },
 ]
 
@@ -159,7 +167,13 @@ def generate_completions(
 
         # Prepare for next step (only feed the new token thanks to KV cache)
         input_ids = next_token
-        cur_mask = torch.cat([cur_mask, torch.ones(B * G, 1, device=device, dtype=cur_mask.dtype)], dim=1)
+        cur_mask = torch.cat(
+            [
+                cur_mask,
+                torch.ones(B * G, 1, device=device, dtype=cur_mask.dtype),
+            ],
+            dim=1,
+        )
 
         # Stop if ALL sequences have hit EOS
         all_done = (next_token.squeeze(-1) == tokenizer.eos_token_id).all()
@@ -172,10 +186,14 @@ def generate_completions(
     # Build mask: tokens after EOS are padding
     comp_mask = torch.ones_like(completion_ids, dtype=torch.float32)
     for i in range(completion_ids.shape[0]):
-        eos_positions = (completion_ids[i] == tokenizer.eos_token_id).nonzero(as_tuple=True)[0]
+        eos_positions = (completion_ids[i] == tokenizer.eos_token_id).nonzero(
+            as_tuple=True
+        )[0]
         if len(eos_positions) > 0:
             first_eos = eos_positions[0].item()
-            comp_mask[i, first_eos + 1 :] = 0.0  # mask everything after first EOS
+            comp_mask[i, first_eos + 1 :] = (
+                0.0  # mask everything after first EOS
+            )
 
     return completion_ids, comp_mask
 
@@ -208,7 +226,11 @@ def compute_log_probs(
     log_probs = F.log_softmax(comp_logits, dim=-1)  # (N, L_c, vocab)
 
     # Gather the log prob of the actual completion tokens
-    token_log_probs = log_probs.gather(dim=2, index=completion_ids.unsqueeze(-1)).squeeze(-1)  # (N, L_c)
+    token_log_probs = log_probs.gather(
+        dim=2, index=completion_ids.unsqueeze(-1)
+    ).squeeze(
+        -1
+    )  # (N, L_c)
 
     return token_log_probs
 
@@ -259,7 +281,9 @@ def grpo_loss(
     return loss
 
 
-def compute_group_advantages(rewards: torch.Tensor, group_size: int) -> torch.Tensor:
+def compute_group_advantages(
+    rewards: torch.Tensor, group_size: int
+) -> torch.Tensor:
     """Normalize rewards within each group to get advantages.
 
     Args:
@@ -295,16 +319,22 @@ def train(cfg: GRPOConfig) -> None:
 
     # ── Load model and tokenizer ──
     print(f"Loading model: {cfg.model_name}")
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model_name, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        cfg.model_name, trust_remote_code=True
+    )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
 
     # Active policy π_θ (will be updated)
-    model = AutoModelForCausalLM.from_pretrained(cfg.model_name, dtype=torch.bfloat16, trust_remote_code=True).to(device)
+    model = AutoModelForCausalLM.from_pretrained(
+        cfg.model_name, dtype=torch.bfloat16, trust_remote_code=True
+    ).to(device)
 
     # Reference policy π_ref (frozen copy — never updated)
-    ref_model = AutoModelForCausalLM.from_pretrained(cfg.model_name, dtype=torch.bfloat16, trust_remote_code=True).to(device)
+    ref_model = AutoModelForCausalLM.from_pretrained(
+        cfg.model_name, dtype=torch.bfloat16, trust_remote_code=True
+    ).to(device)
     ref_model.eval()
     for p in ref_model.parameters():
         p.requires_grad = False
@@ -326,7 +356,9 @@ def train(cfg: GRPOConfig) -> None:
         optimizer.zero_grad()
 
         # Sample a mini-batch of prompts
-        indices = torch.randint(0, len(prompts_data), (cfg.micro_batch_prompts,))
+        indices = torch.randint(
+            0, len(prompts_data), (cfg.micro_batch_prompts,)
+        )
         batch = [prompts_data[i] for i in indices]
 
         # Tokenize prompts using chat template
@@ -337,7 +369,9 @@ def train(cfg: GRPOConfig) -> None:
                 {"role": "user", "content": item["user"]},
             ]
             if hasattr(tokenizer, "apply_chat_template"):
-                text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                text = tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
             else:
                 text = f"{item['system']}\n{item['user']}\n"
             chat_prompts.append(text)
@@ -360,7 +394,9 @@ def train(cfg: GRPOConfig) -> None:
         # ══════════════════════════════════════════════════════════════════════
         model.eval()
         with torch.no_grad():
-            completion_ids, comp_mask = generate_completions(model, tokenizer, prompt_ids, prompt_mask, cfg)
+            completion_ids, comp_mask = generate_completions(
+                model, tokenizer, prompt_ids, prompt_mask, cfg
+            )
         # completion_ids: (B*G, T_comp), comp_mask: (B*G, T_comp)
 
         # Expand prompt tensors to match (B*G, L_p)
@@ -371,7 +407,9 @@ def train(cfg: GRPOConfig) -> None:
         # STEP 2: Compute rewards for each completion
         # ══════════════════════════════════════════════════════════════════════
         rewards = []
-        decoded_completions = tokenizer.batch_decode(completion_ids, skip_special_tokens=True)
+        decoded_completions = tokenizer.batch_decode(
+            completion_ids, skip_special_tokens=True
+        )
         for g_idx in range(B * G):
             r = compute_reward(decoded_completions[g_idx])
             rewards.append(r)
@@ -390,19 +428,33 @@ def train(cfg: GRPOConfig) -> None:
         # ══════════════════════════════════════════════════════════════════════
         model.eval()
         with torch.no_grad():
-            old_log_probs = compute_log_probs(model, prompt_ids_rep, completion_ids, prompt_mask_rep, comp_mask)
+            old_log_probs = compute_log_probs(
+                model,
+                prompt_ids_rep,
+                completion_ids,
+                prompt_mask_rep,
+                comp_mask,
+            )
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 5: Compute log-probs under REFERENCE policy (for KL penalty)
         # ══════════════════════════════════════════════════════════════════════
         with torch.no_grad():
-            ref_lp = compute_log_probs(ref_model, prompt_ids_rep, completion_ids, prompt_mask_rep, comp_mask)
+            ref_lp = compute_log_probs(
+                ref_model,
+                prompt_ids_rep,
+                completion_ids,
+                prompt_mask_rep,
+                comp_mask,
+            )
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 6: Compute log-probs under CURRENT policy (for gradient)
         # ══════════════════════════════════════════════════════════════════════
         model.train()
-        cur_log_probs = compute_log_probs(model, prompt_ids_rep, completion_ids, prompt_mask_rep, comp_mask)
+        cur_log_probs = compute_log_probs(
+            model, prompt_ids_rep, completion_ids, prompt_mask_rep, comp_mask
+        )
 
         # ══════════════════════════════════════════════════════════════════════
         # STEP 7: Compute GRPO loss and backpropagate
@@ -438,14 +490,20 @@ def train(cfg: GRPOConfig) -> None:
             )
 
     print("\nTraining complete.")
-    print("This was an educational demo — for real training, use grpo_train.py with trl.")
+    print(
+        "This was an educational demo — for real training, use grpo_train.py with trl."
+    )
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Custom PyTorch GRPO (educational)")
-    parser.add_argument("--model", type=str, default="Qwen/Qwen2.5-Coder-0.5B-Instruct")
+    parser = argparse.ArgumentParser(
+        description="Custom PyTorch GRPO (educational)"
+    )
+    parser.add_argument(
+        "--model", type=str, default="Qwen/Qwen2.5-Coder-0.5B-Instruct"
+    )
     parser.add_argument("--steps", type=int, default=50)
     parser.add_argument("--group_size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=5e-6)

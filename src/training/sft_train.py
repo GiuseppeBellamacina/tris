@@ -53,7 +53,9 @@ def generate_gold_completions(
         prompt = format_prompt_for_model(sample, tokenizer)
 
         # Try generating a valid completion
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
+        inputs = tokenizer(
+            prompt, return_tensors="pt", truncation=True, max_length=512
+        )
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
         best_completion = None
@@ -68,7 +70,9 @@ def generate_gold_completions(
                     pad_token_id=tokenizer.pad_token_id,
                 )
             input_len = inputs["input_ids"].shape[1]
-            text = tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True)
+            text = tokenizer.decode(
+                outputs[0][input_len:], skip_special_tokens=True
+            )
 
             # Validate JSON
             code = extract_code_block(text, "json")
@@ -90,8 +94,12 @@ def generate_gold_completions(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="SFT training for comparison with GRPO")
-    parser.add_argument("--config", type=str, required=True, help="Path to config YAML")
+    parser = argparse.ArgumentParser(
+        description="SFT training for comparison with GRPO"
+    )
+    parser.add_argument(
+        "--config", type=str, required=True, help="Path to config YAML"
+    )
     parser.add_argument(
         "--skip_gold_gen",
         action="store_true",
@@ -127,7 +135,9 @@ def main() -> None:
         print("Generating gold completions (this may take a while)...")
         gold_completions = generate_gold_completions(model, tokenizer, train_ds)
         gold_path.parent.mkdir(parents=True, exist_ok=True)
-        gold_path.write_text(json.dumps(gold_completions, ensure_ascii=False), encoding="utf-8")
+        gold_path.write_text(
+            json.dumps(gold_completions, ensure_ascii=False), encoding="utf-8"
+        )
         print(f"Gold completions saved to {gold_path}")
 
     # Build SFT dataset with full conversations
@@ -153,14 +163,20 @@ def main() -> None:
         project=wandb_project,
         name=wandb_run_name,
         config=config,
-        tags=wandb_cfg.get("tags", ["sft", config["model"]["name"].split("/")[-1]]),
+        tags=wandb_cfg.get(
+            "tags", ["sft", config["model"]["name"].split("/")[-1]]
+        ),
     )
 
     sft_config = SFTConfig(
         output_dir=output_dir,
         num_train_epochs=training_cfg.get("num_train_epochs", 3),
-        per_device_train_batch_size=training_cfg.get("per_device_train_batch_size", 4),
-        gradient_accumulation_steps=training_cfg.get("gradient_accumulation_steps", 4),
+        per_device_train_batch_size=training_cfg.get(
+            "per_device_train_batch_size", 4
+        ),
+        gradient_accumulation_steps=training_cfg.get(
+            "gradient_accumulation_steps", 4
+        ),
         learning_rate=training_cfg.get("learning_rate", 2e-5),
         lr_scheduler_type=training_cfg.get("lr_scheduler_type", "cosine"),
         warmup_steps=training_cfg.get("warmup_steps", 50),

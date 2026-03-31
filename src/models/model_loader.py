@@ -41,11 +41,17 @@ def get_quantization_config(quantization: str) -> BitsAndBytesConfig | None:
 def load_tokenizer(model_name: str) -> PreTrainedTokenizerBase:
     """Load and configure the tokenizer."""
     print(f"[tokenizer] Loading tokenizer: {model_name}")
-    tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(
+        model_name, trust_remote_code=True
+    )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-        print(f"[tokenizer] pad_token not set → using eos_token ({tokenizer.eos_token!r})")
-    tokenizer.padding_side = "left"  # required for generation with batched inputs
+        print(
+            f"[tokenizer] pad_token not set → using eos_token ({tokenizer.eos_token!r})"
+        )
+    tokenizer.padding_side = (
+        "left"  # required for generation with batched inputs
+    )
     print(f"[tokenizer] padding_side=left, vocab_size={tokenizer.vocab_size}")
     return tokenizer
 
@@ -59,7 +65,9 @@ def load_model(
     """Load a causal LM with optional quantization."""
     torch_dtype = getattr(torch, dtype, torch.bfloat16)
     quant_config = get_quantization_config(quantization)
-    print(f"[model] Loading {model_name} (quantization={quantization}, dtype={dtype}, device_map={device_map})")
+    print(
+        f"[model] Loading {model_name} (quantization={quantization}, dtype={dtype}, device_map={device_map})"
+    )
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
@@ -83,10 +91,14 @@ def apply_lora(
     if target_modules is None:
         target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
 
-    print(f"[lora] Applying LoRA: r={r}, alpha={lora_alpha}, dropout={lora_dropout}, targets={target_modules}")
+    print(
+        f"[lora] Applying LoRA: r={r}, alpha={lora_alpha}, dropout={lora_dropout}, targets={target_modules}"
+    )
 
     # Prepare for k-bit training if quantized
-    if getattr(model, "is_loaded_in_4bit", False) or getattr(model, "is_loaded_in_8bit", False):
+    if getattr(model, "is_loaded_in_4bit", False) or getattr(
+        model, "is_loaded_in_8bit", False
+    ):
         model = prepare_model_for_kbit_training(model)
 
     lora_config = LoraConfig(
@@ -172,7 +184,9 @@ def _resolve_fast_inference(model_cfg: dict[str, Any]) -> bool:
     return True
 
 
-def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
+def _load_with_unsloth(
+    config: dict[str, Any],
+) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
     """Load model + tokenizer via Unsloth's FastLanguageModel.
 
     Unsloth patches the model in-place with fused kernels and handles
@@ -203,7 +217,9 @@ def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrai
     if use_fast_inference:
         fi_kwargs["fast_inference"] = True
         fi_kwargs["max_lora_rank"] = lora_cfg.get("r", 16)
-        fi_kwargs["gpu_memory_utilization"] = model_cfg.get("gpu_memory_utilization", 0.9)
+        fi_kwargs["gpu_memory_utilization"] = model_cfg.get(
+            "gpu_memory_utilization", 0.9
+        )
         print("fast_inference abilitato (vLLM backend)")
 
     model, tokenizer = FastLanguageModel.from_pretrained(
@@ -218,9 +234,19 @@ def _load_with_unsloth(config: dict[str, Any]) -> tuple[PreTrainedModel, PreTrai
     if lora_cfg:
         target_modules = lora_cfg.get(
             "target_modules",
-            ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+            [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
         )
-        print(f"[unsloth-lora] r={lora_cfg.get('r', 16)}, alpha={lora_cfg.get('lora_alpha', 32)}, targets={target_modules}")
+        print(
+            f"[unsloth-lora] r={lora_cfg.get('r', 16)}, alpha={lora_cfg.get('lora_alpha', 32)}, targets={target_modules}"
+        )
         model = FastLanguageModel.get_peft_model(
             model,
             r=lora_cfg.get("r", 16),

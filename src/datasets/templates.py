@@ -20,12 +20,27 @@ Template = dict[str, str | Callable[[], dict[str, Any]]]
 SIMPLE: list[Template] = [
     {
         "instruction": (
-            "Generate a valid JSON object with the following keys: " '"{k1}" (string), "{k2}" (integer), "{k3}" (boolean).'
+            "Generate a valid JSON object with the following keys: "
+            '"{k1}" (string), "{k2}" (integer), "{k3}" (boolean).'
         ),
         "params": lambda: {
-            "k1": random.choice(["name", "title", "label", "city", "color", "brand", "category"]),
-            "k2": random.choice(["age", "count", "score", "year", "quantity", "rating", "price"]),
-            "k3": random.choice(["active", "verified", "enabled", "visible", "published", "premium", "available"]),
+            "k1": random.choice(
+                ["name", "title", "label", "city", "color", "brand", "category"]
+            ),
+            "k2": random.choice(
+                ["age", "count", "score", "year", "quantity", "rating", "price"]
+            ),
+            "k3": random.choice(
+                [
+                    "active",
+                    "verified",
+                    "enabled",
+                    "visible",
+                    "published",
+                    "premium",
+                    "available",
+                ]
+            ),
         },
     },
     {
@@ -50,11 +65,14 @@ SIMPLE: list[Template] = [
     },
     {
         "instruction": (
-            'Generate a JSON object with a key "{k1}" (string) and a key ' '"{k2}" which is an array of {n} integers.'
+            'Generate a JSON object with a key "{k1}" (string) and a key '
+            '"{k2}" which is an array of {n} integers.'
         ),
         "params": lambda: {
             "k1": random.choice(["id", "name", "label", "code", "tag"]),
-            "k2": random.choice(["values", "scores", "data", "items", "measurements"]),
+            "k2": random.choice(
+                ["values", "scores", "data", "items", "measurements"]
+            ),
             "n": random.randint(3, 6),
         },
     },
@@ -66,7 +84,9 @@ SIMPLE: list[Template] = [
         "params": lambda: {
             "n": random.randint(3, 6),
             "vtype": random.choice(["string", "integer", "boolean"]),
-            "topic": random.choice(["weather", "food", "sports", "music", "travel", "health"]),
+            "topic": random.choice(
+                ["weather", "food", "sports", "music", "travel", "health"]
+            ),
         },
     },
     {
@@ -91,23 +111,29 @@ SIMPLE: list[Template] = [
             "k1": random.choice(["name", "title", "description", "label"]),
             "k2": random.choice(["priority", "order", "level", "index"]),
             "t2": random.choice(["integer", "number"]),
-            "k3": random.choice(["done", "read", "starred", "archived", "pinned"]),
+            "k3": random.choice(
+                ["done", "read", "starred", "archived", "pinned"]
+            ),
             "t3": "boolean",
         },
     },
     {
         "instruction": (
-            "Generate a JSON array of exactly {n} objects, each containing " 'only a "{k1}" (string) and a "{k2}" (integer).'
+            "Generate a JSON array of exactly {n} objects, each containing "
+            'only a "{k1}" (string) and a "{k2}" (integer).'
         ),
         "params": lambda: {
             "n": random.randint(2, 5),
             "k1": random.choice(["name", "item", "label", "title", "city"]),
-            "k2": random.choice(["value", "count", "score", "amount", "population"]),
+            "k2": random.choice(
+                ["value", "count", "score", "amount", "population"]
+            ),
         },
     },
     {
         "instruction": (
-            'Generate a JSON object with a "{k1}" key (string) and a "{k2}" key ' "containing a flat array of {n} {elem_type}."
+            'Generate a JSON object with a "{k1}" key (string) and a "{k2}" key '
+            "containing a flat array of {n} {elem_type}."
         ),
         "params": lambda: {
             "k1": random.choice(["category", "group", "type", "section"]),
@@ -118,7 +144,8 @@ SIMPLE: list[Template] = [
     },
     {
         "instruction": (
-            "Generate a valid JSON object representing a key-value mapping " "of {n} {domain} abbreviations to their full names."
+            "Generate a valid JSON object representing a key-value mapping "
+            "of {n} {domain} abbreviations to their full names."
         ),
         "params": lambda: {
             "n": random.randint(3, 6),
@@ -150,9 +177,13 @@ MEDIUM: list[Template] = [
         ),
         "params": lambda: {
             "n": random.randint(2, 4),
-            "k1": random.choice(["name", "title", "username", "product", "label"]),
+            "k1": random.choice(
+                ["name", "title", "username", "product", "label"]
+            ),
             "k2": random.choice(["age", "id", "score", "quantity", "price"]),
-            "k3": random.choice(["address", "contact", "location", "details", "metadata"]),
+            "k3": random.choice(
+                ["address", "contact", "location", "details", "metadata"]
+            ),
             "nk1": random.choice(["street", "city", "email", "line1", "type"]),
             "nk2": random.choice(["zip", "country", "phone", "region", "code"]),
         },
@@ -198,7 +229,9 @@ MEDIUM: list[Template] = [
                 ]
             ),
             "k1": random.choice(["host", "port", "name", "endpoint"]),
-            "k2": random.choice(["timeout", "retries", "max_connections", "buffer_size"]),
+            "k2": random.choice(
+                ["timeout", "retries", "max_connections", "buffer_size"]
+            ),
             "k3": random.choice(["auth", "ssl", "logging", "metrics", "cors"]),
         },
     },
@@ -221,7 +254,18 @@ MEDIUM: list[Template] = [
                 ]
             ),
             "n": random.randint(2, 5),
-            "sub_entity": random.choice(["students", "items", "tracks", "tasks", "members", "dishes", "stops", "products"]),
+            "sub_entity": random.choice(
+                [
+                    "students",
+                    "items",
+                    "tracks",
+                    "tasks",
+                    "members",
+                    "dishes",
+                    "stops",
+                    "products",
+                ]
+            ),
         },
     },
     {
@@ -232,7 +276,15 @@ MEDIUM: list[Template] = [
         ),
         "params": lambda: {
             "doc_type": random.choice(
-                ["report", "invoice", "contract", "specification", "manifest", "log entry", "audit record"]
+                [
+                    "report",
+                    "invoice",
+                    "contract",
+                    "specification",
+                    "manifest",
+                    "log entry",
+                    "audit record",
+                ]
             ),
             "s1": random.choice(["header", "metadata", "summary", "info"]),
             "s2": random.choice(["body", "content", "details", "payload"]),
@@ -247,8 +299,12 @@ MEDIUM: list[Template] = [
         ),
         "params": lambda: {
             "k1": random.choice(["title", "name", "event", "project"]),
-            "k2": random.choice(["created_at", "due_date", "start_date", "timestamp"]),
-            "k3": random.choice(["entries", "line_items", "records", "milestones"]),
+            "k2": random.choice(
+                ["created_at", "due_date", "start_date", "timestamp"]
+            ),
+            "k3": random.choice(
+                ["entries", "line_items", "records", "milestones"]
+            ),
             "nk1": random.choice(["description", "label", "name", "note"]),
             "nk2": random.choice(["amount", "hours", "progress", "value"]),
         },
@@ -261,7 +317,15 @@ MEDIUM: list[Template] = [
         ),
         "params": lambda: {
             "form_type": random.choice(
-                ["registration", "contact", "survey", "feedback", "checkout", "onboarding", "support ticket"]
+                [
+                    "registration",
+                    "contact",
+                    "survey",
+                    "feedback",
+                    "checkout",
+                    "onboarding",
+                    "support ticket",
+                ]
             ),
             "n": random.randint(4, 7),
         },
@@ -274,7 +338,16 @@ MEDIUM: list[Template] = [
         ),
         "params": lambda: {
             "entity": random.choice(
-                ["document", "asset", "resource", "artifact", "dataset", "model", "deployment", "experiment"]
+                [
+                    "document",
+                    "asset",
+                    "resource",
+                    "artifact",
+                    "dataset",
+                    "model",
+                    "deployment",
+                    "experiment",
+                ]
             ),
         },
     },
@@ -357,7 +430,14 @@ HARD: list[Template] = [
         ),
         "params": lambda: {
             "api_type": random.choice(
-                ["user management", "payment processing", "search", "file upload", "authentication", "notification"]
+                [
+                    "user management",
+                    "payment processing",
+                    "search",
+                    "file upload",
+                    "authentication",
+                    "notification",
+                ]
             ),
         },
     },

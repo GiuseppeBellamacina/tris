@@ -40,7 +40,9 @@ def _build_system_prompt(thinking: bool = True) -> str:
     )
 
 
-def generate_sample(rng: random.Random | None = None, thinking: bool = True) -> dict[str, str]:
+def generate_sample(
+    rng: random.Random | None = None, thinking: bool = True
+) -> dict[str, str]:
     """Generate a single prompt sample with metadata."""
     if rng is None:
         rng = random.Random()
@@ -74,7 +76,9 @@ def generate_dataset(
 ) -> DatasetDict:
     """Generate the full synthetic dataset as a HuggingFace DatasetDict."""
     rng = random.Random(seed)
-    samples = [generate_sample(rng, thinking=thinking) for _ in range(num_samples)]
+    samples = [
+        generate_sample(rng, thinking=thinking) for _ in range(num_samples)
+    ]
 
     # Deterministic split
     rng.shuffle(samples)
@@ -94,12 +98,25 @@ def generate_dataset(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate synthetic JSON prompt dataset")
-    parser.add_argument("--output", type=str, default="data/synthetic", help="Output directory")
-    parser.add_argument("--num_samples", type=int, default=5000, help="Total number of samples")
+    parser = argparse.ArgumentParser(
+        description="Generate synthetic JSON prompt dataset"
+    )
+    parser.add_argument(
+        "--output", type=str, default="data/synthetic", help="Output directory"
+    )
+    parser.add_argument(
+        "--num_samples", type=int, default=5000, help="Total number of samples"
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--test_ratio", type=float, default=0.2, help="Fraction for test split")
-    parser.add_argument("--config", type=str, default=None, help="Path to YAML config (legge dataset.thinking)")
+    parser.add_argument(
+        "--test_ratio", type=float, default=0.2, help="Fraction for test split"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML config (legge dataset.thinking)",
+    )
     thinking_group = parser.add_mutually_exclusive_group()
     thinking_group.add_argument(
         "--thinking",
@@ -109,7 +126,10 @@ def main() -> None:
         help="Abilita <think>...</think> nel system prompt (override config)",
     )
     thinking_group.add_argument(
-        "--no-thinking", dest="thinking", action="store_false", help="Disabilita thinking (override config)"
+        "--no-thinking",
+        dest="thinking",
+        action="store_false",
+        help="Disabilita thinking (override config)",
     )
     args = parser.parse_args()
 
@@ -123,7 +143,9 @@ def main() -> None:
     if args.thinking is not None:  # CLI flag overrides config
         thinking = args.thinking
 
-    print(f"Generating {args.num_samples} samples (seed={args.seed}, thinking={thinking})...")
+    print(
+        f"Generating {args.num_samples} samples (seed={args.seed}, thinking={thinking})..."
+    )
     ds = generate_dataset(
         num_samples=args.num_samples,
         seed=args.seed,
@@ -138,7 +160,9 @@ def main() -> None:
     # Also save a human-readable preview
     preview_path = out_path / "preview.json"
     preview = [ds["train"][i] for i in range(min(10, len(ds["train"])))]
-    preview_path.write_text(json.dumps(preview, indent=2, ensure_ascii=False), encoding="utf-8")
+    preview_path.write_text(
+        json.dumps(preview, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     print(f"Dataset saved to {out_path}")
     print(f"  Train: {len(ds['train'])} samples")

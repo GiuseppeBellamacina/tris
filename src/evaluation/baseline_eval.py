@@ -21,9 +21,16 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
-from src.datasets.dataloader import format_prompt_for_model, load_synthetic_dataset
+from src.datasets.dataloader import (
+    format_prompt_for_model,
+    load_synthetic_dataset,
+)
 from src.evaluation.evaluate import compute_detailed_metrics, pass_at_k
-from src.models.model_loader import load_model, load_model_and_tokenizer, load_tokenizer
+from src.models.model_loader import (
+    load_model,
+    load_model_and_tokenizer,
+    load_tokenizer,
+)
 from src.utils.config import load_config
 
 load_dotenv()
@@ -81,8 +88,12 @@ def generate_completions(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Baseline evaluation of off-the-shelf LLMs")
-    parser.add_argument("--config", type=str, required=True, help="Path to config YAML")
+    parser = argparse.ArgumentParser(
+        description="Baseline evaluation of off-the-shelf LLMs"
+    )
+    parser.add_argument(
+        "--config", type=str, required=True, help="Path to config YAML"
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -94,9 +105,13 @@ def main() -> None:
     wandb_cfg = config.get("wandb", {})
     wandb.init(
         project=wandb_cfg.get("project", "grpo-strict-generation"),
-        name=wandb_cfg.get("run_name", f"baseline-{model_cfg['name'].split('/')[-1]}"),
+        name=wandb_cfg.get(
+            "run_name", f"baseline-{model_cfg['name'].split('/')[-1]}"
+        ),
         config=config,
-        tags=wandb_cfg.get("tags", ["baseline", model_cfg["name"].split("/")[-1]]),
+        tags=wandb_cfg.get(
+            "tags", ["baseline", model_cfg["name"].split("/")[-1]]
+        ),
     )
 
     print(f"Loading model: {model_cfg['name']}")
@@ -124,11 +139,16 @@ def main() -> None:
     test_ds = ds[config["dataset"].get("split", "test")]
 
     # Format prompts
-    prompts = [format_prompt_for_model(test_ds[i], tokenizer) for i in range(len(test_ds))]
+    prompts = [
+        format_prompt_for_model(test_ds[i], tokenizer)
+        for i in range(len(test_ds))
+    ]
     difficulties = test_ds["difficulty"]
 
     num_seqs = gen_cfg.get("num_return_sequences", 1)
-    print(f"Generating {num_seqs} completion(s) per prompt for {len(prompts)} prompts...")
+    print(
+        f"Generating {num_seqs} completion(s) per prompt for {len(prompts)} prompts..."
+    )
 
     completions_per_prompt = generate_completions(
         model=model,
@@ -157,7 +177,9 @@ def main() -> None:
     print(f"\nOverall Pass@1: {detailed['overall_pass_rate']:.4f}")
     print("\nPer-category breakdown:")
     for cat, stats in detailed["per_category"].items():
-        print(f"  {cat}: {stats['pass_rate']:.4f} ({stats['valid']}/{stats['total']})")
+        print(
+            f"  {cat}: {stats['pass_rate']:.4f} ({stats['valid']}/{stats['total']})"
+        )
 
     if detailed["error_distribution"]:
         print("\nTop error types:")
@@ -175,7 +197,9 @@ def main() -> None:
         "config": config,
     }
     results_path = output_dir / "results.json"
-    results_path.write_text(json.dumps(results, indent=2, default=str), encoding="utf-8")
+    results_path.write_text(
+        json.dumps(results, indent=2, default=str), encoding="utf-8"
+    )
     print(f"\nResults saved to {results_path}")
 
     # Save raw completions for analysis
@@ -208,7 +232,9 @@ def main() -> None:
     bar_table = wandb.Table(data=table_data, columns=["metric", "value"])
     wandb.log(
         {
-            "eval/pass_rates": wandb.plot.bar(bar_table, "metric", "value", title="Evaluation Pass Rates"),
+            "eval/pass_rates": wandb.plot.bar(
+                bar_table, "metric", "value", title="Evaluation Pass Rates"
+            ),
             **wandb_metrics,
         }
     )

@@ -45,6 +45,15 @@ _early_args, _ = _parser.parse_known_args()
 
 _cfg = _peek_config(_early_args.config) if _early_args.config else {}
 
+# Auto-disable Unsloth/fast_inference when using multiple GPUs
+_num_gpus = _cfg.get("model", {}).get("num_gpus", 1)
+if _num_gpus > 1:
+    _cfg.setdefault("model", {})["use_unsloth"] = False
+    _cfg.setdefault("model", {})["fast_inference"] = False
+    print(
+        f"[bootstrap] num_gpus={_num_gpus} → disabling Unsloth e fast_inference (incompatibili con multi-GPU)"
+    )
+
 # Unsloth early import — must happen before torch/transformers/trl
 if _cfg.get("model", {}).get("use_unsloth", False):
     print(

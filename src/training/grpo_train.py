@@ -38,6 +38,7 @@ from src.models.model_loader import load_model_and_tokenizer
 from src.training.callbacks import HighPrecisionLogCallback, WandbAlertCallback
 from src.training.rewards import build_reward_function
 from src.utils.config import load_config
+from src.utils.distributed import is_main_process
 
 load_dotenv()
 
@@ -130,6 +131,16 @@ def main() -> None:
 
     config = load_config(args.config)
 
+    # ── Auto-disable Unsloth/fast_inference per multi-GPU ─────────────────
+    num_gpus = config.get("model", {}).get("num_gpus", 1)
+    if num_gpus > 1:
+        config["model"]["use_unsloth"] = False
+        config["model"]["fast_inference"] = False
+        if is_main_process():
+            print(
+                f"[grpo] num_gpus={num_gpus} → Unsloth e fast_inference disabilitati"
+            )
+
     # ── Eval-only mode ────────────────────────────────────────────────────
     if args.eval_only:
         _select_best_checkpoint(config, args.eval_only)
@@ -138,33 +149,39 @@ def main() -> None:
     # Enable vLLM standby if fast_inference is requested
     if config.get("model", {}).get("fast_inference", False):
         os.environ["UNSLOTH_VLLM_STANDBY"] = "1"
-        print("[grpo] UNSLOTH_VLLM_STANDBY=1 (fast_inference requested)")
+        if is_main_process():
+            print("[grpo] UNSLOTH_VLLM_STANDBY=1 (fast_inference requested)")
 
     # Load model and tokenizer
-    print(f"Loading model: {config['model']['name']}")
+    if is_main_process():
+        print(f"Loading model: {config['model']['name']}")
     model, tokenizer = load_model_and_tokenizer(config)
 
     # Prepare dataset
-    print("Loading dataset...")
+    if is_main_process():
+        print("Loading dataset...")
     prompt_dataset = _prepare_prompt_dataset(config, tokenizer)
-    print(f"[grpo] Training dataset: {len(prompt_dataset)} prompts")
+    if is_main_process():
+        print(f"[grpo] Training dataset: {len(prompt_dataset)} prompts")
 
     # Build reward function
     thinking = config.get("dataset", {}).get("thinking", True)
-    print(f"[grpo] thinking={'on' if thinking else 'off'}")
+    if is_main_process():
+        print(f"[grpo] thinking={'on' if thinking else 'off'}")
     reward_fn = build_reward_function(config["reward"], thinking=thinking)
 
     # Build GRPO config
     grpo_config = _build_grpo_config(config["training"], config["grpo"])
-    print(
-        f"[grpo] Hyperparams: max_steps={grpo_config.max_steps} "
-        f"batch={grpo_config.per_device_train_batch_size} "
-        f"grad_accum={grpo_config.gradient_accumulation_steps} "
-        f"lr={grpo_config.learning_rate} "
-        f"num_gen={grpo_config.num_generations} "
-        f"beta={grpo_config.beta} "
-        f"max_completion={grpo_config.max_completion_length}"
-    )
+    if is_main_process():
+        print(
+            f"[grpo] Hyperparams: max_steps={grpo_config.max_steps} "
+            f"batch={grpo_config.per_device_train_batch_size} "
+            f"grad_accum={grpo_config.gradient_accumulation_steps} "
+            f"lr={grpo_config.learning_rate} "
+            f"num_gen={grpo_config.num_generations} "
+            f"beta={grpo_config.beta} "
+            f"max_completion={grpo_config.max_completion_length}"
+        )
 
     # ── Find resume checkpoint ────────────────────────────────────────────
     resume_from: str | None = None
@@ -172,28 +189,32 @@ def main() -> None:
         ckpts = sorted(Path(grpo_config.output_dir).glob("checkpoint-*"))
         if ckpts:
             resume_from = str(ckpts[-1])
-            print(f"Resuming from {resume_from}")
+            if is_main_process():
+                print(f"Resuming from {resume_from}")
         else:
-            print("No checkpoint found, starting from scratch.")
+            if is_main_process():
+                print("No checkpoint found, starting from scratch.")
 
     # Initialize wandb
     wandb_cfg = config.get("wandb", {})
     wandb_project = wandb_cfg.get("project", "grpo-strict-generation")
     wandb_run_name = wandb_cfg.get("run_name", "grpo-train")
     os.environ["WANDB_PROJECT"] = wandb_project
-    print(f"[wandb] project={wandb_project} run={wandb_run_name}")
-    wandb.init(
-        project=wandb_project,
-        name=wandb_run_name,
-        config=config,
-        tags=wandb_cfg.get(
-            "tags", ["grpo", config["model"]["name"].split("/")[-1]]
-        ),
-        resume="allow" if args.resume else None,
-    )
+    if is_main_process():
+        print(f"[wandb] project={wandb_project} run={wandb_run_name}")
+        wandb.init(
+            project=wandb_project,
+            name=wandb_run_name,
+            config=config,
+            tags=wandb_cfg.get(
+                "tags", ["grpo", config["model"]["name"].split("/")[-1]]
+            ),
+            resume="allow" if args.resume else None,
+        )
 
     # Initialize trainer
-    print("[grpo] Initializing GRPOTrainer...")
+    if is_main_process():
+        print("[grpo] Initializing GRPOTrainer...")
     trainer = GRPOTrainer(
         model=model,  # type: ignore[arg-type]
         args=grpo_config,
@@ -204,17 +225,21 @@ def main() -> None:
     )
 
     # Train
-    print("Starting GRPO training...")
+    if is_main_process():
+        print("Starting GRPO training...")
     trainer.train(resume_from_checkpoint=resume_from)
 
     # Save final model
     final_path = Path(grpo_config.output_dir) / "final"
-    print(f"[grpo] Saving final model to {final_path}...")
+    if is_main_process():
+        print(f"[grpo] Saving final model to {final_path}...")
     trainer.save_model(str(final_path))
     tokenizer.save_pretrained(str(final_path))  # type: ignore[union-attr]
-    print(f"Final model saved to {final_path}")
+    if is_main_process():
+        print(f"Final model saved to {final_path}")
 
-    wandb.finish()
+    if is_main_process():
+        wandb.finish()
 
     # ── Post-training checkpoint evaluation ───────────────────────────────
     # Evaluate all saved checkpoints + final on a fixed test set and pick
@@ -224,6 +249,9 @@ def main() -> None:
 
 def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
     """Evaluate each checkpoint on the test set and symlink the best one."""
+    if not is_main_process():
+        return
+
     output_path = Path(output_dir)
 
     # Collect all candidate directories
@@ -366,8 +394,9 @@ def _select_best_checkpoint(config: dict[str, Any], output_dir: str) -> None:
 
 
 if __name__ == "__main__":
-    print(
-        "WARNING: prefer 'python -m src.training --config ...' to ensure "
-        "Unsloth is imported before torch/transformers/trl."
-    )
+    if is_main_process():
+        print(
+            "WARNING: prefer 'python -m src.training --config ...' to ensure "
+            "Unsloth is imported before torch/transformers/trl."
+        )
     main()

@@ -8,6 +8,7 @@
 # NB: per la baseline NON serve la sezione "lora" — il modello viene caricato senza adapters.
 model:
   name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" # nome HuggingFace Hub del modello
+  num_gpus: 1 # numero di GPU (>1 = multi-GPU con DDP, disabilita automaticamente Unsloth e fast_inference)
   quantization: "4bit" # quantizzazione: "4bit", "8bit", o null (nessuna)
   dtype: "bfloat16" # tipo di dato: "bfloat16", "float16", "float32"
   use_unsloth: true # true = carica con Unsloth; false = HuggingFace standard

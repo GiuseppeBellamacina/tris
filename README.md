@@ -115,6 +115,35 @@ uv run python -m src.training \
 uv run python -m src.evaluation.evaluate --config experiments/configs/grpo.yaml
 ```
 
+### 5. Multi-GPU Training
+
+Per il training su più GPU, imposta `num_gpus` nel file di configurazione YAML:
+
+```yaml
+model:
+  num_gpus: 2   # usa 2 GPU
+```
+
+Quando `num_gpus > 1`, il sistema **disabilita automaticamente** `use_unsloth` e
+`fast_inference` (incompatibili con DDP/multi-GPU) e stampa un avviso a terminale.
+
+Lancia il training con **Accelerate**:
+
+```bash
+accelerate launch --num_processes 2 -m src.training \
+    --config experiments/configs/grpo.yaml
+```
+
+Oppure con **torchrun**:
+
+```bash
+torchrun --nproc_per_node 2 -m src.training \
+    --config experiments/configs/grpo.yaml
+```
+
+> **Nota**: Tutti i print, i log su W&B e il salvataggio dei file sono già protetti
+> con `is_main_process()` — solo il processo rank 0 esegue queste operazioni.
+
 ## Reward Function
 
 All four components are **additive** and their weights sum to 1.0.
@@ -131,9 +160,9 @@ When `thinking: false`, the reasoning weight is redistributed to the others.
 
 | Config | Purpose | Key Parameters |
 |---|---|---|
-| [`baseline.yaml`](experiments/configs/baseline.yaml) | Off-the-shelf model evaluation | `temperature: 0.7`, `max_new_tokens: 512` |
-| [`grpo.yaml`](experiments/configs/grpo.yaml) | GRPO fine-tuning | `num_generations: 4`, `max_completion_length: 768`, `beta: 0.04` |
-| [`sft.yaml`](experiments/configs/sft.yaml) | Supervised fine-tuning | `epochs: 3`, `batch_size: 4`, `lr: 2e-5` |
+| [`baseline.yaml`](experiments/configs/baseline.yaml) | Off-the-shelf model evaluation | `temperature: 0.7`, `max_new_tokens: 512`, `num_gpus: 1` |
+| [`grpo.yaml`](experiments/configs/grpo.yaml) | GRPO fine-tuning | `num_generations: 4`, `max_completion_length: 768`, `beta: 0.04`, `num_gpus: 1` |
+| [`sft.yaml`](experiments/configs/sft.yaml) | Supervised fine-tuning | `epochs: 3`, `batch_size: 4`, `lr: 2e-5`, `num_gpus: 1` |
 
 ## License
 

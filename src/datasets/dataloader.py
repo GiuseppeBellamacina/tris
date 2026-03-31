@@ -9,6 +9,7 @@ from datasets import DatasetDict, load_from_disk
 
 # Re-export for backward compatibility
 from src.utils.config import load_config  # noqa: F401
+from src.utils.distributed import is_main_process
 
 
 def load_synthetic_dataset(
@@ -34,9 +35,10 @@ def load_synthetic_dataset(
         )
 
     ds: DatasetDict = load_from_disk(str(ds_path))  # type: ignore[assignment]
-    print(
-        f"[dataset] Loaded from {ds_path}: {{{', '.join(f'{k}: {len(v)}' for k, v in ds.items())}}}"
-    )
+    if is_main_process():
+        print(
+            f"[dataset] Loaded from {ds_path}: {{{', '.join(f'{k}: {len(v)}' for k, v in ds.items())}}}"
+        )
 
     if split is not None:
         if split not in ds:
@@ -44,9 +46,10 @@ def load_synthetic_dataset(
                 f"Split '{split}' not found. Available: {list(ds.keys())}"
             )
         ds = DatasetDict({split: ds[split]})  # type: ignore[arg-type]
-        print(
-            f"[dataset] Filtered to split='{split}' ({len(ds[split])} samples)"
-        )
+        if is_main_process():
+            print(
+                f"[dataset] Filtered to split='{split}' ({len(ds[split])} samples)"
+            )
 
     if max_samples is not None:
         ds = DatasetDict(
@@ -55,7 +58,8 @@ def load_synthetic_dataset(
                 for k, v in ds.items()
             }
         )
-        print(f"[dataset] Truncated to max_samples={max_samples}")
+        if is_main_process():
+            print(f"[dataset] Truncated to max_samples={max_samples}")
 
     return ds
 

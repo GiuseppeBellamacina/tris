@@ -7,6 +7,8 @@ from typing import Any
 
 import yaml
 
+from src.utils.distributed import is_main_process
+
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
     """Load a YAML config file and return it as a dictionary.
@@ -25,5 +27,6 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Config file not found: {path}")
     with open(path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    print(f"[config] Loaded {path}")
+    if is_main_process():
+        print(f"[config] Loaded {path}")
     return cfg

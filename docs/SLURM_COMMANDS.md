@@ -322,18 +322,17 @@ rsync -avz --progress . user@cluster:/home/user/grpo/ --exclude .venv --exclude 
 scp -r user@cluster:/home/user/grpo/outputs/grpo_run/best/ ./outputs/
 
 # Log wandb offline
-scp -r user@cluster:/home/user/grpo/wandb/ ./wandb/
+scp -r user@cluster:/home/user/grpo/experiments/logs/ ./experiments/logs/
 
 # Rsync solo i risultati
-rsync -avz user@cluster:/home/user/grpo/outputs/ ./outputs/
-rsync -avz user@cluster:/home/user/grpo/figures/ ./figures/
+rsync -avz user@cluster:/home/user/grpo/experiments/ ./experiments/
 ```
 
 ### Sincronizzare wandb offline runs
 
 ```bash
 # Sul cluster (dopo il job) o in locale (dopo il download)
-wandb sync wandb/offline-run-*
+wandb sync experiments/logs/grpo/wandb/offline-run-*
 ```
 
 ---
@@ -370,10 +369,8 @@ squeue --me
 tail -f slurm-$TRAIN_JOB.out
 
 # 9. Dopo il completamento, scarica i risultati
-rsync -avz user@cluster:~/grpo/outputs/ ./outputs/
-rsync -avz user@cluster:~/grpo/figures/ ./figures/
-rsync -avz user@cluster:~/grpo/wandb/ ./wandb/
+rsync -avz user@cluster:~/grpo/experiments/ ./experiments/
 
 # 10. Sincronizza wandb
-wandb sync wandb/offline-run-*
+wandb sync experiments/logs/grpo/wandb/offline-run-*
 ```

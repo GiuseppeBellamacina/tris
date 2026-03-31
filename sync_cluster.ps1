@@ -135,18 +135,13 @@ function DownloadCheckpoints {
 }
 
 function DownloadWandb {
-    # wandb offline runs are now saved inside experiments/logs/ (e.g. experiments/logs/grpo/wandb/)
-    # Also check legacy wandb/ folder for older runs
+    # wandb offline runs are saved inside experiments/logs/ (e.g. experiments/logs/grpo/wandb/)
     Write-Progress -Activity "Download" -Status "Downloading wandb offline runs..." -PercentComplete 0
 
-    # Download from experiments/logs (new location)
+    # Download from experiments/logs
     $dest = Join-Path $LOCAL "experiments\logs"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     scp -rq "${REMOTE}/experiments/logs/." $dest 2>$null
-
-    # Also download from legacy wandb/ folder if it exists
-    $legacyDest = Join-Path $LOCAL "wandb"
-    scp -rq "${REMOTE}/wandb/." $legacyDest 2>$null
 
     Write-Progress -Activity "Download" -Completed
     Write-Host "  -> saved wandb runs to experiments\logs\" -ForegroundColor Gray

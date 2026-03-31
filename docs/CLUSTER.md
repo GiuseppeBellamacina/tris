@@ -342,21 +342,21 @@ EXTRA_ARGS="--eval-only experiments/checkpoints/grpo"
 Il cluster **non ha accesso a internet** (eccezione: dottorandi).
 Gli script batch impostano automaticamente `WANDB_MODE=offline`.
 
-I run vengono salvati localmente in `wandb/` nella directory del progetto.
+I run vengono salvati in `experiments/logs/<experiment>/wandb/` (es. `experiments/logs/grpo/wandb/`).
 
 ### Sincronizzare i risultati dopo il training
 
 **Linux / macOS:**
 ```bash
-rsync -avz <username>@gcluster.dmi.unict.it:~/GRPO-strict-generation/wandb/ ./wandb/
-wandb sync wandb/offline-run-*
+rsync -avz <username>@gcluster.dmi.unict.it:~/GRPO-strict-generation/experiments/logs/ ./experiments/logs/
+wandb sync experiments/logs/grpo/wandb/offline-run-*
 ```
 
 **Windows (PowerShell):**
 ```powershell
 .\sync_cluster.ps1 -Action download-wandb
-# Lo script scarica wandb/ e stampa il comando di sync:
-wandb sync wandb\offline-run-*
+# Lo script scarica experiments/logs/ e stampa il comando di sync:
+wandb sync experiments\logs\grpo\wandb\offline-run-*
 ```
 
 ### Alternativa: usa solo TensorBoard

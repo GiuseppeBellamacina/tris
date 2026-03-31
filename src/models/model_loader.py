@@ -26,13 +26,16 @@ from transformers import (
 from src.utils.distributed import is_main_process
 
 
-def get_quantization_config(quantization: str) -> BitsAndBytesConfig | None:
+def get_quantization_config(
+    quantization: str, dtype: str = "bfloat16"
+) -> BitsAndBytesConfig | None:
     """Return a BitsAndBytesConfig based on the quantization string."""
     if quantization == "4bit":
+        compute_dtype = getattr(torch, dtype, torch.bfloat16)
         return BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_compute_dtype=compute_dtype,
             bnb_4bit_use_double_quant=True,
         )
     if quantization == "8bit":
@@ -71,7 +74,7 @@ def load_model(
 ) -> PreTrainedModel:
     """Load a causal LM with optional quantization."""
     torch_dtype = getattr(torch, dtype, torch.bfloat16)
-    quant_config = get_quantization_config(quantization)
+    quant_config = get_quantization_config(quantization, dtype=dtype)
     if is_main_process():
         print(
             f"[model] Loading {model_name} (quantization={quantization}, dtype={dtype}, device_map={device_map})"
@@ -150,10 +153,11 @@ def load_model_and_tokenizer(
 
     if is_main_process():
         print("[model] Backend: HuggingFace (transformers + peft)")
+    _dtype = model_cfg.get("dtype", "bfloat16")
     model = load_model(
         model_name=model_cfg["name"],
         quantization=model_cfg.get("quantization", "4bit"),
-        dtype=model_cfg.get("dtype", "bfloat16"),
+        dtype=_dtype,
     )
     tokenizer = load_tokenizer(model_cfg["name"])
 

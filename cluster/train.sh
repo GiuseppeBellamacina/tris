@@ -1,0 +1,66 @@
+#!/bin/bash
+# ============================================================================
+# SLURM batch script — GRPO Training sul cluster DMI
+#
+# Uso:
+#   sbatch cluster/train.sh
+#
+# Per il primo avvio eseguire prima:  bash cluster/setup.sh
+# (dentro una sessione interattiva Apptainer)
+# ============================================================================
+
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │  CONFIGURA QUI — modifica account/partition/qos/email/risorse              │
+# └────────────────────────────────────────────────────────────────────────────┘
+#SBATCH --job-name=grpo-train
+#SBATCH --account=dl-course-q1
+#SBATCH --partition=dl-course-q1
+#SBATCH --qos=gpu-xlarge
+#SBATCH --mem=16G
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:1,shard:16000
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=tuo-indirizzo@email.com
+#SBATCH --output=logs/slurm-%j.log
+
+# ── Variabili progetto ────────────────────────────────────────────────────────
+CONFIG="experiments/configs/grpo.yaml"
+EXTRA_ARGS=""   # "--resume" per riprendere da checkpoint, "--eval-only DIR" per solo eval
+
+# ── Setup ambiente ───────────────────────────────────────────────────────────
+set -e
+
+echo "============================================"
+echo "  GRPO Training — Cluster DMI"
+echo "  Job ID:    ${SLURM_JOB_ID}"
+echo "  Node:      $(hostname)"
+echo "  Date:      $(date)"
+echo "  Config:    ${CONFIG}"
+echo "============================================"
+
+# Crea directory logs se non esiste
+mkdir -p logs
+
+# wandb in modalità offline (non c'è internet sul cluster per studenti)
+# I dottorandi con accesso a internet possono commentare questa riga
+export WANDB_MODE=offline
+
+# Disabilita vLLM standby mode (stessa ragione di Colab)
+export UNSLOTH_VLLM_STANDBY=0
+
+# Percorso progetto
+cd "$HOME/GRPO-strict-generation"
+
+echo ""
+echo "Avvio training dentro Apptainer..."
+echo ""
+
+# ── Esecuzione dentro container Apptainer ─────────────────────────────────────
+apptainer run --nv /shared/sifs/latest.sif \
+    python -m src.training --config "${CONFIG}" ${EXTRA_ARGS}
+
+echo ""
+echo "============================================"
+echo "  Training completato!"
+echo "  $(date)"
+echo "============================================"

@@ -4,17 +4,23 @@ param(
     [string]$Action
 )
 
-$USER    = "bllgpp02h24c351g"
-$HOST    = "gcluster.dmi.unict.it"
-$REMOTE  = "${USER}@${HOST}:~/GRPO-strict-generation"
+$CLUSTER_USER = "bllgpp02h24c351g"
+$CLUSTER_HOST = "gcluster.dmi.unict.it"
+$REMOTE  = "${CLUSTER_USER}@${CLUSTER_HOST}:~/GRPO-strict-generation"
+$SSH_TARGET = "${CLUSTER_USER}@${CLUSTER_HOST}"
 $LOCAL   = $PSScriptRoot
 
 function Upload {
     Write-Host "Uploading project to cluster..." -ForegroundColor Cyan
 
+    # Clean __pycache__ before upload
+    Write-Progress -Activity "Upload" -Status "Cleaning __pycache__..." -PercentComplete 0
+    Get-ChildItem -Path $LOCAL -Directory -Recurse -Filter "__pycache__" |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
     # Ensure remote directory structure exists
-    Write-Progress -Activity "Upload" -Status "Creating remote directories..." -PercentComplete 0
-    ssh "${USER}@${HOST}" "mkdir -p ~/GRPO-strict-generation/experiments/{configs,logs,checkpoints}"
+    Write-Progress -Activity "Upload" -Status "Creating remote directories..." -PercentComplete 2
+    ssh $SSH_TARGET "mkdir -p ~/GRPO-strict-generation/experiments/{configs,logs,checkpoints} ~/GRPO-strict-generation/notebooks"
 
     $items = @(
         "src",
@@ -22,13 +28,12 @@ function Upload {
         "data",
         "docs",
         "tests",
+        "notebooks",
         "experiments/configs",
         "pyproject.toml",
         "setup.sh",
-        "Dockerfile",
-        "docker-compose.yml",
         "format.sh",
-        "README.md"
+        "README.md",
     )
 
     $total = $items.Count
@@ -41,7 +46,7 @@ function Upload {
 
         $localPath = Join-Path $LOCAL $item
         if (Test-Path $localPath) {
-            scp -r $localPath "${REMOTE}/$item"
+            scp -rq $localPath "${REMOTE}/$item"
         } else {
             Write-Host "  [SKIP] $item (not found)" -ForegroundColor Yellow
         }
@@ -72,7 +77,7 @@ function DownloadLogs {
     Write-Progress -Activity "Download" -Status "Downloading experiments/logs (includes figures)..." -PercentComplete 0
     $dest = Join-Path $LOCAL "experiments\logs"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    scp -r "${REMOTE}/experiments/logs/." $dest
+    scp -rq "${REMOTE}/experiments/logs/." $dest
     Write-Progress -Activity "Download" -Completed
     Write-Host "  -> saved to experiments\logs" -ForegroundColor Gray
 }
@@ -81,7 +86,7 @@ function DownloadCheckpoints {
     Write-Progress -Activity "Download" -Status "Downloading experiments/checkpoints..." -PercentComplete 0
     $dest = Join-Path $LOCAL "experiments\checkpoints"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    scp -r "${REMOTE}/experiments/checkpoints/." $dest
+    scp -rq "${REMOTE}/experiments/checkpoints/." $dest
     Write-Progress -Activity "Download" -Completed
     Write-Host "  -> saved to experiments\checkpoints" -ForegroundColor Gray
 }
@@ -92,7 +97,7 @@ function DownloadWandb {
     Write-Progress -Activity "Download" -Status "Downloading wandb offline runs..." -PercentComplete 0
     $dest = Join-Path $LOCAL "wandb"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    scp -r "${REMOTE}/wandb/." $dest
+    scp -rq "${REMOTE}/wandb/." $dest
     Write-Progress -Activity "Download" -Completed
     Write-Host "  -> saved to wandb\" -ForegroundColor Gray
     Write-Host ""

@@ -1,0 +1,82 @@
+# ============================================================================
+# GRPO training config — Cluster DMI (K80 / gpu-xlarge)
+#
+# K80 (CC 3.7): NO bfloat16, NO Unsloth, NO vLLM, NO 4-bit quantization
+# TinyLlama 1.1B in fp16 ≈ 4.5 GB → fits comfortably in 22 GB VRAM
+#
+# Usato da:  python -m src.training --config experiments/configs/grpo_cluster.yaml
+# ============================================================================
+
+# --- Modello ---
+model:
+  name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  num_gpus: 1
+  quantization: null # ⚠️ NO 4-bit su K80 (CC < 7.0)
+  dtype: "float16" # ⚠️ K80 non supporta bfloat16
+  use_unsloth: false # ⚠️ Unsloth richiede CC >= 7.0
+  fast_inference: false # ⚠️ vLLM richiede CC >= 7.0
+  max_seq_length: 2048
+  gpu_memory_utilization: 0.75 # ignorato senza vLLM
+
+# --- LoRA adapters ---
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  task_type: "CAUSAL_LM"
+  random_state: 3407
+
+# --- Dataset ---
+dataset:
+  path: "data/synthetic"
+  split: "train"
+  max_samples: null
+  thinking: false
+
+# --- Iperparametri di training ---
+training:
+  max_steps: 600
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8
+  learning_rate: 5.0e-6
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.1
+  optim: "adamw_torch" # ⚠️ paged_adamw_8bit potrebbe non funzionare su K80
+  weight_decay: 0.1
+  max_grad_norm: 0.1
+  bf16: false # ⚠️ CRITICO: K80 non supporta bf16
+  fp16: true # ⚠️ usa mixed precision fp16 al posto di bf16
+  logging_steps: 5
+  save_steps: 60
+  save_total_limit: 3
+  output_dir: "experiments/checkpoints/grpo"
+  log_dir: "experiments/logs/grpo"
+
+# --- Parametri GRPO ---
+grpo:
+  num_generations: 2 # K80: meno rollout paralleli (22 GB ma modello fp16 full)
+  max_completion_length: 512 # ridotto per stare comodi in VRAM
+  max_prompt_length: 512
+  beta: 0.04
+  temperature: 0.9
+
+# --- Pesi della reward function ---
+reward:
+  weight_format: 0.20
+  weight_validity: 0.35
+  weight_schema: 0.35
+  weight_reasoning: 0.10
+
+# --- Weights & Biases ---
+wandb:
+  project: "grpo-strict-generation"
+  run_name: null
+  tags: ["grpo", "TinyLlama-1.1B", "json-only", "cluster-k80"]

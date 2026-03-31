@@ -24,7 +24,7 @@
 #SBATCH --output=logs/slurm-%j.log
 
 # ── Variabili progetto ────────────────────────────────────────────────────────
-CONFIG="experiments/configs/grpo.yaml"
+CONFIG="experiments/configs/grpo_cluster.yaml"
 EXTRA_ARGS=""   # "--resume" per riprendere da checkpoint, "--eval-only DIR" per solo eval
 
 # ── Setup ambiente ───────────────────────────────────────────────────────────

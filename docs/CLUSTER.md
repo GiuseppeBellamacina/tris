@@ -41,6 +41,22 @@ sul cluster GPU del Dipartimento di Matematica e Informatica (UniCT).
 > Consigliato `gpu-xlarge` su K80 o `gpu-phd-large` su V100.
 > Su L40S qualsiasi QoS con >= 11 GB VRAM è sufficiente.
 
+### Compatibilità software per GPU
+
+| Feature | K80 (CC 3.7) | V100 (CC 7.0) | L40S (CC 8.9) |
+|---------|:---:|:---:|:---:|
+| Unsloth | ❌ | ✅ | ✅ |
+| vLLM / fast_inference | ❌ | ✅ | ✅ |
+| bfloat16 | ❌ | ❌ | ✅ |
+| 4-bit quantization (NF4) | ❌ | ✅ | ✅ |
+| paged_adamw_8bit | ❌ | ✅ | ✅ |
+| VLLM standby=1 | ❌ | ❌ | Probabile |
+
+> Il config da usare dipende dalla GPU assegnata.
+> Per K80 usa `experiments/configs/grpo_cluster.yaml`.
+> Per V100/L40S puoi usare `experiments/configs/grpo.yaml` con gli adattamenti
+> descritti nella sezione [Configurazione per GPU](#4-configurazione-per-gpu).
+
 ---
 
 ## 2. Accesso al Cluster

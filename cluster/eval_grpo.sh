@@ -22,7 +22,7 @@
 #SBATCH --gres=gpu:1 --gres=shard:22528
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=bellamacina50@gmail.com
-#SBATCH --output=logs/slurm-%j.log
+#SBATCH --output=logs/slurm-eval-%j.log
 
 # ── Variabili progetto ────────────────────────────────────────────────────────
 CONFIG="experiments/configs/grpo_cluster.yaml"

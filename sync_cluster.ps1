@@ -27,7 +27,8 @@ function Upload {
     $items = @(
         "src",
         "cluster",
-        "experiments/configs"
+        "experiments/configs",
+        ".env"
     )
 
     # Build flat list of (localPath, remotePath) pairs

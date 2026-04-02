@@ -98,7 +98,7 @@ exit
 ```bash
 cd ~/GRPO-strict-generation
 mkdir -p logs
-sbatch cluster/eval_baseline.sh
+MODE=baseline sbatch cluster/eval.sh
 ```
 
 Aspetta che finisca prima di lanciare il training GRPO:

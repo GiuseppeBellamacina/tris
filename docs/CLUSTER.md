@@ -278,7 +278,7 @@ sbatch cluster/train.sh
 
 ```bash
 # 1. Baseline evaluation
-sbatch cluster/eval_baseline.sh
+MODE=baseline sbatch cluster/eval.sh
 
 # 2. Attendi che finisca, poi lancia GRPO
 sbatch cluster/train.sh

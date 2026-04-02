@@ -728,14 +728,14 @@ def main() -> None:
     # Skip when Unsloth was used: it monkey-patches transformer classes at
     # the class level, so loading a vanilla HF model in the same process
     # crashes (e.g. 'LlamaAttention' has no attribute 'apply_qkv').
-    # Use eval_grpo.sh for proper post-training evaluation instead.
+    # Use eval.sh for proper post-training evaluation instead.
     if config.get("model", {}).get("use_unsloth", False):
         if is_main_process():
             print(
                 "\n[grpo] Skipping in-process checkpoint eval (Unsloth patches "
                 "are incompatible with vanilla HF loading in the same process)."
-                "\nUse eval_grpo.sh for post-training evaluation:"
-                "\n  COMPARE=1 sbatch cluster/eval_grpo.sh"
+                "\nUse eval.sh for post-training evaluation:"
+                "\n  COMPARE=1 sbatch cluster/eval.sh"
             )
     else:
         _select_best_checkpoint(config, grpo_config.output_dir)

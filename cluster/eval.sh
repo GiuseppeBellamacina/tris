@@ -3,12 +3,12 @@
 # SLURM batch script — Evaluation sul cluster DMI
 #
 # Uso:
-#   sbatch cluster/eval_grpo.sh                                    # eval GRPO (default)
-#   MODE=baseline sbatch cluster/eval_grpo.sh                      # eval baseline
-#   MODE=sft sbatch cluster/eval_grpo.sh                           # eval SFT
-#   COMPARE=1 sbatch cluster/eval_grpo.sh                          # eval GRPO + comparison
-#   CURRICULUM=1 sbatch cluster/eval_grpo.sh                       # eval curriculum (implica compare)
-#   CHECKPOINT="path/to/ckpt" sbatch cluster/eval_grpo.sh          # eval specifico checkpoint
+#   sbatch cluster/eval.sh                                    # eval GRPO (default)
+#   MODE=baseline sbatch cluster/eval.sh                      # eval baseline
+#   MODE=sft sbatch cluster/eval.sh                           # eval SFT
+#   COMPARE=1 sbatch cluster/eval.sh                          # eval GRPO + comparison
+#   CURRICULUM=1 sbatch cluster/eval.sh                       # eval curriculum (implica compare)
+#   CHECKPOINT="path/to/ckpt" sbatch cluster/eval.sh          # eval specifico checkpoint
 #
 # Se baseline results.json non esiste e COMPARE=1, lo script
 # esegue anche la baseline evaluation automaticamente.

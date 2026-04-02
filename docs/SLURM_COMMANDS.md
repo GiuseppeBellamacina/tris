@@ -43,7 +43,7 @@ sbatch cluster/train.sh --config experiments/configs/grpo.yaml --resume
 
 ```bash
 # Esegui eval solo dopo che il training (job 12345) è completato con successo
-sbatch --dependency=afterok:12345 cluster/eval_baseline.sh
+sbatch --dependency=afterok:12345 cluster/eval.sh
 ```
 
 | Tipo dipendenza | Significato |
@@ -357,7 +357,7 @@ sacct --jobs=<SETUP_JOB_ID> --format=JobID,State,ExitCode
 cat slurm-<SETUP_JOB_ID>.out
 
 # 6. Lancia la baseline evaluation
-BASELINE_JOB=$(sbatch --parsable cluster/eval_baseline.sh)
+BASELINE_JOB=$(sbatch --parsable MODE=baseline cluster/eval.sh)
 echo "Baseline job: $BASELINE_JOB"
 
 # 7. Lancia il training (dopo la baseline)

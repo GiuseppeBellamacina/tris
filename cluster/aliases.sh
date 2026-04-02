@@ -159,7 +159,7 @@ eval() {
             *) echo "Argomento sconosciuto: $1"; return 1 ;;
         esac
     done
-    cd "$PROJ_DIR" && MODE="$mode" COMPARE="$compare" CURRICULUM="$curriculum" CHECKPOINT="$checkpoint" sbatch cluster/eval_grpo.sh
+    cd "$PROJ_DIR" && MODE="$mode" COMPARE="$compare" CURRICULUM="$curriculum" CHECKPOINT="$checkpoint" sbatch cluster/eval.sh
 }
 
 # ── Meta ─────────────────────────────────────────────────────────────────────

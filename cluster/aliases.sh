@@ -139,21 +139,44 @@ alias eval-grpo='cd "$PROJ_DIR" && sbatch cluster/eval_grpo.sh'
 alias eval-curriculum='cd "$PROJ_DIR" && CURRICULUM=1 sbatch cluster/eval_grpo.sh'
 alias eval-baseline='cd "$PROJ_DIR" && sbatch cluster/eval_baseline.sh'
 
-echo "✅ Alias GRPO caricati. Comandi disponibili:"
-echo "   myjobs            — lista job attivi"
-echo "   jobinfo <ID>      — dettagli job"
-echo "   killjob <ID>      — cancella job"
-echo "   grpolog <ID>      — segui log training GRPO"
-echo "   evallog <ID>      — segui log eval GRPO"
-echo "   baselog <ID>      — segui log baseline"
-echo "   lastlog           — segui l'ultimo log"
-echo "   tree <DIR> [N]    — albero cartelle (profondità N)"
-echo "   ltree <DIR>       — albero cartelle compatto"
-echo "   gpu               — stato GPU"
-echo "   quota             — uso disco progetto"
-echo "   proj              — cd al progetto"
-echo "   ckpts             — mostra checkpoint"
-echo "   train             — sbatch training"
-echo "   eval-grpo         — sbatch eval GRPO"
-echo "   eval-curriculum   — sbatch eval curriculum"
-echo "   eval-baseline     — sbatch eval baseline"
+# ── Meta ─────────────────────────────────────────────────────────────────────
+
+# Lista di tutti i comandi custom registrati
+_GRPO_ALIASES="myjobs jobinfo killjob killalljobs grpolog evallog baselog lastlog tree ltree gpu quota proj ckpts train eval-grpo eval-curriculum eval-baseline claudio unload-aliases"
+
+# Mostra i comandi disponibili
+claudio() {
+    echo "Comandi GRPO disponibili:"
+    echo "   myjobs            — lista job attivi"
+    echo "   jobinfo <ID>      — dettagli job"
+    echo "   killjob <ID>      — cancella job"
+    echo "   killalljobs       — cancella tutti i miei job"
+    echo "   grpolog <ID>      — segui log training GRPO"
+    echo "   evallog <ID>      — segui log eval GRPO"
+    echo "   baselog <ID>      — segui log baseline"
+    echo "   lastlog           — segui l'ultimo log"
+    echo "   tree <DIR> [N]    — albero cartelle (profondità N)"
+    echo "   ltree <DIR>       — albero cartelle compatto"
+    echo "   gpu               — stato GPU"
+    echo "   quota             — uso disco progetto"
+    echo "   proj              — cd al progetto"
+    echo "   ckpts             — mostra checkpoint"
+    echo "   train             — sbatch training"
+    echo "   eval-grpo         — sbatch eval GRPO"
+    echo "   eval-curriculum   — sbatch eval curriculum"
+    echo "   eval-baseline     — sbatch eval baseline"
+    echo "   claudio             — mostra questo messaggio"
+    echo "   unload-aliases    — rimuovi tutti i comandi custom"
+}
+
+# Rimuovi tutti gli alias e funzioni custom
+unload-aliases() {
+    for cmd in $_GRPO_ALIASES; do
+        unalias "$cmd" 2>/dev/null
+        unset -f "$cmd" 2>/dev/null
+    done
+    unset _GRPO_ALIASES PROJ_DIR
+    echo "✅ Alias GRPO rimossi."
+}
+
+echo "✅ Alias GRPO caricati. Digita 'claudio' per la lista comandi."

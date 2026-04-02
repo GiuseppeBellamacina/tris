@@ -41,11 +41,21 @@ _parser.add_argument("--config", type=str, default=None)
 _parser.add_argument(
     "--mode", type=str, default=None, choices=["baseline", "grpo"]
 )
-_early_args, _remaining = _parser.parse_known_args()
+_early_args, _ = _parser.parse_known_args()
 
-# Remove --mode from sys.argv so downstream parsers don't choke on it
-if _early_args.mode is not None:
-    sys.argv = [sys.argv[0]] + _remaining
+# Remove only --mode from sys.argv so downstream parsers don't choke on it
+# (keep --config and everything else intact)
+_filtered_argv = [sys.argv[0]]
+_skip_next = False
+for _i, _arg in enumerate(sys.argv[1:], 1):
+    if _skip_next:
+        _skip_next = False
+        continue
+    if _arg == "--mode":
+        _skip_next = True  # skip --mode and its value
+        continue
+    _filtered_argv.append(_arg)
+sys.argv = _filtered_argv
 
 _cfg = _peek_config(_early_args.config) if _early_args.config else {}
 

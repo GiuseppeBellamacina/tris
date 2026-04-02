@@ -161,27 +161,70 @@ def main() -> None:
 
     config = load_config(args.config)
 
+    # Detect curriculum from config (curriculum.enabled in YAML)
+    curriculum_cfg = config.get("curriculum", {})
+    is_curriculum = curriculum_cfg.get("enabled", False)
+
+    # --curriculum flag follows the config by default; explicit flag overrides
+    if is_curriculum:
+        args.curriculum = True
+
     # --curriculum implies --compare
     if args.curriculum:
         args.compare = True
 
-    # Determine checkpoint path: explicit > final/ > latest checkpoint-*
+    # Determine checkpoint path
     output_dir = config["training"]["output_dir"]
+    ckpt_path = None
+
     if args.checkpoint:
+        # Explicit checkpoint always wins
         ckpt_path = args.checkpoint
     elif (Path(output_dir) / "final").exists():
         ckpt_path = str(Path(output_dir) / "final")
+    elif is_curriculum:
+        # Curriculum training: checkpoints are in stage_X_name/checkpoint-*
+        # and final stage models in stages/stage_X_name/.
+        # For tokenizer loading we need any valid model dir.
+        stages_dir = Path(output_dir) / "stages"
+        if stages_dir.exists():
+            stage_dirs = sorted(
+                [d for d in stages_dir.iterdir() if d.is_dir()]
+            )
+        else:
+            stage_dirs = []
+
+        if stage_dirs:
+            ckpt_path = str(stage_dirs[-1])
+        else:
+            # stages/ not yet saved — fall back to intermediate checkpoints
+            # inside stage_X_name/checkpoint-* dirs
+            stage_ckpts = sorted(
+                Path(output_dir).glob("stage_*/checkpoint-*")
+            )
+            if stage_ckpts:
+                ckpt_path = str(stage_ckpts[-1])
+            else:
+                print(
+                    f"No checkpoint found in {output_dir}/stages/ "
+                    f"or {output_dir}/stage_*/checkpoint-*"
+                )
+                return
     else:
-        # Fall back to the last checkpoint-* directory
+        # Non-curriculum: checkpoints are directly in output_dir
         ckpts = sorted(Path(output_dir).glob("checkpoint-*"))
         if ckpts:
             ckpt_path = str(ckpts[-1])
         else:
             print(f"No checkpoint found in {output_dir}")
             return
+
     if not Path(ckpt_path).exists():
         print(f"Checkpoint not found: {ckpt_path}")
         return
+
+    print(f"[eval] Curriculum: {is_curriculum}")
+    print(f"[eval] Using checkpoint: {ckpt_path}")
 
     # Output directory for eval results
     ckpt_name = Path(ckpt_path).name

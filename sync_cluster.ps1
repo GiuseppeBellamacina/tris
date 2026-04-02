@@ -187,17 +187,21 @@ function SyncWandb {
     $failed = 0
     foreach ($wdir in $wandbDirs) {
         $relPath = $wdir.FullName.Substring($LOCAL.Length + 1)
-        Write-Host "  Syncing $relPath ..." -ForegroundColor Gray -NoNewline
-        # --sync-all  : sync every run dir found inside, including resumed segments
-        # --include-synced : re-upload even dirs already marked as synced locally
-        $result = & wandb sync --sync-all --include-synced $wdir.FullName 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host " OK" -ForegroundColor Green
-            $synced++
-        } else {
-            Write-Host " FAILED" -ForegroundColor Red
-            Write-Host ($result | Out-String) -ForegroundColor DarkRed
-            $failed++
+        # Sync each offline-run-* directory individually — --sync-all on the
+        # parent does not re-sync runs already marked as done locally.
+        $offlineRuns = Get-ChildItem -Path $wdir.FullName -Directory -Filter "offline-run-*"
+        foreach ($run in $offlineRuns) {
+            $runRel = $run.FullName.Substring($LOCAL.Length + 1)
+            Write-Host "  Syncing $runRel ..." -ForegroundColor Gray -NoNewline
+            $result = & wandb sync --include-synced $run.FullName 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host " OK" -ForegroundColor Green
+                $synced++
+            } else {
+                Write-Host " FAILED" -ForegroundColor Red
+                Write-Host ($result | Out-String) -ForegroundColor DarkRed
+                $failed++
+            }
         }
     }
 

@@ -253,10 +253,28 @@ def main() -> None:
     from src.evaluation.eval_dataset import load_eval_dataset
 
     test_ds = load_eval_dataset(config)
-    if args.max_samples:
-        test_ds = test_ds.select(
-            range(min(args.max_samples, len(test_ds)))
-        )
+    if args.max_samples and args.max_samples < len(test_ds):
+        # Stratified sampling to keep difficulty distribution balanced
+        import random
+
+        indices_by_diff: dict[str, list[int]] = {}
+        for i, d in enumerate(test_ds["difficulty"]):
+            indices_by_diff.setdefault(d, []).append(i)
+
+        n_cats = len(indices_by_diff)
+        per_cat = args.max_samples // n_cats
+        remainder = args.max_samples - per_cat * n_cats
+
+        rng = random.Random(42)
+        selected: list[int] = []
+        for j, (cat, idxs) in enumerate(
+            sorted(indices_by_diff.items())
+        ):
+            n = per_cat + (1 if j < remainder else 0)
+            rng.shuffle(idxs)
+            selected.extend(idxs[:n])
+        selected.sort()
+        test_ds = test_ds.select(selected)
 
     gen_config = {
         "max_new_tokens": config["grpo"].get(

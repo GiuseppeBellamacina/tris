@@ -1,7 +1,7 @@
 # ============================================================================
 # GRPO training config — Group Relative Policy Optimization via trl.
 #
-# Usato da:  python -m src.training.grpo_train --config experiments/configs/grpo.yaml
+# Usato da:  python -m src.training.grpo_train --config experiments/configs/grpo_colab.yaml
 # ============================================================================
 
 # --- Modello ---

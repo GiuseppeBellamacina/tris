@@ -113,25 +113,21 @@ class WandbAlertCallback(TrainerCallback):
         )
 
 
-class CurriculumStepOffsetCallback(TrainerCallback):
-    """Offset ``global_step`` in wandb logs so steps are continuous across stages.
+class CurriculumStageCallback(TrainerCallback):
+    """Log curriculum stage metadata to wandb.
 
-    Without this callback each curriculum stage logs steps starting from 0,
-    making wandb charts discontinuous.  This callback adds ``step_offset``
-    to every logged step so stage 2 continues where stage 1 left off.
-
-    It also logs stage metadata (name, difficulty weights) to wandb.config
-    at the start of training.
+    Logs ``curriculum/stage`` (1, 2, 3) at every logging step so that wandb
+    charts show a clear step-function indicating which stage is active.
+    Stage metadata (name, difficulty weights) is written to wandb.config
+    once at the start of training.
     """
 
     def __init__(
         self,
-        step_offset: int,
         stage_idx: int,
         stage_name: str,
         difficulty_weights: dict[str, float],
     ) -> None:
-        self._step_offset = step_offset
         self._stage_idx = stage_idx
         self._stage_name = stage_name
         self._difficulty_weights = difficulty_weights
@@ -151,7 +147,6 @@ class CurriculumStepOffsetCallback(TrainerCallback):
                     "curriculum_stage": self._stage_idx + 1,
                     "curriculum_stage_name": self._stage_name,
                     "curriculum_difficulty_weights": self._difficulty_weights,
-                    "curriculum_step_offset": self._step_offset,
                 },
                 allow_val_change=True,
             )
@@ -168,11 +163,8 @@ class CurriculumStepOffsetCallback(TrainerCallback):
             return
         if wandb.run is not None:
             wandb.log(
-                {
-                    "curriculum/global_step": state.global_step
-                    + self._step_offset
-                },
-                step=state.global_step + self._step_offset,
+                {"curriculum/stage": self._stage_idx + 1},
+                commit=False,
             )
 
 

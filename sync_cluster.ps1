@@ -182,7 +182,12 @@ function SyncWandb {
         return
     }
 
-    Write-Host "Found $($wandbDirs.Count) wandb dir(s) with offline runs:" -ForegroundColor Gray
+    # Count total offline runs across all wandb dirs
+    $totalRuns = 0
+    foreach ($wdir in $wandbDirs) {
+        $totalRuns += (Get-ChildItem -Path $wdir.FullName -Directory -Filter "offline-run-*").Count
+    }
+    Write-Host "Found $totalRuns offline run(s) in $($wandbDirs.Count) wandb dir(s):" -ForegroundColor Gray
     $synced = 0
     $failed = 0
     foreach ($wdir in $wandbDirs) {
@@ -192,7 +197,7 @@ function SyncWandb {
         $offlineRuns = Get-ChildItem -Path $wdir.FullName -Directory -Filter "offline-run-*"
         foreach ($run in $offlineRuns) {
             $runRel = $run.FullName.Substring($LOCAL.Length + 1)
-            Write-Host "  Syncing $runRel ..." -ForegroundColor Gray -NoNewline
+            Write-Host "  [$($synced + $failed + 1)/$totalRuns] Syncing $($run.Name) ..." -ForegroundColor Gray -NoNewline
             $result = & wandb sync --include-synced $run.FullName 2>&1
             if ($LASTEXITCODE -eq 0) {
                 Write-Host " OK" -ForegroundColor Green

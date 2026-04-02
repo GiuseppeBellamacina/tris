@@ -36,7 +36,7 @@ from src.datasets.dataloader import (
 from src.evaluation.eval_baseline import generate_completions
 from src.models.model_loader import load_model_and_tokenizer
 from src.training.callbacks import (
-    CurriculumStepOffsetCallback,
+    CurriculumStageCallback,
     HighPrecisionLogCallback,
     SaveWandbRunIdCallback,
     WandbAlertCallback,
@@ -298,20 +298,26 @@ def _run_curriculum_training(
     thinking = config.get("dataset", {}).get("thinking", True)
     total_steps = sum(s["steps"] for s in stages)
 
-    # ── Wandb setup ───────────────────────────────────────────────────────
+    # ── Wandb setup — single run for all stages ─────────────────────────
     wandb_cfg = config.get("wandb", {})
     wandb_project = wandb_cfg.get("project", "grpo-strict-generation")
     os.environ["WANDB_PROJECT"] = wandb_project
     os.environ["WANDB_DIR"] = log_dir
-    from datetime import datetime
-
-    group_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    os.environ["WANDB_RUN_GROUP"] = (
-        f"{wandb_cfg.get('run_name', 'curriculum')}-{group_ts}"
-    )
     os.environ["WANDB_TAGS"] = ",".join(
         wandb_cfg.get("tags", ["grpo", "curriculum"])
     )
+
+    # Initialize a single wandb run that spans all stages.
+    # GRPOTrainer detects the existing run and reuses it.
+    run_name = wandb_cfg.get("run_name", "grpo-curriculum")
+    if is_main_process():
+        wandb.init(
+            project=wandb_project,
+            name=run_name,
+            config=config,
+            tags=wandb_cfg.get("tags", ["grpo", "curriculum"]),
+            dir=log_dir,
+        )
 
     if is_main_process():
         print(f"\n{'=' * 60}")
@@ -399,9 +405,7 @@ def _run_curriculum_training(
         # 5. Build GRPOConfig
         stage_wandb = {
             **wandb_cfg,
-            "run_name": (
-                f"{wandb_cfg.get('run_name', 'grpo')}-{stage_name}"
-            ),
+            "run_name": run_name,
         }
         stage_full_config = {**config, "wandb": stage_wandb}
         grpo_config = _build_grpo_config(
@@ -437,8 +441,7 @@ def _run_curriculum_training(
             callbacks=[
                 HighPrecisionLogCallback(),
                 WandbAlertCallback(stage_label=stage_label),
-                CurriculumStepOffsetCallback(
-                    step_offset=cumulative_steps,
+                CurriculumStageCallback(
                     stage_idx=stage_idx,
                     stage_name=stage_name,
                     difficulty_weights=stage["difficulty_weights"],
@@ -467,11 +470,7 @@ def _run_curriculum_training(
         trainer.save_model(str(stage_end_path))
         tokenizer.save_pretrained(str(stage_end_path))
 
-        # 10. Finish wandb run before next stage
-        if is_main_process():
-            wandb.finish()
-
-        # 11. Free trainer resources (model stays in memory)
+        # 10. Free trainer resources (model stays in memory)
         del trainer
         gc.collect()
         torch.cuda.empty_cache()
@@ -501,6 +500,10 @@ def _run_curriculum_training(
                 "(Unsloth patches incompatible with vanilla HF loading)."
                 "\nUse eval scripts for post-training evaluation."
             )
+
+    # Finish the single wandb run after all stages
+    if is_main_process():
+        wandb.finish()
 
 
 def main() -> None:

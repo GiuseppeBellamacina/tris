@@ -131,6 +131,26 @@ ckpts() {
     done || echo "  (nessuno)"
 }
 
+# Mostra tabella training log (uso: trainlog-table [PATH] [--tail N])
+# PATH default: ultimo checkpoint in experiments/checkpoints/grpo/
+trainlog-table() {
+    cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "${1:-experiments/checkpoints/grpo}" "${@:2}"
+}
+
+# Segui training live come tabella (uso: trainlog-live <JOB_ID>)
+trainlog-live() {
+    if [ -z "$1" ]; then
+        echo "Uso: trainlog-live <JOB_ID>"
+        return 1
+    fi
+    local logfile="$PROJ_DIR/logs/slurm-train-${1}.log"
+    if [ ! -f "$logfile" ]; then
+        echo "Log non trovato: $logfile"
+        return 1
+    fi
+    tail -f "$logfile" | python3 -m src.utils.live_training_table
+}
+
 # Lancia training (uso: train [--mode grpo|sft] [extra args...])
 train() {
     local mode="grpo"
@@ -165,7 +185,7 @@ run-eval() {
 # ── Meta ─────────────────────────────────────────────────────────────────────
 
 # Lista di tutti i comandi custom registrati
-_GRPO_ALIASES="myjobs jobinfo killjob killalljobs trainlog evallog baselog lastlog tree ltree gpu quota proj ckpts train run-eval claudio unload-aliases install-aliases uninstall-aliases"
+_GRPO_ALIASES="myjobs jobinfo killjob killalljobs trainlog evallog baselog lastlog tree ltree gpu quota proj ckpts trainlog-table trainlog-live train run-eval claudio unload-aliases install-aliases uninstall-aliases"
 
 # Mostra i comandi disponibili
 claudio() {
@@ -184,6 +204,9 @@ claudio() {
     echo "   quota             — uso disco progetto"
     echo "   proj              — cd al progetto"
     echo "   ckpts             — mostra checkpoint"
+    echo "   trainlog-table [PATH] [--tail N]"
+    echo "                     — tabella metriche training"
+    echo "   trainlog-live <ID> — training live come tabella"
     echo ""
     echo "   train [--mode grpo|sft] [extra args...]"
     echo "                     — lancia training (default: grpo)"

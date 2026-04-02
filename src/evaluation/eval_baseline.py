@@ -27,7 +27,6 @@ from transformers import (  # noqa: E402
 
 from src.datasets.dataloader import (  # noqa: E402
     format_prompt_for_model,
-    load_synthetic_dataset,
 )
 from src.models.model_loader import (  # noqa: E402
     load_model,
@@ -152,12 +151,13 @@ def main() -> None:
         tokenizer = load_tokenizer(model_cfg["name"])
 
     print("Loading dataset...")
-    ds = load_synthetic_dataset(
-        path=config["dataset"]["path"],
-        split=config["dataset"].get("split", "test"),
-        max_samples=config["dataset"].get("max_samples"),
-    )
-    test_ds = ds[config["dataset"].get("split", "test")]
+    from src.evaluation.eval_dataset import load_balanced_eval_dataset
+
+    test_ds = load_balanced_eval_dataset(config)
+    if config["dataset"].get("max_samples"):
+        test_ds = test_ds.select(
+            range(min(config["dataset"]["max_samples"], len(test_ds)))
+        )
 
     # Format prompts
     prompts = [

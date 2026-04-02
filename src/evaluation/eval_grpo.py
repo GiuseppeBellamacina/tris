@@ -28,7 +28,6 @@ from dotenv import load_dotenv
 
 from src.datasets.dataloader import (
     format_prompt_for_model,
-    load_synthetic_dataset,
 )
 from src.evaluation.eval_baseline import generate_completions
 from src.models.model_loader import load_model_and_tokenizer
@@ -207,12 +206,10 @@ def main() -> None:
     )
 
     # Load test dataset
-    print("Loading test dataset...")
-    ds = load_synthetic_dataset(
-        path=config["dataset"]["path"],
-        split="test",
-    )
-    test_ds = ds["test"]
+    # Always use the balanced eval dataset (generated if missing)
+    from src.evaluation.eval_dataset import load_balanced_eval_dataset
+
+    test_ds = load_balanced_eval_dataset(config)
     if args.max_samples:
         test_ds = test_ds.select(
             range(min(args.max_samples, len(test_ds)))

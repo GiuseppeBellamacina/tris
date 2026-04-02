@@ -71,20 +71,27 @@ grpo:
 
 # --- Pesi della reward function ---
 reward:
-  weight_format: 0.30
-  weight_validity: 0.35
-  weight_schema: 0.35
+  weight_format: 0.25
+  weight_validity: 0.30
+  weight_schema: 0.30
+  weight_truncation: 0.15 # penalizza completions troncate (bare JSON non chiuso)
   weight_reasoning: 0.0
 
 # --- Curriculum Learning ---
 # Multi-stage training: easy samples first to consolidate format, then
 # progressively harder to develop structural competence.
 # Quando abilitato, training.max_steps è ignorato (si usano gli step per stage).
-# Il dataset di training viene rigenerato in memoria per ogni stage — il dataset
-# su disco (dataset.path) è usato solo per il test split durante l'evaluation.
+# Il dataset di training viene rigenerato per ogni stage con test_ratio=0.
+# Un dataset di eval separato (uniforme) viene generato automaticamente.
 curriculum:
   enabled: true
-  num_samples: 4000 # campioni di training rigenerati per stage
+  num_samples: 1500 # campioni di training rigenerati per stage
+  eval_dataset:
+    num_samples: 999 # multiplo di 3 per distribuzione perfettamente uniforme
+    difficulty_weights:
+      simple: 0.334
+      medium: 0.333
+      hard: 0.333
   stages:
     - name: "format_basics"
       steps: 800

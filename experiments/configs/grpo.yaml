@@ -67,12 +67,13 @@ grpo:
   temperature: 0.9 # temperatura di campionamento durante i rollout (più diversità nel gruppo)
 
 # --- Pesi della reward function ---
-# Tutti i pesi devono sommare a 1.0.
+# Conta il rapporto relativo tra i pesi, non la somma assoluta.
 reward:
   weight_format: 0.20 # presenza di un blocco ```json ... ``` corretto (componente additiva; 0.5 per ``` generico)
   weight_validity: 0.35 # JSON parsabile senza errori (punteggio graduato)
   weight_schema: 0.35 # conformità strutturale ai vincoli del prompt
   weight_reasoning: 0.10 # bonus per <think>...</think> con contenuto reale (ora allineato al system prompt)
+  # weight_truncation: 0.15   # penalità per completion troncate (range [-1, +1])
 
 # --- Curriculum Learning (opzionale) ---
 # Decommentare per abilitare il training multi-stage con difficoltà progressiva.

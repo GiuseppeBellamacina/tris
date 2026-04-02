@@ -41,7 +41,7 @@ from src.training.callbacks import (
     SaveWandbRunIdCallback,
     WandbAlertCallback,
 )
-from src.training.rewards import build_reward_function
+from src.training.rewards import build_reward_functions
 from src.utils.config import load_config
 from src.utils.distributed import is_main_process
 from src.utils.metrics import compute_detailed_metrics
@@ -53,6 +53,7 @@ def _build_grpo_config(
     training_cfg: dict[str, Any],
     grpo_cfg: dict[str, Any],
     full_config: dict[str, Any] | None = None,
+    reward_weights: list[float] | None = None,
 ) -> GRPOConfig:
     """Build a ``GRPOConfig`` from separated training and GRPO config dicts."""
     output_dir = training_cfg.get(
@@ -111,6 +112,7 @@ def _build_grpo_config(
         max_prompt_length=grpo_cfg.get("max_prompt_length", 256),
         beta=grpo_cfg.get("beta", 0.04),
         temperature=grpo_cfg.get("temperature", 0.7),
+        reward_weights=reward_weights,
         report_to="wandb",
     )
 
@@ -139,7 +141,7 @@ def _generate_curriculum_dataset(
     config: dict[str, Any],
     tokenizer: Any,
     difficulty_weights: dict[str, float],
-    num_samples: int = 4000,
+    num_samples: int = 1500,
     seed: int = 42,
     save_dir: str | None = None,
 ) -> Dataset:
@@ -292,7 +294,7 @@ def _run_curriculum_training(
     log_dir = config["training"].get(
         "log_dir", "experiments/logs/grpo"
     )
-    num_samples = curriculum.get("num_samples", 4000)
+    num_samples = curriculum.get("num_samples", 1500)
     thinking = config.get("dataset", {}).get("thinking", True)
     total_steps = sum(s["steps"] for s in stages)
 
@@ -326,6 +328,14 @@ def _run_curriculum_training(
         print()
 
     cumulative_steps = 0
+
+    # ── Pre-generate balanced eval dataset (so eval scripts find it) ──────
+    if is_main_process():
+        from src.evaluation.eval_dataset import (
+            load_balanced_eval_dataset,
+        )
+
+        load_balanced_eval_dataset(config)
 
     for stage_idx, stage in enumerate(stages):
         stage_name = stage.get("name", f"stage_{stage_idx + 1}")
@@ -382,7 +392,7 @@ def _run_curriculum_training(
         stage_reward_cfg = {**config.get("reward", {})}
         if "reward" in stage:
             stage_reward_cfg.update(stage["reward"])
-        reward_fn = build_reward_function(
+        reward_fns, rw = build_reward_functions(
             stage_reward_cfg, thinking=thinking
         )
 
@@ -395,7 +405,10 @@ def _run_curriculum_training(
         }
         stage_full_config = {**config, "wandb": stage_wandb}
         grpo_config = _build_grpo_config(
-            stage_training, stage_grpo, stage_full_config
+            stage_training,
+            stage_grpo,
+            stage_full_config,
+            reward_weights=rw,
         )
 
         if is_main_process():
@@ -419,7 +432,7 @@ def _run_curriculum_training(
             model=model,
             args=grpo_config,
             train_dataset=stage_dataset,
-            reward_funcs=reward_fn,
+            reward_funcs=reward_fns,
             processing_class=tokenizer,
             callbacks=[
                 HighPrecisionLogCallback(),
@@ -561,17 +574,20 @@ def main() -> None:
             f"[grpo] Training dataset: {len(prompt_dataset)} prompts"
         )
 
-    # Build reward function
+    # Build reward functions (separate per-component for wandb logging)
     thinking = config.get("dataset", {}).get("thinking", True)
     if is_main_process():
         print(f"[grpo] thinking={'on' if thinking else 'off'}")
-    reward_fn = build_reward_function(
-        config["reward"], thinking=thinking
+    reward_fns, reward_weights = build_reward_functions(
+        config.get("reward", {}), thinking=thinking
     )
 
     # Build GRPO config
     grpo_config = _build_grpo_config(
-        config["training"], config["grpo"], config
+        config["training"],
+        config["grpo"],
+        config,
+        reward_weights=reward_weights,
     )
     if is_main_process():
         print(
@@ -666,7 +682,7 @@ def main() -> None:
         model=model,  # type: ignore[arg-type]
         args=grpo_config,
         train_dataset=prompt_dataset,
-        reward_funcs=reward_fn,  # type: ignore[arg-type]
+        reward_funcs=reward_fns,  # type: ignore[arg-type]
         processing_class=tokenizer,  # type: ignore[arg-type]
         callbacks=[
             HighPrecisionLogCallback(),
@@ -747,13 +763,11 @@ def _select_best_checkpoint(
         print("Only one checkpoint found, skipping selection.")
         return
 
-    # Load test set
-    ds = load_synthetic_dataset(
-        path=config["dataset"]["path"],
-        split="test",
-    )
-    test_ds = ds["test"]
-    max_eval = min(200, len(test_ds))
+    # Load test set — always use balanced eval dataset
+    from src.evaluation.eval_dataset import load_balanced_eval_dataset
+
+    test_ds = load_balanced_eval_dataset(config)
+    max_eval = min(len(test_ds), 999)
     eval_ds = test_ds.select(range(max_eval))
     difficulties = list(eval_ds["difficulty"])
 

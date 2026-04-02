@@ -322,6 +322,57 @@ def reasoning_reward(completion: str) -> float:
     return 0.0
 
 
+def truncation_reward(completion: str) -> float:
+    """Detect and penalise completions that appear truncated mid-generation.
+
+    Truncation typically happens when the model hits ``max_completion_length``
+    before closing JSON structures.  The reward is designed to NOT overlap
+    with ``format_reward`` (which already penalises missing code fences):
+
+      1.0 — completion looks structurally complete
+      0.0 — no JSON detected (neutral; other rewards already handle this)
+     -1.0 — bare JSON (no fence) that is clearly truncated: unclosed
+            braces/brackets, unterminated strings, or trailing commas
+
+    Only fires negatively on the ``extract_code_block`` bare-JSON fallback
+    path (text starting with ``{`` or ``[`` without code fences), because
+    fenced blocks that are truncated already score 0.0 on *all* other
+    rewards (the regex never matches an unclosed fence).
+    """
+    stripped = completion.strip()
+
+    # If there's a matched code fence pair (open + close ```), not truncated.
+    if re.search(
+        r"```(?:json)?\s*\n[\s\S]*?```", stripped, re.IGNORECASE
+    ):
+        return 1.0
+
+    # Only care about bare JSON (the fallback path in extract_code_block)
+    if not (stripped.startswith("{") or stripped.startswith("[")):
+        # No JSON at all — format_reward already gives 0.0, don't
+        # double-penalise.
+        return 0.0
+
+    # Bare JSON detected — check for truncation signals
+    # Count unmatched structural characters
+    open_braces = stripped.count("{") - stripped.count("}")
+    open_brackets = stripped.count("[") - stripped.count("]")
+
+    if open_braces > 0 or open_brackets > 0:
+        return -1.0  # unclosed { or [
+
+    # Trailing comma or colon (value was about to follow)
+    if stripped.rstrip()[-1:] in (",", ":"):
+        return -1.0
+
+    # Unterminated string: odd number of unescaped quotes
+    unescaped_quotes = len(re.findall(r'(?<!\\)"', stripped))
+    if unescaped_quotes % 2 != 0:
+        return -1.0
+
+    return 1.0
+
+
 # ---------------------------------------------------------------------------
 # Combined reward and factory
 # ---------------------------------------------------------------------------
@@ -463,3 +514,142 @@ def build_reward_function(
         return rewards
 
     return reward_fn
+
+
+def _make_single_reward_fn(
+    component_fn: Callable[..., float],
+    needs_instruction: bool = False,
+) -> Callable[..., list[float]]:
+    """Wrap a single-sample reward component into the GRPOTrainer-compatible
+    signature: ``fn(completions, prompts=None, **kwargs) -> list[float]``.
+    """
+
+    def _instruction_from_prompt(prompt: Any) -> str:
+        if isinstance(prompt, list):
+            for msg in reversed(prompt):
+                if (
+                    isinstance(msg, dict)
+                    and msg.get("role") == "user"
+                ):
+                    return msg.get("content", "")
+        return str(prompt) if prompt is not None else ""
+
+    def reward_fn(
+        completions: list[Any],
+        prompts: list[Any] | None = None,
+        **kwargs: Any,
+    ) -> list[float]:
+        instructions = (
+            [_instruction_from_prompt(p) for p in prompts]
+            if prompts
+            else [""] * len(completions)
+        )
+        results: list[float] = []
+        for completion, instruction in zip(completions, instructions):
+            text: str = (
+                completion[0]["content"]
+                if isinstance(completion, list)
+                else completion
+            )
+            if needs_instruction:
+                results.append(component_fn(text, instruction))
+            else:
+                results.append(component_fn(text))
+        return results
+
+    # GRPOTrainer uses fn.__name__ for wandb metric names
+    reward_fn.__name__ = component_fn.__name__
+    return reward_fn
+
+
+def build_reward_functions(
+    reward_config: dict[str, Any] | None = None,
+    *,
+    weight_format: float = 0.20,
+    weight_validity: float = 0.35,
+    weight_schema: float = 0.35,
+    weight_reasoning: float = 0.10,
+    weight_truncation: float = 0.0,
+    thinking: bool = True,
+) -> tuple[list[Callable[..., list[float]]], list[float]]:
+    """Build separate reward functions + weights for GRPOTrainer multi-reward.
+
+    Returns:
+        A tuple ``(reward_funcs, reward_weights)`` where:
+        - ``reward_funcs`` is a list of callables (one per active component)
+        - ``reward_weights`` is a matching list of floats
+
+    GRPOTrainer logs each function independently on wandb using ``fn.__name__``
+    as the metric key, giving per-component visibility.
+    """
+    if reward_config is not None:
+        weight_format = reward_config.get(
+            "weight_format", weight_format
+        )
+        weight_validity = reward_config.get(
+            "weight_validity", weight_validity
+        )
+        weight_schema = reward_config.get(
+            "weight_schema", weight_schema
+        )
+        weight_reasoning = reward_config.get(
+            "weight_reasoning", weight_reasoning
+        )
+        weight_truncation = reward_config.get(
+            "weight_truncation", weight_truncation
+        )
+
+    if not thinking:
+        reasoning_share = weight_reasoning
+        weight_reasoning = 0.0
+        # Redistribute the reasoning share proportionally across all
+        # remaining *positive* components so relative ratios are preserved.
+        remaining = {
+            "format": weight_format,
+            "validity": weight_validity,
+            "schema": weight_schema,
+            "truncation": weight_truncation,
+        }
+        total_remaining = sum(remaining.values())
+        if total_remaining > 0 and reasoning_share > 0:
+            scale = reasoning_share / total_remaining
+            weight_format += remaining["format"] * scale
+            weight_validity += remaining["validity"] * scale
+            weight_schema += remaining["schema"] * scale
+            weight_truncation += remaining["truncation"] * scale
+
+    funcs: list[Callable[..., list[float]]] = []
+    weights: list[float] = []
+
+    if weight_format > 0:
+        funcs.append(_make_single_reward_fn(format_reward))
+        weights.append(weight_format)
+
+    if weight_validity > 0:
+        funcs.append(_make_single_reward_fn(validity_reward))
+        weights.append(weight_validity)
+
+    if weight_schema > 0:
+        funcs.append(
+            _make_single_reward_fn(
+                schema_reward, needs_instruction=True
+            )
+        )
+        weights.append(weight_schema)
+
+    if weight_reasoning > 0:
+        funcs.append(_make_single_reward_fn(reasoning_reward))
+        weights.append(weight_reasoning)
+
+    if weight_truncation > 0:
+        funcs.append(_make_single_reward_fn(truncation_reward))
+        weights.append(weight_truncation)
+
+    names = [f.__name__ for f in funcs]
+    weight_strs = [f"{w:.2f}" for w in weights]
+    print(
+        f"Reward functions: {', '.join(f'{n}={w}' for n, w in zip(names, weight_strs))} "
+        f"(thinking={'on' if thinking else 'off'})"
+    )
+
+    return funcs, weights

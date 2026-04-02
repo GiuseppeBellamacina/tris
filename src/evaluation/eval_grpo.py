@@ -207,9 +207,9 @@ def main() -> None:
 
     # Load test dataset
     # Always use the balanced eval dataset (generated if missing)
-    from src.evaluation.eval_dataset import load_balanced_eval_dataset
+    from src.evaluation.eval_dataset import load_eval_dataset
 
-    test_ds = load_balanced_eval_dataset(config)
+    test_ds = load_eval_dataset(config)
     if args.max_samples:
         test_ds = test_ds.select(
             range(min(args.max_samples, len(test_ds)))

@@ -151,9 +151,9 @@ def main() -> None:
         tokenizer = load_tokenizer(model_cfg["name"])
 
     print("Loading dataset...")
-    from src.evaluation.eval_dataset import load_balanced_eval_dataset
+    from src.evaluation.eval_dataset import load_eval_dataset
 
-    test_ds = load_balanced_eval_dataset(config)
+    test_ds = load_eval_dataset(config)
     if config["dataset"].get("max_samples"):
         test_ds = test_ds.select(
             range(min(config["dataset"]["max_samples"], len(test_ds)))

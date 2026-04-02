@@ -51,11 +51,22 @@ export UNSLOTH_VLLM_STANDBY=0
 # Percorso progetto
 cd "$HOME/GRPO-strict-generation"
 
-# Genera dataset se mancante (potrebbe essere stato rimosso da un upload)
-if [ ! -d "data/synthetic" ]; then
+# Genera dataset base solo se necessario (non-curriculum mode).
+# In curriculum mode i dataset di training vengono generati dal codice Python
+# per ogni stage, e l'eval dataset bilanciato viene creato automaticamente.
+CURRICULUM_ENABLED=$(python3 -c "
+import yaml, sys
+cfg = yaml.safe_load(open('${CONFIG}'))
+c = cfg.get('curriculum', {})
+print('1' if c and c.get('enabled', True) else '0')
+" 2>/dev/null || echo "0")
+
+if [ "$CURRICULUM_ENABLED" = "0" ] && [ ! -d "data/synthetic/train" ]; then
     echo "Dataset non trovato, generazione in corso..."
     apptainer run --nv /shared/sifs/latest.sif \
         python -m src.datasets.synthetic_dataset --config "${CONFIG}"
+elif [ "$CURRICULUM_ENABLED" = "1" ]; then
+    echo "Curriculum mode: dataset generati automaticamente dal training"
 fi
 
 echo ""

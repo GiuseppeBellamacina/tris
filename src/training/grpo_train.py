@@ -332,10 +332,10 @@ def _run_curriculum_training(
     # ── Pre-generate balanced eval dataset (so eval scripts find it) ──────
     if is_main_process():
         from src.evaluation.eval_dataset import (
-            load_balanced_eval_dataset,
+            load_eval_dataset,
         )
 
-        load_balanced_eval_dataset(config)
+        load_eval_dataset(config)
 
     for stage_idx, stage in enumerate(stages):
         stage_name = stage.get("name", f"stage_{stage_idx + 1}")
@@ -764,9 +764,9 @@ def _select_best_checkpoint(
         return
 
     # Load test set — always use balanced eval dataset
-    from src.evaluation.eval_dataset import load_balanced_eval_dataset
+    from src.evaluation.eval_dataset import load_eval_dataset
 
-    test_ds = load_balanced_eval_dataset(config)
+    test_ds = load_eval_dataset(config)
     max_eval = min(len(test_ds), 999)
     eval_ds = test_ds.select(range(max_eval))
     difficulties = list(eval_ds["difficulty"])

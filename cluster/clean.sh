@@ -48,19 +48,31 @@ if [ -d "logs" ]; then
 fi
 
 # ── Cache Python ─────────────────────────────────────────────────────────
-echo "[4/6] __pycache__/"
+echo "[4/8] __pycache__/"
 find . -type d -name "__pycache__" -print -exec $CMD {} + 2>/dev/null || true
 
 # ── Artifact LoRA/Unsloth del GRPOTrainer ────────────────────────────────
-echo "[5/6] grpo_trainer_lora_model_*/"
+echo "[5/8] grpo_trainer_lora_model_*/"
 for d in grpo_trainer_lora_model_*; do
     [ -d "$d" ] && $CMD "$d"
 done
 
 # ── wandb offline runs ──────────────────────────────────────────────────
-echo "[6/6] wandb/ (cartella legacy)"
+echo "[6/8] wandb/ (cartella legacy)"
 if [ -d "wandb" ]; then
     $CMD wandb
+fi
+
+# ── Unsloth compiled cache ──────────────────────────────────────────────
+echo "[7/8] unsloth_compiled_cache/"
+if [ -d "unsloth_compiled_cache" ]; then
+    $CMD unsloth_compiled_cache
+fi
+
+# ── Notebooks (non servono sul cluster) ──────────────────────────────────
+echo "[8/8] notebooks/"
+if [ -d "notebooks" ]; then
+    $CMD notebooks
 fi
 
 echo ""

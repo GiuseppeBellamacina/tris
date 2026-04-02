@@ -14,12 +14,12 @@ _DEFAULT_WEIGHTS = {"simple": 0.334, "medium": 0.333, "hard": 0.333}
 _SEED = 0
 
 
-def load_balanced_eval_dataset(
+def load_eval_dataset(
     config: dict[str, Any],
 ) -> Dataset:
     """Load the balanced eval dataset, generating it if missing.
 
-    The dataset is saved to ``{dataset.path}/curriculum_eval/`` and reused
+    The dataset is saved to ``{dataset.path}/eval/`` and reused
     across eval runs.  Parameters (num_samples, difficulty_weights) come
     from ``config["curriculum"]["eval_dataset"]`` when present, otherwise
     sensible defaults are used (999 samples, uniform 33/33/33).
@@ -27,7 +27,7 @@ def load_balanced_eval_dataset(
     Returns the ``"test"`` split (all samples are in test).
     """
     base_path = Path(config["dataset"]["path"])
-    eval_dir = base_path / "curriculum_eval"
+    eval_dir = base_path / "eval"
 
     # Read config overrides (if any)
     eval_cfg = config.get("curriculum", {}).get("eval_dataset", {})

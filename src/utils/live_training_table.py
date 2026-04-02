@@ -2,8 +2,8 @@
 """Parse HuggingFace Trainer log lines from stdin and display as a live table.
 
 Usage:
-    tail -f logs/slurm-train-1234.log | python -m src.utils.live_training_table
-    tail -f logs/slurm-train-1234.log | python -m src.utils.live_training_table --cols step,reward,loss
+    tail -f logs/slurm-train-1234.log | python -u -m src.utils.live_training_table
+    tail -f logs/slurm-train-1234.log | python -u -m src.utils.live_training_table --cols step,reward,loss
 """
 
 from __future__ import annotations
@@ -35,11 +35,30 @@ _SHORT_NAMES = {
     "learning_rate": "lr",
 }
 
-# Regex to match trainer log dict lines: {'key': value, ...}
-_LOG_PATTERN = re.compile(
-    r"\{['\"]loss['\"].*['\"]step['\"]:\s*\d+\}"
-)
 _DICT_PATTERN = re.compile(r"\{.*\}")
+# Matches "step=240  loss=0.001  reward=0.55 ..." key=value lines
+_KV_PATTERN = re.compile(r"step=\d+")
+
+
+def _parse_kv_line(line: str) -> dict | None:
+    """Parse 'key=value  key=value ...' formatted log lines."""
+    if not _KV_PATTERN.search(line):
+        return None
+    # Extract the key=value portion (after any prefix like timestamps/progress bars)
+    m = re.search(r"(step=\d+.*)", line)
+    if not m:
+        return None
+    kv_part = m.group(1)
+    entry: dict = {}
+    for pair in re.finditer(
+        r"([\w/]+)=([-+]?\d+\.?\d*(?:e[+-]?\d+)?)", kv_part
+    ):
+        key, val = pair.group(1), pair.group(2)
+        try:
+            entry[key] = float(val)
+        except ValueError:
+            entry[key] = val
+    return entry if "step" in entry else None
 
 
 def _format_val(val: object) -> str:
@@ -68,18 +87,21 @@ def main() -> None:
     try:
         for line in sys.stdin:
             line = line.strip()
-            # Try to find a dict-like log line
-            m = _DICT_PATTERN.search(line)
-            if not m:
-                continue
+            entry = None
 
-            try:
-                # HF Trainer prints Python dicts (single quotes)
-                entry = ast.literal_eval(m.group(0))
-            except (ValueError, SyntaxError):
-                continue
+            # Try key=value format first (never truncated by SLURM)
+            entry = _parse_kv_line(line)
 
-            if "step" not in entry:
+            # Fall back to dict format
+            if entry is None:
+                m = _DICT_PATTERN.search(line)
+                if m:
+                    try:
+                        entry = ast.literal_eval(m.group(0))
+                    except (ValueError, SyntaxError):
+                        pass
+
+            if not entry or "step" not in entry:
                 continue
 
             # Filter to requested columns that exist

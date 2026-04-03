@@ -449,7 +449,9 @@ def _display(jobs: list[JobInfo]) -> None:
     done_badge = f"{_GREEN}{completed}{_RST}/{total} done"
     fail_badge = f"  {_RED}{failed} failed{_RST}" if failed else ""
 
-    print("\033[2J\033[H", end="")  # clear screen
+    # Move cursor home + clear from cursor to end of screen
+    # (avoids full clear → no flicker)
+    print("\033[H\033[J", end="")
     print(f"{_CYAN}{'═' * 65}{_RST}")
     print(
         f"  {_BOLD}{_CYAN}GRPO Pipeline Monitor{_RST} — {done_badge}{fail_badge}"
@@ -464,7 +466,7 @@ def _display(jobs: list[JobInfo]) -> None:
         # Group separator by model
         if job.tag != current_model:
             current_model = job.tag
-            print(f"  {_BOLD}{_MAGENTA}▸ {current_model}{_RST}")
+            print(f"  {_BOLD}{_YELLOW}▸ {current_model}{_RST}")
 
         print(_format_status(job))
 

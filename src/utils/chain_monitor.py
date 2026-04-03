@@ -66,6 +66,7 @@ class JobInfo:
     eval_pass: str = ""  # last eval pass@1
     eval_step_total: int = 0  # total generation batches for eval
     exit_code: str = ""
+    elapsed: str = ""  # elapsed time from squeue (e.g. "12:34")
 
     @property
     def label(self) -> str:
@@ -113,13 +114,15 @@ def _get_slurm_jobs() -> dict[str, tuple[str, str, str]]:
     return jobs
 
 
-def _get_active_job() -> tuple[str, str] | None:
-    """Return (job_id, job_name) of the currently running job, or None."""
-    out = _run('squeue --me --noheader --format="%i %j %T"')
+def _get_active_job() -> tuple[str, str, str] | None:
+    """Return (job_id, job_name, elapsed) of the currently running job, or None."""
+    out = _run('squeue --me --noheader --format="%i %j %T %M"')
     for line in out.splitlines():
         parts = line.split()
-        if len(parts) >= 3 and parts[2] in ("RUNNING", "PENDING"):
-            return parts[0], parts[1]
+        if len(parts) >= 4 and parts[2] in ("RUNNING", "PENDING"):
+            return parts[0], parts[1], parts[3]
+        elif len(parts) >= 3 and parts[2] in ("RUNNING", "PENDING"):
+            return parts[0], parts[1], ""
     return None
 
 
@@ -228,7 +231,7 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
     tail = _tail_lines(log_path, n=200)
 
     eval_stages_seen = (
-        0  # count how many "Evaluating:" lines we've seen
+        0  # count how many "Evaluating: Stage" lines we've seen
     )
     is_baseline = False
 
@@ -236,11 +239,11 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
         m = _EVAL_CHECKPOINT.search(line)
         if m:
             job.eval_label = m.group(1)
-            eval_stages_seen += 1
             # Extract stage number if present
             sm = _EVAL_STAGE_NUM.search(job.eval_label)
             if sm:
                 job.stage = int(sm.group(1))
+                eval_stages_seen += 1
             elif "baseline" in job.eval_label.lower():
                 is_baseline = True
 
@@ -254,13 +257,17 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
 
     # Count total stages from curriculum log marker
     stage_count_lines = _grep_lines(
-        log_path, r"\[curriculum\] Found (\d+) stages", max_count=1
+        log_path,
+        r"\[curriculum\] Found [0-9]+ stages",
+        max_count=1,
     )
     if stage_count_lines:
         m = re.search(r"Found (\d+) stages", stage_count_lines[0])
         if m:
             job.stage_total = int(m.group(1))
-            # If baseline is also run, add 1
+    elif eval_stages_seen > 0:
+        # Fallback: use max stage number seen
+        job.stage_total = max(eval_stages_seen, job.stage)
     if is_baseline:
         job.stage_name = "baseline"
 
@@ -331,6 +338,7 @@ def _build_pipeline() -> list[JobInfo]:
         elif active and active[1] == name:
             job.slurm_id = active[0]
             job.state = "RUNNING"
+            job.elapsed = active[2]
             # Parse log even when sacct didn't find it
             log_file = _find_log_file(job_type, active[0])
             if log_file:
@@ -404,6 +412,7 @@ def _build_pipeline() -> list[JobInfo]:
         elif active and active[1] == name:
             job.slurm_id = active[0]
             job.state = "RUNNING"
+            job.elapsed = active[2]
             log_file = _find_log_file(job_type, active[0])
             if log_file:
                 if job_type == "train":
@@ -414,6 +423,76 @@ def _build_pipeline() -> list[JobInfo]:
         jobs.append(job)
 
     return jobs
+
+
+# ── Time helpers ──────────────────────────────────────────────────────────────
+def _parse_elapsed_seconds(elapsed: str) -> int | None:
+    """Parse squeue elapsed time (e.g. '12:34', '1:23:45', '1-02:03:04') to seconds."""
+    if not elapsed:
+        return None
+    try:
+        parts = elapsed.split("-")
+        if len(parts) == 2:
+            days = int(parts[0])
+            rest = parts[1]
+        else:
+            days = 0
+            rest = parts[0]
+        t = rest.split(":")
+        if len(t) == 3:
+            return (
+                days * 86400
+                + int(t[0]) * 3600
+                + int(t[1]) * 60
+                + int(t[2])
+            )
+        elif len(t) == 2:
+            return days * 86400 + int(t[0]) * 60 + int(t[1])
+        return None
+    except (ValueError, IndexError):
+        return None
+
+
+def _format_duration(seconds: int) -> str:
+    """Format seconds as human-readable duration."""
+    if seconds < 60:
+        return f"{seconds}s"
+    m, s = divmod(seconds, 60)
+    if m < 60:
+        return f"{m}m{s:02d}s"
+    h, m = divmod(m, 60)
+    return f"{h}h{m:02d}m"
+
+
+def _estimate_eta(job: JobInfo) -> str:
+    """Estimate remaining time for a running job."""
+    elapsed_s = _parse_elapsed_seconds(job.elapsed)
+    if not elapsed_s or elapsed_s < 30:
+        return ""
+
+    if (
+        job.job_type == "train"
+        and job.step > 0
+        and job.stage_total > 0
+    ):
+        remaining_steps = job.stage_total - job.step
+        if remaining_steps <= 0:
+            return ""
+        secs_per_step = elapsed_s / job.step
+        eta = int(secs_per_step * remaining_steps)
+        return _format_duration(eta)
+    elif (
+        job.job_type == "eval"
+        and job.step > 0
+        and job.eval_step_total > 0
+    ):
+        remaining = job.eval_step_total - job.step
+        if remaining <= 0:
+            return ""
+        secs_per_step = elapsed_s / job.step
+        eta = int(secs_per_step * remaining)
+        return _format_duration(eta)
+    return ""
 
 
 # ── ANSI color helpers ────────────────────────────────────────────────────────
@@ -465,6 +544,13 @@ def _format_status(job: JobInfo) -> str:
     slurm = f"{_DIM}[{job.slurm_id}]{_RST}" if job.slurm_id else ""
 
     detail = ""
+    time_info = ""
+    if job.state in ("RUNNING", "STARTING") and job.elapsed:
+        time_info = f" {_DIM}⏱ {job.elapsed}{_RST}"
+        eta = _estimate_eta(job)
+        if eta:
+            time_info += f" {_DIM}(~{eta} left){_RST}"
+
     if job.state == "RUNNING" and job.job_type == "train":
         if job.stage > 0:
             pct = (
@@ -517,9 +603,7 @@ def _format_status(job: JobInfo) -> str:
     label = f"{tc}{job.job_type}{_RST}-{_BOLD}{job.tag}{_RST}"
     state_str = f"{sc}{job.state}{_RST}"
 
-    return (
-        f" {icon}  {label:<40s} {slurm:<20s} {state_str:<22s}{detail}"
-    )
+    return f" {icon}  {label:<40s} {slurm:<20s} {state_str:<22s}{detail}{time_info}"
 
 
 def _watcher_status() -> str:
@@ -579,21 +663,27 @@ def _display(jobs: list[JobInfo]) -> None:
     if running:
         j = running[0]
         tc = _TYPE_COLORS.get(j.job_type, "")
+        eta = _estimate_eta(j)
+        time_str = ""
+        if j.elapsed:
+            time_str = f" {_DIM}⏱ {j.elapsed}{_RST}"
+            if eta:
+                time_str += f" {_DIM}(~{eta} left){_RST}"
         if j.job_type == "train" and j.stage > 0:
             print(
                 f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
-                f" — stage {_WHITE}{j.stage}/3{_RST}, step {_WHITE}{j.step}{_RST}"
+                f" — stage {_WHITE}{j.stage}/3{_RST}, step {_WHITE}{j.step}{_RST}{time_str}"
             )
         elif j.job_type == "eval" and j.eval_label:
-            elbl = (
-                f"stage {j.stage}"
-                if j.stage > 0
-                else (
-                    "baseline"
-                    if j.stage_name == "baseline"
-                    else j.eval_label
-                )
-            )
+            if j.stage > 0:
+                stg = f"stage {j.stage}"
+                if j.stage_total > 0:
+                    stg += f"/{j.stage_total}"
+                elbl = stg
+            elif j.stage_name == "baseline":
+                elbl = "baseline"
+            else:
+                elbl = j.eval_label
             pct_str = ""
             if j.step > 0 and j.eval_step_total > 0:
                 pct_str = (
@@ -601,11 +691,11 @@ def _display(jobs: list[JobInfo]) -> None:
                 )
             print(
                 f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
-                f" — {_WHITE}{elbl}{_RST}{pct_str}"
+                f" — {_WHITE}{elbl}{_RST}{pct_str}{time_str}"
             )
         else:
             print(
-                f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
+                f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}{time_str}"
             )
     elif remaining > 0:
         print(
@@ -613,6 +703,25 @@ def _display(jobs: list[JobInfo]) -> None:
         )
     else:
         print(f"  {_GREEN}{_BOLD}✓ Pipeline finished!{_RST}")
+
+        # Show summary table of eval results
+        eval_jobs = [j for j in jobs if j.job_type == "eval"]
+        if eval_jobs:
+            print()
+            print(
+                f"  {_BOLD}{'Model':<25s} {'Status':<12s} {'Pass@1'}{_RST}"
+            )
+            print(f"  {'─' * 50}")
+            for ej in eval_jobs:
+                sc = _STATE_COLORS.get(ej.state, "")
+                status = f"{sc}{ej.state}{_RST}"
+                p1 = ej.eval_pass if ej.eval_pass else "-"
+                if ej.state == "COMPLETED" and ej.eval_pass:
+                    p1 = f"{_GREEN}{_BOLD}{ej.eval_pass}{_RST}"
+                elif ej.state == "FAILED":
+                    p1 = f"{_RED}—{_RST}"
+                print(f"  {ej.tag:<25s} {status:<22s} {p1}")
+
     print()
 
 

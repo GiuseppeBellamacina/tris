@@ -30,12 +30,26 @@ set -e
 # ── Parsing argomenti ─────────────────────────────────────────────────────────
 TRAIN=1
 EVAL=1
+ONLY_MODELS=""
 for arg in "$@"; do
     case "$arg" in
         --eval-only)  TRAIN=0 ;;
         --train-only) EVAL=0 ;;
+        --models=*)   ONLY_MODELS="${arg#--models=}" ;;
         --help|-h)
-            echo "Uso: bash cluster/run_all.sh [--eval-only] [--train-only]"
+            echo "Uso: bash cluster/run_all.sh [--eval-only] [--train-only] [--models=4,5]"
+            echo ""
+            echo "Opzioni:"
+            echo "  --eval-only      Solo evaluation (skip training)"
+            echo "  --train-only     Solo training (skip eval)"
+            echo "  --models=N,M     Solo i modelli agli indici indicati (1-based)"
+            echo ""
+            echo "Modelli disponibili:"
+            echo "  1: smollm2-135m"
+            echo "  2: smollm2-360m"
+            echo "  3: qwen25-05b"
+            echo "  4: tinyllama-11b"
+            echo "  5: gemma2-2b"
             exit 0
             ;;
     esac
@@ -53,6 +67,21 @@ MODELS=(
 
 PROJ_DIR="$HOME/GRPO-strict-generation"
 CHAIN_FILE="$PROJ_DIR/.job_chain"
+
+# ── Filtra modelli se --models è specificato ──────────────────────────────────
+if [ -n "$ONLY_MODELS" ]; then
+    FILTERED=()
+    IFS=',' read -ra IDXS <<< "$ONLY_MODELS"
+    for idx in "${IDXS[@]}"; do
+        i=$((idx - 1))  # 1-based → 0-based
+        if [ $i -ge 0 ] && [ $i -lt ${#MODELS[@]} ]; then
+            FILTERED+=("${MODELS[$i]}")
+        else
+            echo "⚠️  Indice $idx fuori range (1-${#MODELS[@]})"
+        fi
+    done
+    MODELS=("${FILTERED[@]}")
+fi
 
 # ── Costruisci la catena ──────────────────────────────────────────────────────
 # Ogni riga: TYPE:CONFIG:TAG

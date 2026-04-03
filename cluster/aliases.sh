@@ -249,10 +249,15 @@ watcher-kill() {
     fi
 }
 
+# Pulizia selettiva di un modello (uso: clean-model <TAG> [--force] [--all])
+clean-model() {
+    cd "$PROJ_DIR" && bash cluster/clean_model.sh "$@"
+}
+
 # ── Meta ─────────────────────────────────────────────────────────────────────
 
 # Lista di tutti i comandi custom registrati
-_GRPO_ALIASES="myjobs jobinfo killjob killalljobs trainlog evallog baselog lastlog tree ltree gpu quota proj ckpts trainlog-table trainlog-plot trainlog-live train run-eval run-all watcher-status watcher-kill claudio unload-aliases install-aliases uninstall-aliases"
+_GRPO_ALIASES="myjobs jobinfo killjob killalljobs trainlog evallog baselog lastlog tree ltree gpu quota proj ckpts trainlog-table trainlog-plot trainlog-live train run-eval run-all watcher-status watcher-kill clean-model claudio unload-aliases install-aliases uninstall-aliases"
 
 # Mostra i comandi disponibili
 claudio() {
@@ -285,6 +290,8 @@ claudio() {
     echo "                     — lancia train+eval per tutti i modelli"
     echo "   watcher-status    — controlla se il watcher è attivo"
     echo "   watcher-kill      — uccidi il watcher"
+    echo "   clean-model <TAG> [--grpo|--baseline|--sft|--all]"
+    echo "                     — pulisci checkpoints/logs di un modello"
     echo ""
     echo "   claudio           — mostra questo messaggio"
     echo "   unload-aliases    — rimuovi alias (sessione corrente)"

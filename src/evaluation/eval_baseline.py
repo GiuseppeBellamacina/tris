@@ -117,9 +117,13 @@ def main() -> None:
 
     # Initialize wandb
     wandb_cfg = config.get("wandb", {})
-    eval_output_dir = eval_cfg.get(
+    # Per-model subfolder: experiments/logs/baseline/<model_short_name>/
+    base_output = eval_cfg.get(
         "output_dir", "experiments/logs/baseline"
     )
+    model_short = model_cfg["name"].split("/")[-1]
+    eval_output_dir = str(Path(base_output) / model_short)
+    Path(eval_output_dir).mkdir(parents=True, exist_ok=True)
     os.environ["WANDB_DIR"] = eval_output_dir
     wandb.init(
         project=wandb_cfg.get("project", "grpo-strict-generation"),
@@ -210,11 +214,8 @@ def main() -> None:
         )[:10]:
             print(f"  {err}: {count}")
 
-    # Save results
-    output_dir = Path(
-        eval_cfg.get("output_dir", "experiments/logs/baseline")
-    )
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Save results (per-model subfolder already created above)
+    output_dir = Path(eval_output_dir)
 
     results = {
         "model": model_cfg["name"],

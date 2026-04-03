@@ -30,7 +30,10 @@ from src.datasets.dataloader import (
     format_prompt_for_model,
 )
 from src.evaluation.eval_baseline import generate_completions
-from src.models.model_loader import load_model_and_tokenizer
+from src.models.model_loader import (
+    load_model_and_tokenizer,
+    load_tokenizer,
+)
 from src.utils.config import load_config
 from src.utils.metrics import check_syntax, compute_detailed_metrics
 from src.utils.visualization import (
@@ -55,12 +58,14 @@ def _evaluate_model(
     difficulties: list[str],
     gen_config: dict[str, Any],
     is_checkpoint: bool = False,
+    batch_size: int = 16,
 ) -> tuple[dict[str, Any], list[str]]:
     """Load a model from path, generate completions, compute metrics.
 
     Args:
         is_checkpoint: If True, treat model_path as a PEFT/LoRA checkpoint
                        and load adapters on top of the base model.
+        batch_size: Number of prompts per generation batch.
     """
     from pathlib import Path as _Path
 
@@ -105,7 +110,7 @@ def _evaluate_model(
         prompts=prompts,
         generation_config=gen_config,
         num_return_sequences=1,
-        batch_size=4,
+        batch_size=batch_size,
     )
 
     first_completions = [comps[0] for comps in completions_per_prompt]
@@ -310,17 +315,12 @@ def main() -> None:
         "top_p": 0.95,
         "do_sample": True,
     }
+    eval_batch_size = config.get("evaluation", {}).get(
+        "batch_size", 16
+    )
 
-    # We need a tokenizer for formatting — load temporarily
-    temp_config = {
-        "model": {
-            **config["model"],
-            "name": ckpt_path,
-            "fast_inference": False,
-            "use_unsloth": False,
-        }
-    }
-    _, tokenizer = load_model_and_tokenizer(temp_config)
+    # We need a tokenizer for formatting — load only the tokenizer (not the model)
+    tokenizer = load_tokenizer(config["model"]["name"])
     prompts = [
         format_prompt_for_model(test_ds[i], tokenizer)
         for i in range(len(test_ds))
@@ -390,6 +390,7 @@ def main() -> None:
             difficulties,
             gen_config,
             is_checkpoint=is_ckpt,
+            batch_size=eval_batch_size,
         )
 
         print(f"\n{label} Pass@1: {metrics['overall_pass_rate']:.4f}")

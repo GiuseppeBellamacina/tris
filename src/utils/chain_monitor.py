@@ -373,14 +373,18 @@ def _build_pipeline() -> list[JobInfo]:
         jobs.append(job)
 
     # 1b. Infer COMPLETED for submitted jobs not found in sacct.
-    # The chain only advances on success, so if a later job for the
-    # same model was already submitted, earlier ones must have completed.
-    resolved: set[str] = set()
+    # The chain only advances on success, so:
+    #   - If a later job for the same model (tag) has a non-PENDING state,
+    #     earlier same-tag jobs must have completed.
+    #   - If any job later in the pipeline (by position) has a non-PENDING
+    #     state, ALL earlier jobs must have completed (the chain is serial).
+    # Find the last non-PENDING job index in pipeline order.
+    last_active_idx = -1
     for i, job in enumerate(jobs):
         if job.state != "PENDING":
-            resolved.add(job.tag)
-    for job in jobs:
-        if job.state == "PENDING" and job.tag in resolved:
+            last_active_idx = i
+    for i, job in enumerate(jobs):
+        if job.state == "PENDING" and i < last_active_idx:
             job.state = "COMPLETED"
 
     # 1c. Mark RUNNING jobs with no progress yet as STARTING
@@ -444,6 +448,77 @@ def _build_pipeline() -> list[JobInfo]:
                     _parse_eval_log(log_file, job)
 
         jobs.append(job)
+
+    # 3. Standalone mode — no pipeline files found.
+    #    Discover jobs from squeue/sacct matching train-* or eval-* names.
+    if not jobs:
+        for name, (sid, state, exit_code) in sorted(
+            slurm_jobs.items(), key=lambda x: x[1][0]
+        ):
+            parts = name.split("-", 1)
+            if len(parts) != 2 or parts[0] not in ("train", "eval"):
+                continue
+            job_type, tag = parts
+            job = JobInfo(job_type=job_type, config="", tag=tag)
+            job.slurm_id = sid
+            job.exit_code = exit_code
+            if state == "RUNNING":
+                job.state = "RUNNING"
+            elif state == "PENDING":
+                job.state = "PENDING"
+            elif state == "COMPLETED":
+                job.state = (
+                    "COMPLETED" if exit_code == "0:0" else "FAILED"
+                )
+            elif state in (
+                "FAILED",
+                "NODE_FAIL",
+                "OUT_OF_MEMORY",
+                "TIMEOUT",
+                "CANCELLED",
+            ):
+                job.state = "FAILED"
+            else:
+                job.state = state
+
+            log_file = _find_log_file(job_type, sid)
+            if log_file:
+                if job_type == "train":
+                    _parse_training_log(log_file, job)
+                else:
+                    _parse_eval_log(log_file, job)
+            jobs.append(job)
+
+        # Also check squeue for a running job not yet in sacct
+        if active:
+            a_name = active[1]
+            if a_name not in {f"{j.job_type}-{j.tag}" for j in jobs}:
+                parts = a_name.split("-", 1)
+                if len(parts) == 2 and parts[0] in ("train", "eval"):
+                    job = JobInfo(
+                        job_type=parts[0],
+                        config="",
+                        tag=parts[1],
+                        state="RUNNING",
+                        slurm_id=active[0],
+                        elapsed=active[2],
+                    )
+                    log_file = _find_log_file(job.job_type, active[0])
+                    if log_file:
+                        if job.job_type == "train":
+                            _parse_training_log(log_file, job)
+                        else:
+                            _parse_eval_log(log_file, job)
+                    jobs.append(job)
+
+        # Mark RUNNING jobs with no progress as STARTING
+        for job in jobs:
+            if job.state == "RUNNING":
+                has_progress = (
+                    job.stage > 0 or job.step > 0 or job.eval_label
+                )
+                if not has_progress:
+                    job.state = "STARTING"
 
     return jobs
 
@@ -615,7 +690,7 @@ _STATE_ICONS = {
     "COMPLETED": f"{_GREEN}✓{_RST}",
     "FAILED": f"{_RED}✗{_RST}",
     "RUNNING": f"{_CYAN}▶{_RST}",
-    "STARTING": f"{_YELLOW}⏳{_RST}",
+    "STARTING": f"{_YELLOW}»{_RST}",
     "PENDING": f"{_GRAY}·{_RST}",
 }
 
@@ -694,6 +769,13 @@ def _display(jobs: list[JobInfo], show_table: bool = True) -> None:
     failed = sum(1 for j in jobs if j.state == "FAILED")
     total = len(jobs)
 
+    # Detect standalone mode (no pipeline files)
+    is_pipeline = (
+        CHAIN_LOG.exists()
+        or CHAIN_FILE.exists()
+        or CHAIN_PID_FILE.exists()
+    )
+
     # Build summary badges
     done_badge = f"{_GREEN}{completed}{_RST}/{total} done"
     fail_badge = f"  {_RED}{failed} failed{_RST}" if failed else ""
@@ -702,10 +784,23 @@ def _display(jobs: list[JobInfo], show_table: bool = True) -> None:
     # (avoids full clear → no flicker)
     print("\033[H\033[J", end="")
     print(f"{_CYAN}{'═' * 65}{_RST}")
-    print(
-        f"  {_BOLD}{_CYAN}GRPO Pipeline Monitor{_RST} — {done_badge}{fail_badge}"
-    )
-    print(f"  {_watcher_status()}")
+    if is_pipeline:
+        print(
+            f"  {_BOLD}{_CYAN}GRPO Pipeline Monitor{_RST} — {done_badge}{fail_badge}"
+        )
+        print(f"  {_watcher_status()}")
+    elif total > 0:
+        print(
+            f"  {_BOLD}{_CYAN}GRPO Job Monitor{_RST} — {done_badge}{fail_badge}"
+        )
+        print(f"  {_DIM}Standalone mode (no pipeline){_RST}")
+    else:
+        print(
+            f"  {_BOLD}{_CYAN}GRPO Job Monitor{_RST} — no jobs found"
+        )
+        print(
+            f"  {_DIM}Waiting for jobs matching train-*/eval-*...{_RST}"
+        )
     print(f"  {_DIM}{time.strftime('%Y-%m-%d %H:%M:%S')}{_RST}")
     print(f"{_CYAN}{'═' * 65}{_RST}")
 
@@ -834,7 +929,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print("GRPO Pipeline Monitor — Ctrl+C to exit")
+    print("GRPO Monitor — Ctrl+C to exit")
     print(f"Polling every {args.poll}s...")
     print()
 
@@ -843,8 +938,13 @@ def main() -> None:
             jobs = _build_pipeline()
             _display(jobs, show_table=args.tab)
 
-            # Check if pipeline is done
-            all_done = all(
+            # Check if pipeline/job is done
+            is_pipeline = (
+                CHAIN_LOG.exists()
+                or CHAIN_FILE.exists()
+                or CHAIN_PID_FILE.exists()
+            )
+            all_done = jobs and all(
                 j.state in ("COMPLETED", "FAILED") for j in jobs
             )
             watcher_alive = CHAIN_PID_FILE.exists()
@@ -852,8 +952,16 @@ def main() -> None:
                 not CHAIN_FILE.exists() or not _read_pending_chain()
             )
 
-            if all_done and not watcher_alive and no_pending and jobs:
+            if (
+                is_pipeline
+                and all_done
+                and not watcher_alive
+                and no_pending
+            ):
                 print("Pipeline complete. Exiting.")
+                break
+            elif not is_pipeline and all_done:
+                print("Job complete. Exiting.")
                 break
 
             time.sleep(args.poll)

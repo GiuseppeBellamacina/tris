@@ -47,13 +47,14 @@ def generate_completions(
     prompts: list[str],
     generation_config: dict[str, Any],
     num_return_sequences: int = 1,
-    batch_size: int = 4,
+    batch_size: int = 16,
 ) -> list[list[str]]:
     """Generate completions for a list of prompts.
 
     Returns:
         List of lists — for each prompt, a list of num_return_sequences completions.
     """
+    model.eval()
     all_completions: list[list[str]] = []
 
     for i in tqdm(
@@ -69,7 +70,7 @@ def generate_completions(
             max_length=512,
         ).to(model.device)
 
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = model.generate(
                 **inputs,
                 max_new_tokens=generation_config.get(
@@ -80,6 +81,7 @@ def generate_completions(
                 do_sample=generation_config.get("do_sample", True),
                 num_return_sequences=num_return_sequences,
                 pad_token_id=tokenizer.pad_token_id,
+                use_cache=True,
             )
 
         # Decode only the generated tokens (skip the input)
@@ -180,6 +182,7 @@ def main() -> None:
         prompts=prompts,
         generation_config=gen_cfg,
         num_return_sequences=num_seqs,
+        batch_size=eval_cfg.get("batch_size", 16),
     )
 
     # Pass@k evaluation

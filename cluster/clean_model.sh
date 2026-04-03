@@ -57,6 +57,9 @@ for arg in "$@"; do
         --all)      DO_GRPO=1; DO_BASELINE=1; DO_SFT=1 ;;
         --help|-h)
             sed -n '2,/^# ====.*===$/p' "$0" | head -n -1 | sed 's/^# \?//'
+            echo ""
+            echo "Modelli disponibili:"
+            for m in "${VALID_MODELS[@]}"; do echo "  $m"; done
             exit 0
             ;;
         -*)

@@ -185,7 +185,16 @@ train() {
     cd "$PROJ_DIR" && CONFIG="$config" EXTRA_ARGS="$extra_args" sbatch cluster/train.sh
 }
 
-# Lancia eval (uso: run-eval --config PATH [--compare] [--curriculum] [--checkpoint PATH])
+# Lancia eval manuale di un singolo modello.
+# Il config YAML contiene il modello e i path dei checkpoint — l'eval script
+# trova automaticamente l'ultimo checkpoint. --checkpoint sovrascrive.
+#
+# Esempi:
+#   run-eval --config grpo_smollm2_135m.yaml                  # eval GRPO ultimo checkpoint
+#   run-eval --config grpo_tinyllama.yaml --curriculum         # eval tutti gli stage + baseline
+#   run-eval --config grpo_qwen05.yaml --compare               # eval + confronto con baseline
+#   run-eval --config baseline.yaml                            # solo baseline (no checkpoint)
+#   run-eval --config grpo_gemma2.yaml --checkpoint path/ckpt  # checkpoint specifico
 run-eval() {
     local config=""
     local compare=0
@@ -197,11 +206,37 @@ run-eval() {
             --compare) compare=1; shift ;;
             --curriculum) curriculum=1; shift ;;
             --checkpoint) checkpoint="$2"; shift 2 ;;
-            *) echo "Argomento sconosciuto: $1"; return 1 ;;
+            --help|-h)
+                echo "Uso: run-eval --config CONFIG [--compare] [--curriculum] [--checkpoint PATH]"
+                echo ""
+                echo "Opzioni:"
+                echo "  --config CONFIG     Nome o path del config YAML (obbligatorio)"
+                echo "  --compare           Confronta risultati GRPO vs baseline"
+                echo "  --curriculum        Valuta tutti gli stage del curriculum (implica --compare)"
+                echo "  --checkpoint PATH   Usa un checkpoint specifico (default: auto-detect ultimo)"
+                echo ""
+                echo "Config disponibili (basta il nome, senza path):"
+                ls -1 "$PROJ_DIR"/experiments/configs/grpo_*.yaml "$PROJ_DIR"/experiments/configs/baseline.yaml 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /'
+                return 0
+                ;;
+            *) echo "❌ Argomento sconosciuto: $1"; echo "Usa: run-eval --help"; return 1 ;;
         esac
     done
     if [ -z "$config" ]; then
-        echo "Uso: run-eval --config PATH [--compare] [--curriculum] [--checkpoint PATH]"
+        echo "❌ --config mancante."
+        echo ""
+        echo "Uso: run-eval --config CONFIG [--compare] [--curriculum] [--checkpoint PATH]"
+        echo ""
+        echo "Config disponibili (basta il nome, senza path):"
+        ls -1 "$PROJ_DIR"/experiments/configs/grpo_*.yaml "$PROJ_DIR"/experiments/configs/baseline.yaml 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /'
+        return 1
+    fi
+    # Se è solo un nome file, anteponi il path
+    if [[ "$config" != */* ]]; then
+        config="experiments/configs/$config"
+    fi
+    if [ ! -f "$PROJ_DIR/$config" ]; then
+        echo "❌ Config non trovato: $config"
         echo ""
         echo "Config disponibili:"
         ls -1 "$PROJ_DIR"/experiments/configs/grpo_*.yaml "$PROJ_DIR"/experiments/configs/baseline.yaml 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /'

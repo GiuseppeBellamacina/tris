@@ -507,10 +507,6 @@ _BLUE = "\033[34m"
 _MAGENTA = "\033[35m"
 _WHITE = "\033[97m"
 _GRAY = "\033[90m"
-_BG_GREEN = "\033[42m"
-_BG_RED = "\033[41m"
-_BG_YELLOW = "\033[43m"
-_BG_CYAN = "\033[46m"
 
 
 # ── Display ───────────────────────────────────────────────────────────────────
@@ -561,12 +557,15 @@ def _format_status(job: JobInfo) -> str:
             else ""
         )
 
+    # Pad with visible-width awareness (ANSI codes don't count)
+    def _vpad(s: str, width: int) -> str:
+        visible = len(re.sub(r"\033\[[0-9;]*m", "", s))
+        return s + " " * max(0, width - visible)
+
     label = f"{tc}{job.job_type}{_RST}-{_BOLD}{job.tag}{_RST}"
     state_str = f"{sc}{job.state}{_RST}"
 
-    return (
-        f" {icon}  {label:<40s} {slurm:<20s} {state_str:<22s}{detail}"
-    )
+    return f" {icon}  {_vpad(label, 30)} {_vpad(slurm, 12)} {_vpad(state_str, 12)}{detail}"
 
 
 def _watcher_status() -> str:

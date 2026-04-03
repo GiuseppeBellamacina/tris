@@ -35,7 +35,7 @@ sbatch --job-name=grpo-run2 --time=08:00:00 cluster/train.sh
 ### Passare argomenti allo script
 
 ```bash
-sbatch cluster/train.sh --config experiments/configs/grpo.yaml --resume
+sbatch cluster/train.sh --config experiments/configs/grpo_tinyllama.yaml --resume
 ```
 > Gli argomenti dopo il nome dello script vengono passati come `$1`, `$2`, ecc.
 
@@ -246,7 +246,7 @@ apptainer exec --nv container.sif python -c "import torch; print(torch.cuda.is_a
 apptainer exec --nv \
   --bind $HOME/grpo-strict-generation:/workspace \
   --bind /scratch/$USER:/scratch \
-  container.sif python -m src.training --config /workspace/experiments/configs/grpo.yaml
+  container.sif python -m src.training --config /workspace/experiments/configs/grpo_tinyllama.yaml
 ```
 
 ### Shell interattiva nel container
@@ -306,7 +306,7 @@ print(f'Compute Capability: {torch.cuda.get_device_capability()}')
 
 ```bash
 # Singolo file
-scp experiments/configs/grpo.yaml user@cluster:/home/user/grpo/experiments/configs/
+scp experiments/configs/grpo_tinyllama.yaml user@cluster:/home/user/grpo/experiments/configs/
 
 # Directory intera
 scp -r src/ user@cluster:/home/user/grpo/src/

@@ -93,24 +93,23 @@ exit
 
 ## 6. Lancia il training
 
-### 6.1. (Opzionale) Baseline evaluation
+### 6.1. Pipeline completa (tutti i modelli)
 
 ```bash
 cd ~/GRPO-strict-generation
-mkdir -p logs
-MODE=baseline sbatch cluster/eval.sh
+run-all                    # train + eval per tutti e 5 i modelli
 ```
 
-Aspetta che finisca prima di lanciare il training GRPO:
+Oppure seleziona modelli specifici:
 
 ```bash
-squeue -u $USER    # controlla stato (PENDING → RUNNING → scompare)
+run-all --models=1,3,5     # solo SmolLM2-135M, Qwen2.5-0.5B, Gemma-2-2B
 ```
 
-### 6.2. Training GRPO
+### 6.2. Singolo modello (manuale)
 
 ```bash
-sbatch cluster/train.sh
+sbatch cluster/train.sh experiments/configs/grpo_tinyllama.yaml
 ```
 
 ---
@@ -118,13 +117,15 @@ sbatch cluster/train.sh
 ## 7. Monitora il job
 
 ```bash
-# Stato dei tuoi job
+# Dashboard live (compatta)
+monitor
+
+# Dashboard con tabella completa
+monitor --tab
+
+# Fallback: comandi SLURM diretti
 squeue -u $USER
-
-# Log in tempo reale
 tail -f logs/slurm-<JOB_ID>.log
-
-# Cancella un job
 scancel <JOB_ID>
 ```
 

@@ -179,8 +179,10 @@ exit
 
 ## 4. Configurazione per GPU
 
-Il config di default (`experiments/configs/grpo.yaml`) è ottimizzato per Colab T4.
-Va adattato in base alla GPU del cluster.
+Ogni modello ha il proprio config in `experiments/configs/` (es.
+`grpo_smollm2_135m.yaml`, `grpo_tinyllama.yaml`, ecc.). I config sono
+ottimizzati per L40S con 4-bit NF4 e bfloat16. Per GPU diverse,
+adatta i parametri come descritto sotto.
 
 ### L40S (gnode10) — Configurazione ideale
 
@@ -274,15 +276,25 @@ mkdir -p logs
 sbatch cluster/train.sh
 ```
 
-### 5.3. Pipeline completa (baseline + GRPO)
+### 5.3. Pipeline completa (multi-modello)
+
+La pipeline automatizzata addestra e valuta tutti e 5 i modelli in
+sequenza tramite SLURM job chaining:
 
 ```bash
-# 1. Baseline evaluation
-MODE=baseline sbatch cluster/eval.sh
+# Lancia tutto (train + eval per ciascun modello):
+run-all
 
-# 2. Attendi che finisca, poi lancia GRPO
-sbatch cluster/train.sh
+# Solo alcuni modelli (indice 1-5):
+run-all --models=1,2,3
+
+# Monitora lo stato:
+monitor          # vista compatta (default)
+monitor --tab    # tabella completa
 ```
+
+Per il dettaglio dei comandi, vedi `cluster/setup.sh` (alias) e
+`cluster/run_all.sh` (pipeline).
 
 ---
 

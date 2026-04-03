@@ -309,8 +309,11 @@ def _build_pipeline() -> list[JobInfo]:
     """Reconstruct the full pipeline from chain log + chain file + sacct."""
     slurm_jobs = _get_slurm_jobs()
     active = _get_active_job()
-    submitted_names = _parse_chain_log()
     pending = _read_pending_chain()
+
+    # Only parse chain log if pipeline is active (watcher running or jobs pending)
+    has_pipeline = CHAIN_PID_FILE.exists() or (CHAIN_FILE.exists() and pending)
+    submitted_names = _parse_chain_log() if has_pipeline else []
 
     jobs: list[JobInfo] = []
     seen_names: set[str] = set()
@@ -769,11 +772,9 @@ def _display(jobs: list[JobInfo], show_table: bool = True) -> None:
     failed = sum(1 for j in jobs if j.state == "FAILED")
     total = len(jobs)
 
-    # Detect standalone mode (no pipeline files)
-    is_pipeline = (
-        CHAIN_LOG.exists()
-        or CHAIN_FILE.exists()
-        or CHAIN_PID_FILE.exists()
+    # Detect standalone mode — pipeline is active only if watcher PID or pending jobs
+    is_pipeline = CHAIN_PID_FILE.exists() or (
+        CHAIN_FILE.exists() and CHAIN_FILE.stat().st_size > 0
     )
 
     # Build summary badges
@@ -958,10 +959,8 @@ def main() -> None:
             _display(jobs, show_table=args.tab)
 
             # Check if pipeline/job is done
-            is_pipeline = (
-                CHAIN_LOG.exists()
-                or CHAIN_FILE.exists()
-                or CHAIN_PID_FILE.exists()
+            is_pipeline = CHAIN_PID_FILE.exists() or (
+                CHAIN_FILE.exists() and CHAIN_FILE.stat().st_size > 0
             )
             all_done = jobs and all(
                 j.state in ("COMPLETED", "FAILED") for j in jobs

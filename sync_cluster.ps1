@@ -231,8 +231,9 @@ function Push {
         ssh $SSH_TARGET "mkdir -p ~/GRPO-strict-generation/$remoteDir"
     }
     if (Test-Path $localPath -PathType Container) {
-        # Directory: clean remote and upload
-        ssh $SSH_TARGET "rm -rf ~/GRPO-strict-generation/$remotePath; mkdir -p ~/GRPO-strict-generation/$remotePath"
+        # Directory: overwrite files in-place (no rm -rf to avoid NFS locks)
+        # Ensure remote dir exists, then scp contents over existing files
+        ssh $SSH_TARGET "mkdir -p ~/GRPO-strict-generation/$remotePath"
         scp -rq "$localPath/." "${REMOTE}/$remotePath/"
     } else {
         scp -q $localPath "${REMOTE}/$remotePath"

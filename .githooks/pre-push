@@ -3,6 +3,10 @@
 # pre-push hook — sincronizza src/, cluster/, experiments/configs/
 # sul cluster DMI ogni volta che fai git push.
 #
+# Sovrascrive i file in-place (no rm -rf, evita problemi NFS).
+# Trasferisce solo i file presenti localmente — non cancella file
+# remoti extra (vecchi script, ecc.).
+#
 # Installazione (una tantum, già fatto se usi setup):
 #   git config core.hooksPath .githooks
 # ============================================================================
@@ -10,20 +14,22 @@
 echo "[pre-push] Syncing to cluster..."
 
 REPO_DIR="$(git rev-parse --show-toplevel)"
-SCRIPT="$REPO_DIR/sync_cluster.ps1"
-
-if [ ! -f "$SCRIPT" ]; then
-    echo "[pre-push] ⚠️  sync_cluster.ps1 not found — skip cluster sync"
-    exit 0  # non bloccare il push
-fi
+CLUSTER="bllgpp02h24c351g@gcluster.dmi.unict.it"
+REMOTE_BASE="~/GRPO-strict-generation"
 
 FAILED=0
 
-for DIR in "src/" "cluster/" "experiments/configs/"; do
-    echo "[pre-push]   pushing $DIR ..."
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT" -Action push -Path "$DIR"
+for DIR in src/ cluster/ experiments/configs/; do
+    LOCAL_DIR="$REPO_DIR/$DIR"
+    if [ ! -d "$LOCAL_DIR" ]; then
+        continue
+    fi
+    echo "[pre-push]   syncing $DIR ..."
+    # Ensure remote directory exists, then overwrite files in-place
+    ssh "$CLUSTER" "mkdir -p ${REMOTE_BASE}/${DIR}" 2>/dev/null
+    scp -rq "$LOCAL_DIR." "${CLUSTER}:${REMOTE_BASE}/${DIR}" 2>&1
     if [ $? -ne 0 ]; then
-        echo "[pre-push] ❌ Failed to push $DIR"
+        echo "[pre-push] ❌ Failed to sync $DIR"
         FAILED=1
     fi
 done

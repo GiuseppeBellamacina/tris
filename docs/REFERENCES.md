@@ -5,22 +5,34 @@
 1. **Think Inside the JSON: Reinforcement Strategy for Strict LLM Schema Adherence**
    Bhavik Agarwal, Ishan Joshi, Viktoria Rojkova (2025).
    *arXiv:2502.14905* — [Paper](https://arxiv.org/abs/2502.14905) · [PDF](papers/2502.14905v1.pdf)
-   — Rule-based reward design for JSON schema adherence via RL; direct inspiration for our reward component architecture.
+
+   Trains structured reasoning skills of a 1.5B parameter model through a pipeline combining synthetic reasoning dataset construction with custom reward functions under GRPO. First performs R1-style RL on a 20K unstructured-to-structured dataset, then SFT on a 10K reasoning sample dataset for schema adherence. Compares against DeepSeek R1 (671B), distilled variants (Qwen-1.5B/7B), and Gemini 2.0 Flash.
+
+   **Relevance**: Direct inspiration for our reward component architecture — rule-based reward design for JSON schema adherence via RL.
 
 2. **RL-Struct: A Lightweight Reinforcement Learning Framework for Reliable Structured Output in LLMs**
    Ruike Hu, Shulei Wu (2025).
    *arXiv:2512.00319* — [Paper](https://arxiv.org/abs/2512.00319) · [PDF](papers/2512.00319v2.pdf)
-   — Lightweight RL framework for structured output; informed our additive reward design and truncation penalty.
+
+   Proposes a lightweight framework using GRPO with a hierarchical reward function to align LLMs with structural constraints. Eliminates the critic network, reducing peak VRAM by 38% vs PPO. Achieves 89.7% structural accuracy and 92.1% validity on complex JSON tasks. Reports an emergent curriculum where the model self-organises learning by prioritising syntax before semantics.
+
+   **Relevance**: Informed our additive reward design, truncation penalty, and validated the curriculum intuition (syntax → semantics).
 
 3. **From Reasoning to Code: GRPO Optimization for Underrepresented Languages**
    Federico Pennino, Bianca Raimondi, Massimo Rondelli, Andrea Gurioli, Maurizio Gabbrielli (2025).
    *arXiv:2506.11027* — [Paper](https://arxiv.org/abs/2506.11027) · [PDF](papers/2506.11027v2.pdf)
-   — GRPO applied to code generation with curriculum-style training; reference for our multi-stage curriculum approach.
+
+   Uses small-scale Qwen 2.5 models with GRPO to enable code generation for underrepresented languages (Prolog) through reasoning-driven feedback integrated into the RL loop. Demonstrates significant improvements in reasoning quality, code accuracy, and logical correctness.
+
+   **Relevance**: Reference for our multi-stage curriculum approach and GRPO applied to structured generation tasks with small models.
 
 4. **ToolRL: Reward is All Tool Learning Needs**
    Cheng Qian, Emre Can Acikgoz, Qi He, Hongru Wang, Xiusi Chen, Dilek Hakkani-Tür, Gokhan Tur, Heng Ji (2025).
    *arXiv:2504.13958* — [Paper](https://arxiv.org/abs/2504.13958) · [PDF](papers/2504.13958v1.pdf)
-   — Reward-driven RL for tool use in LLMs; motivated our choice of rule-based rewards over neural reward models.
+
+   First comprehensive study on reward design for tool selection and application within the RL paradigm. Systematically explores reward types, scales, granularity, and temporal dynamics. Trains LLMs with GRPO, achieving 17% improvement over base models and 15% over SFT. Demonstrates that fine-grained, principled reward design is critical for generalisation.
+
+   **Relevance**: Motivated our choice of rule-based rewards over neural reward models and our per-component granular reward design.
 
 ## Online Resources
 

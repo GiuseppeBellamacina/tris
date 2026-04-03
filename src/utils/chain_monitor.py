@@ -40,6 +40,8 @@ _STAGE_DONE = re.compile(r"\[stage (\d+)\] (\S+) completed")
 _CURRICULUM_DONE = re.compile(r"CURRICULUM TRAINING COMPLETE")
 # tqdm progress bar: " 47%|████▋     | 420/900 [29:23<25:49"
 _TQDM_PROGRESS = re.compile(r"\|\s*(\d+)/(\d+)\s*\[")
+# tqdm time info: "[04:25<37:02, 33.17s/it]" or "[1:23:45<2:03:04"
+_TQDM_TIME = re.compile(r"\[([\d:]+)<([\d:]+)")
 _EVAL_CHECKPOINT = re.compile(r"Evaluating: (.+)")
 _EVAL_STAGE_NUM = re.compile(r"Stage (\d+)")
 _EVAL_PASS = re.compile(r"(\S+) Pass@1: ([\d.]+)")
@@ -67,6 +69,8 @@ class JobInfo:
     eval_step_total: int = 0  # total generation batches for eval
     exit_code: str = ""
     elapsed: str = ""  # elapsed time from squeue (e.g. "12:34")
+    tqdm_elapsed: str = ""  # elapsed time from tqdm bar
+    tqdm_eta: str = ""  # remaining time from tqdm bar
 
     @property
     def label(self) -> str:
@@ -223,6 +227,11 @@ def _parse_training_log(log_path: Path, job: JobInfo) -> None:
             job.step = int(m.group(1))
             if job.stage_total == 0:
                 job.stage_total = int(m.group(2))
+            # Parse tqdm elapsed/ETA
+            mt = _TQDM_TIME.search(line)
+            if mt:
+                job.tqdm_elapsed = mt.group(1)
+                job.tqdm_eta = mt.group(2)
             break
 
 
@@ -276,8 +285,12 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
         m = _TQDM_PROGRESS.search(line)
         if m:
             job.step = int(m.group(1))
-            # Use eval_total for generation batches, keep stage_total for stage count
             job.eval_step_total = int(m.group(2))
+            # Parse tqdm elapsed/ETA
+            mt = _TQDM_TIME.search(line)
+            if mt:
+                job.tqdm_elapsed = mt.group(1)
+                job.tqdm_eta = mt.group(2)
             break
 
 
@@ -465,7 +478,10 @@ def _format_duration(seconds: int) -> str:
 
 
 def _estimate_eta(job: JobInfo) -> str:
-    """Estimate remaining time for a running job."""
+    """Return tqdm ETA if available, otherwise estimate from elapsed."""
+    if job.tqdm_eta:
+        return job.tqdm_eta
+
     elapsed_s = _parse_elapsed_seconds(job.elapsed)
     if not elapsed_s or elapsed_s < 30:
         return ""

@@ -1,42 +1,64 @@
 #!/bin/sh
 # ============================================================================
 # pre-push hook — sincronizza src/, cluster/, experiments/configs/
-# sul cluster DMI ogni volta che fai git push.
+# sul cluster DMI solo se i commit in push contengono file modificati
+# in quelle cartelle.
 #
-# Sovrascrive i file in-place (no rm -rf, evita problemi NFS).
-# Trasferisce solo i file presenti localmente — non cancella file
-# remoti extra (vecchi script, ecc.).
-#
-# Installazione (una tantum, già fatto se usi setup):
+# Installazione (una tantum):
 #   git config core.hooksPath .githooks
 # ============================================================================
-
-echo "[pre-push] Syncing to cluster..."
 
 REPO_DIR="$(git rev-parse --show-toplevel)"
 CLUSTER="bllgpp02h24c351g@gcluster.dmi.unict.it"
 REMOTE_BASE="~/GRPO-strict-generation"
 
-FAILED=0
-
-for DIR in src/ cluster/ experiments/configs/; do
-    LOCAL_DIR="$REPO_DIR/$DIR"
-    if [ ! -d "$LOCAL_DIR" ]; then
-        continue
+# Read the ref range being pushed (stdin: local_ref local_sha remote_ref remote_sha)
+while read local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue  # branch deletion
     fi
-    echo "[pre-push]   syncing $DIR ..."
-    # Ensure remote directory exists, then overwrite files in-place
-    ssh "$CLUSTER" "mkdir -p ${REMOTE_BASE}/${DIR}" 2>/dev/null
-    scp -rq "$LOCAL_DIR." "${CLUSTER}:${REMOTE_BASE}/${DIR}" 2>&1
-    if [ $? -ne 0 ]; then
-        echo "[pre-push] ❌ Failed to sync $DIR"
-        FAILED=1
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        # New branch — diff against merge base with main
+        RANGE="$(git merge-base HEAD main 2>/dev/null || echo HEAD~10)..${local_sha}"
+    else
+        RANGE="${remote_sha}..${local_sha}"
+    fi
+
+    # Get list of changed files in the push range
+    CHANGED=$(git diff --name-only "$RANGE" 2>/dev/null)
+
+    SYNC_DIRS=""
+    echo "$CHANGED" | grep -q '^src/' && SYNC_DIRS="$SYNC_DIRS src/"
+    echo "$CHANGED" | grep -q '^cluster/' && SYNC_DIRS="$SYNC_DIRS cluster/"
+    echo "$CHANGED" | grep -q '^experiments/configs/' && SYNC_DIRS="$SYNC_DIRS experiments/configs/"
+
+    if [ -z "$SYNC_DIRS" ]; then
+        echo "[pre-push] No changes in src/, cluster/, experiments/configs/ — skip sync"
+        exit 0
+    fi
+
+    echo "[pre-push] Syncing to cluster:$SYNC_DIRS"
+
+    FAILED=0
+    for DIR in $SYNC_DIRS; do
+        LOCAL_DIR="$REPO_DIR/$DIR"
+        if [ ! -d "$LOCAL_DIR" ]; then
+            continue
+        fi
+        echo "[pre-push]   syncing $DIR ..."
+        ssh "$CLUSTER" "mkdir -p ${REMOTE_BASE}/${DIR}" 2>/dev/null
+        scp -rq "$LOCAL_DIR." "${CLUSTER}:${REMOTE_BASE}/${DIR}" 2>&1
+        if [ $? -ne 0 ]; then
+            echo "[pre-push] ❌ Failed to sync $DIR"
+            FAILED=1
+        fi
+    done
+
+    if [ $FAILED -ne 0 ]; then
+        echo "[pre-push] ⚠️  Some syncs failed — push continues anyway"
+    else
+        echo "[pre-push] ✅ Cluster sync done"
     fi
 done
 
-if [ $FAILED -ne 0 ]; then
-    echo "[pre-push] ⚠️  Some syncs failed — push continues anyway"
-fi
-
-echo "[pre-push] ✅ Cluster sync done"
 exit 0  # non bloccare mai il push su GitHub

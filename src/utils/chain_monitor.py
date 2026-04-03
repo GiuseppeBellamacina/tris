@@ -25,17 +25,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # ── Config ────────────────────────────────────────────────────────────────────
-PROJ_DIR = Path(os.environ.get("HOME", "~")) / "GRPO-strict-generation"
+PROJ_DIR = (
+    Path(os.environ.get("HOME", "~")) / "GRPO-strict-generation"
+)
 CHAIN_FILE = PROJ_DIR / ".job_chain"
 CHAIN_PID_FILE = PROJ_DIR / ".chain_pid"
 LOGS_DIR = PROJ_DIR / "logs"
 CHAIN_LOG = LOGS_DIR / "chain_watcher.log"
 
 # Regex patterns for training log parsing
-_KV_PATTERN = re.compile(r"step=(\d+)")
+_KV_STEP = re.compile(r"^\s+step=(\d+)\s+loss=")
 _STAGE_START = re.compile(r"\[stage (\d+)\] steps=(\d+)")
 _STAGE_DONE = re.compile(r"\[stage (\d+)\] (\S+) completed")
 _CURRICULUM_DONE = re.compile(r"CURRICULUM TRAINING COMPLETE")
+# tqdm progress bar: " 47%|████▋     | 420/900 [29:23<25:49"
+_TQDM_PROGRESS = re.compile(r"\|\s*(\d+)/(\d+)\s*\[")
 _EVAL_CHECKPOINT = re.compile(r"Evaluating: (.+)")
 _EVAL_PASS = re.compile(r"(\S+) Pass@1: ([\d.]+)")
 _EVAL_COMPLETE = re.compile(r"Evaluation complete")
@@ -50,7 +54,9 @@ class JobInfo:
     config: str  # config path
     tag: str  # model tag (e.g. "smollm2-135m")
     slurm_id: str | None = None
-    state: str = "WAITING"  # WAITING, RUNNING, COMPLETED, FAILED, TIMEOUT
+    state: str = (
+        "WAITING"  # WAITING, RUNNING, COMPLETED, FAILED, TIMEOUT
+    )
     stage: int = 0  # current curriculum stage (1-3), 0 = not started
     stage_name: str = ""
     step: int = 0  # current training step
@@ -151,43 +157,75 @@ def _find_log_file(job_type: str, slurm_id: str) -> Path | None:
 
 
 # ── Log parsing ───────────────────────────────────────────────────────────────
-def _parse_training_log(log_path: Path, job: JobInfo) -> None:
-    """Parse a training log file and update job state."""
+def _tail_lines(log_path: Path, n: int = 500) -> list[str]:
+    """Read the last N lines of a file efficiently using tail."""
+    out = _run(f"tail -n {n} '{log_path}'")
+    if out:
+        return out.splitlines()
+    # Fallback: read from Python (slow but works)
     try:
-        content = log_path.read_text(errors="replace")
+        return log_path.read_text(errors="replace").splitlines()[-n:]
     except OSError:
-        return
+        return []
 
-    for line in content.splitlines():
-        # Stage start: [stage 1] steps=800 temp=0.8 ...
+
+def _grep_lines(
+    log_path: Path, pattern: str, max_count: int = 20
+) -> list[str]:
+    """Grep a file for a pattern, returning matching lines."""
+    out = _run(
+        f"grep -E '{pattern}' '{log_path}' | tail -n {max_count}"
+    )
+    return out.splitlines() if out else []
+
+
+def _parse_training_log(log_path: Path, job: JobInfo) -> None:
+    """Parse a training log file and update job state.
+
+    Uses grep + tail for efficiency on large files.
+    """
+    # 1. Find all stage markers (few lines in the whole file)
+    stage_lines = _grep_lines(log_path, r"\[stage [0-9]+\]")
+    for line in stage_lines:
         m = _STAGE_START.search(line)
         if m:
             job.stage = int(m.group(1))
             job.stage_total = int(m.group(2))
 
-        # Stage done: [stage 1] format_basics completed
         m = _STAGE_DONE.search(line)
         if m:
             job.stage_name = m.group(2)
 
-        # Step: step=240 or key=value lines
-        m = _KV_PATTERN.search(line)
+    # 2. Check for curriculum complete
+    complete_lines = _grep_lines(
+        log_path, "CURRICULUM TRAINING COMPLETE", max_count=1
+    )
+    if complete_lines:
+        job.stage_name = "COMPLETE"
+
+    # 3. Get current step from last lines (step= or tqdm progress bar)
+    tail = _tail_lines(log_path, n=100)
+    for line in reversed(tail):
+        # Try key=value format: "  step=420  loss=0.005..."
+        m = _KV_STEP.search(line)
         if m:
             job.step = int(m.group(1))
+            break
 
-        # Curriculum complete
-        if _CURRICULUM_DONE.search(line):
-            job.stage_name = "COMPLETE"
+        # Try tqdm progress bar: "47%|████▋| 420/900 ["
+        m = _TQDM_PROGRESS.search(line)
+        if m:
+            job.step = int(m.group(1))
+            if job.stage_total == 0:
+                job.stage_total = int(m.group(2))
+            break
 
 
 def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
     """Parse an eval log file and update job state."""
-    try:
-        content = log_path.read_text(errors="replace")
-    except OSError:
-        return
+    tail = _tail_lines(log_path, n=200)
 
-    for line in content.splitlines():
+    for line in tail:
         m = _EVAL_CHECKPOINT.search(line)
         if m:
             job.eval_label = m.group(1)
@@ -256,6 +294,13 @@ def _build_pipeline() -> list[JobInfo]:
         elif active and active[1] == name:
             job.slurm_id = active[0]
             job.state = "RUNNING"
+            # Parse log even when sacct didn't find it
+            log_file = _find_log_file(job_type, active[0])
+            if log_file:
+                if job_type == "train":
+                    _parse_training_log(log_file, job)
+                else:
+                    _parse_eval_log(log_file, job)
 
         jobs.append(job)
 
@@ -266,7 +311,12 @@ def _build_pipeline() -> list[JobInfo]:
             continue
         seen_names.add(name)
         jobs.append(
-            JobInfo(job_type=job_type, config=cfg, tag=tag, state="WAITING")
+            JobInfo(
+                job_type=job_type,
+                config=cfg,
+                tag=tag,
+                state="WAITING",
+            )
         )
 
     return jobs
@@ -361,7 +411,9 @@ def _display(jobs: list[JobInfo]) -> None:
 
     print()
     print("-" * 65)
-    remaining = sum(1 for j in jobs if j.state in ("WAITING", "PENDING"))
+    remaining = sum(
+        1 for j in jobs if j.state in ("WAITING", "PENDING")
+    )
     running = [j for j in jobs if j.state == "RUNNING"]
     if running:
         j = running[0]
@@ -420,7 +472,9 @@ def main() -> None:
                 for j in jobs
             )
             watcher_alive = CHAIN_PID_FILE.exists()
-            no_pending = not CHAIN_FILE.exists() or not _read_pending_chain()
+            no_pending = (
+                not CHAIN_FILE.exists() or not _read_pending_chain()
+            )
 
             if all_done and not watcher_alive and no_pending and jobs:
                 print("Pipeline complete. Exiting.")

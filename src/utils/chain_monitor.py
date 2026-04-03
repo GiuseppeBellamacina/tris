@@ -41,6 +41,7 @@ _CURRICULUM_DONE = re.compile(r"CURRICULUM TRAINING COMPLETE")
 # tqdm progress bar: " 47%|████▋     | 420/900 [29:23<25:49"
 _TQDM_PROGRESS = re.compile(r"\|\s*(\d+)/(\d+)\s*\[")
 _EVAL_CHECKPOINT = re.compile(r"Evaluating: (.+)")
+_EVAL_STAGE_NUM = re.compile(r"Stage (\d+)")
 _EVAL_PASS = re.compile(r"(\S+) Pass@1: ([\d.]+)")
 _EVAL_COMPLETE = re.compile(r"Evaluation complete")
 
@@ -55,7 +56,7 @@ class JobInfo:
     tag: str  # model tag (e.g. "smollm2-135m")
     slurm_id: str | None = None
     state: str = (
-        "WAITING"  # WAITING, RUNNING, COMPLETED, FAILED, TIMEOUT
+        "PENDING"  # PENDING, STARTING, RUNNING, COMPLETED, FAILED
     )
     stage: int = 0  # current curriculum stage (1-3), 0 = not started
     stage_name: str = ""
@@ -63,6 +64,7 @@ class JobInfo:
     stage_total: int = 0  # total steps for current stage
     eval_label: str = ""  # current eval label
     eval_pass: str = ""  # last eval pass@1
+    eval_step_total: int = 0  # total generation batches for eval
     exit_code: str = ""
 
     @property
@@ -88,9 +90,9 @@ def _run(cmd: str) -> str:
 # ── SLURM queries ─────────────────────────────────────────────────────────────
 def _get_slurm_jobs() -> dict[str, tuple[str, str, str]]:
     """Get recent SLURM jobs. Returns {job_name: (job_id, state, exit_code)}."""
-    # sacct for the last 2 days, only our jobs
+    # sacct for the last 7 days, only our jobs
     out = _run(
-        "sacct --me --starttime=$(date -d '2 days ago' +%Y-%m-%d) "
+        "sacct --me --starttime=$(date -d '7 days ago' +%Y-%m-%d) "
         "--format=JobID%20,JobName%30,State%15,ExitCode%10 --noheader --parsable2"
     )
     jobs: dict[str, tuple[str, str, str]] = {}
@@ -225,10 +227,22 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
     """Parse an eval log file and update job state."""
     tail = _tail_lines(log_path, n=200)
 
+    eval_stages_seen = (
+        0  # count how many "Evaluating:" lines we've seen
+    )
+    is_baseline = False
+
     for line in tail:
         m = _EVAL_CHECKPOINT.search(line)
         if m:
             job.eval_label = m.group(1)
+            eval_stages_seen += 1
+            # Extract stage number if present
+            sm = _EVAL_STAGE_NUM.search(job.eval_label)
+            if sm:
+                job.stage = int(sm.group(1))
+            elif "baseline" in job.eval_label.lower():
+                is_baseline = True
 
         m = _EVAL_PASS.search(line)
         if m:
@@ -238,12 +252,25 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
         if _EVAL_COMPLETE.search(line):
             job.eval_label = "COMPLETE"
 
+    # Count total stages from curriculum log marker
+    stage_count_lines = _grep_lines(
+        log_path, r"\[curriculum\] Found (\d+) stages", max_count=1
+    )
+    if stage_count_lines:
+        m = re.search(r"Found (\d+) stages", stage_count_lines[0])
+        if m:
+            job.stage_total = int(m.group(1))
+            # If baseline is also run, add 1
+    if is_baseline:
+        job.stage_name = "baseline"
+
     # Get tqdm generation progress from the last lines
     for line in reversed(tail):
         m = _TQDM_PROGRESS.search(line)
         if m:
             job.step = int(m.group(1))
-            job.stage_total = int(m.group(2))
+            # Use eval_total for generation batches, keep stage_total for stage count
+            job.eval_step_total = int(m.group(2))
             break
 
 
@@ -283,12 +310,14 @@ def _build_pipeline() -> list[JobInfo]:
                 job.state = (
                     "COMPLETED" if exit_code == "0:0" else "FAILED"
                 )
-            elif state in ("FAILED", "NODE_FAIL", "OUT_OF_MEMORY"):
+            elif state in (
+                "FAILED",
+                "NODE_FAIL",
+                "OUT_OF_MEMORY",
+                "TIMEOUT",
+                "CANCELLED",
+            ):
                 job.state = "FAILED"
-            elif state == "TIMEOUT":
-                job.state = "TIMEOUT"
-            elif state == "CANCELLED":
-                job.state = "CANCELLED"
             else:
                 job.state = state
 
@@ -311,6 +340,26 @@ def _build_pipeline() -> list[JobInfo]:
                     _parse_eval_log(log_file, job)
 
         jobs.append(job)
+
+    # 1b. Infer COMPLETED for submitted jobs not found in sacct.
+    # The chain only advances on success, so if a later job for the
+    # same model was already submitted, earlier ones must have completed.
+    resolved: set[str] = set()
+    for i, job in enumerate(jobs):
+        if job.state != "PENDING":
+            resolved.add(job.tag)
+    for job in jobs:
+        if job.state == "PENDING" and job.tag in resolved:
+            job.state = "COMPLETED"
+
+    # 1c. Mark RUNNING jobs with no progress yet as STARTING
+    for job in jobs:
+        if job.state == "RUNNING":
+            has_progress = (
+                job.stage > 0 or job.step > 0 or job.eval_label
+            )
+            if not has_progress:
+                job.state = "STARTING"
 
     # 2. Pending jobs (still in .job_chain)
     for job_type, cfg, tag in pending:
@@ -337,12 +386,14 @@ def _build_pipeline() -> list[JobInfo]:
                 )
             elif state == "RUNNING":
                 job.state = "RUNNING"
-            elif state in ("FAILED", "NODE_FAIL", "OUT_OF_MEMORY"):
+            elif state in (
+                "FAILED",
+                "NODE_FAIL",
+                "OUT_OF_MEMORY",
+                "TIMEOUT",
+                "CANCELLED",
+            ):
                 job.state = "FAILED"
-            elif state == "TIMEOUT":
-                job.state = "TIMEOUT"
-            elif state == "CANCELLED":
-                job.state = "CANCELLED"
 
             log_file = _find_log_file(job_type, sid)
             if log_file:
@@ -387,18 +438,16 @@ _BG_CYAN = "\033[46m"
 _STATE_ICONS = {
     "COMPLETED": f"{_GREEN}✓{_RST}",
     "FAILED": f"{_RED}✗{_RST}",
-    "TIMEOUT": f"{_RED}⏱{_RST}",
-    "CANCELLED": f"{_YELLOW}⊘{_RST}",
     "RUNNING": f"{_CYAN}▶{_RST}",
+    "STARTING": f"{_YELLOW}⏳{_RST}",
     "PENDING": f"{_GRAY}·{_RST}",
 }
 
 _STATE_COLORS = {
     "COMPLETED": _GREEN,
     "FAILED": _RED,
-    "TIMEOUT": _RED,
-    "CANCELLED": _YELLOW,
     "RUNNING": _CYAN,
+    "STARTING": _YELLOW,
     "PENDING": _GRAY,
 }
 
@@ -429,21 +478,27 @@ def _format_status(job: JobInfo) -> str:
             detail = f" stage {_WHITE}{_BOLD}{job.stage}/3{_RST} {bar} {_WHITE}{job.step}{_RST}/{job.stage_total} {_DIM}({pct}%){_RST}"
         elif job.step > 0:
             detail = f" step {_WHITE}{job.step}{_RST}"
-        else:
-            detail = f" {_DIM}starting...{_RST}"
     elif job.state == "RUNNING" and job.job_type == "eval":
         if job.eval_label:
-            detail = f" → {_WHITE}{job.eval_label}{_RST}"
-            if job.step > 0 and job.stage_total > 0:
-                pct = int(job.step / job.stage_total * 100)
+            # Show stage or baseline label
+            if job.stage > 0:
+                stage_lbl = f"stage {_WHITE}{_BOLD}{job.stage}{_RST}"
+                if job.stage_total > 0:
+                    stage_lbl += f"/{job.stage_total}"
+                detail = f" {stage_lbl}"
+            elif job.stage_name == "baseline":
+                detail = f" {_YELLOW}baseline{_RST}"
+            else:
+                detail = f" → {_WHITE}{job.eval_label}{_RST}"
+            # Progress bar
+            if job.step > 0 and job.eval_step_total > 0:
+                pct = int(job.step / job.eval_step_total * 100)
                 bar_w = 12
                 filled = int(bar_w * pct / 100)
                 bar = f"{_MAGENTA}{'█' * filled}{_GRAY}{'░' * (bar_w - filled)}{_RST}"
-                detail += f" {bar} {_WHITE}{job.step}{_RST}/{job.stage_total} {_DIM}({pct}%){_RST}"
+                detail += f" {bar} {_WHITE}{job.step}{_RST}/{job.eval_step_total} {_DIM}({pct}%){_RST}"
             if job.eval_pass:
                 detail += f" {_GREEN}(pass@1={job.eval_pass}){_RST}"
-        else:
-            detail = f" {_DIM}starting...{_RST}"
     elif job.state == "COMPLETED" and job.job_type == "train":
         if job.stage_name == "COMPLETE":
             detail = f" {_GREEN}✓ all 3 stages{_RST}"
@@ -489,7 +544,7 @@ def _watcher_status() -> str:
 def _display(jobs: list[JobInfo]) -> None:
     """Print the full pipeline status."""
     completed = sum(1 for j in jobs if j.state == "COMPLETED")
-    failed = sum(1 for j in jobs if j.state in ("FAILED", "TIMEOUT"))
+    failed = sum(1 for j in jobs if j.state == "FAILED")
     total = len(jobs)
 
     # Build summary badges
@@ -520,7 +575,7 @@ def _display(jobs: list[JobInfo]) -> None:
     print()
     print(f"{_DIM}{'─' * 65}{_RST}")
     remaining = sum(1 for j in jobs if j.state == "PENDING")
-    running = [j for j in jobs if j.state == "RUNNING"]
+    running = [j for j in jobs if j.state in ("RUNNING", "STARTING")]
     if running:
         j = running[0]
         tc = _TYPE_COLORS.get(j.job_type, "")
@@ -530,9 +585,23 @@ def _display(jobs: list[JobInfo]) -> None:
                 f" — stage {_WHITE}{j.stage}/3{_RST}, step {_WHITE}{j.step}{_RST}"
             )
         elif j.job_type == "eval" and j.eval_label:
+            elbl = (
+                f"stage {j.stage}"
+                if j.stage > 0
+                else (
+                    "baseline"
+                    if j.stage_name == "baseline"
+                    else j.eval_label
+                )
+            )
+            pct_str = ""
+            if j.step > 0 and j.eval_step_total > 0:
+                pct_str = (
+                    f", {_WHITE}{j.step}/{j.eval_step_total}{_RST}"
+                )
             print(
                 f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
-                f" — {_WHITE}{j.eval_label}{_RST}"
+                f" — {_WHITE}{elbl}{_RST}{pct_str}"
             )
         else:
             print(
@@ -551,7 +620,7 @@ def _display(jobs: list[JobInfo]) -> None:
 def _tail_active_job(jobs: list[JobInfo]) -> str | None:
     """Find and return the log path of the currently active job."""
     for job in jobs:
-        if job.state == "RUNNING" and job.slurm_id:
+        if job.state in ("RUNNING", "STARTING") and job.slurm_id:
             log = _find_log_file(job.job_type, job.slurm_id)
             return str(log) if log else None
     return None
@@ -582,9 +651,7 @@ def main() -> None:
 
             # Check if pipeline is done
             all_done = all(
-                j.state
-                in ("COMPLETED", "FAILED", "TIMEOUT", "CANCELLED")
-                for j in jobs
+                j.state in ("COMPLETED", "FAILED") for j in jobs
             )
             watcher_alive = CHAIN_PID_FILE.exists()
             no_pending = (
@@ -597,7 +664,7 @@ def main() -> None:
 
             time.sleep(args.poll)
     except KeyboardInterrupt:
-        print("\nMonitor stopped.")
+        print("\n💀 Monitor stopped.")
 
 
 if __name__ == "__main__":

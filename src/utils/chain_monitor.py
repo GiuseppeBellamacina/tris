@@ -322,65 +322,121 @@ def _build_pipeline() -> list[JobInfo]:
     return jobs
 
 
+# ── ANSI color helpers ────────────────────────────────────────────────────────
+_RST = "\033[0m"
+_BOLD = "\033[1m"
+_DIM = "\033[2m"
+_GREEN = "\033[32m"
+_RED = "\033[31m"
+_YELLOW = "\033[33m"
+_CYAN = "\033[36m"
+_BLUE = "\033[34m"
+_MAGENTA = "\033[35m"
+_WHITE = "\033[97m"
+_GRAY = "\033[90m"
+_BG_GREEN = "\033[42m"
+_BG_RED = "\033[41m"
+_BG_YELLOW = "\033[43m"
+_BG_CYAN = "\033[46m"
+
+
 # ── Display ───────────────────────────────────────────────────────────────────
 _STATE_ICONS = {
-    "COMPLETED": "\033[32m✓\033[0m",  # green
-    "FAILED": "\033[31m✗\033[0m",  # red
-    "TIMEOUT": "\033[31m⏱\033[0m",  # red
-    "CANCELLED": "\033[33m⊘\033[0m",  # yellow
-    "RUNNING": "\033[36m▶\033[0m",  # cyan
-    "PENDING": "\033[33m⏳\033[0m",  # yellow
-    "WAITING": "\033[90m·\033[0m",  # gray
+    "COMPLETED": f"{_GREEN}✓{_RST}",
+    "FAILED": f"{_RED}✗{_RST}",
+    "TIMEOUT": f"{_RED}⏱{_RST}",
+    "CANCELLED": f"{_YELLOW}⊘{_RST}",
+    "RUNNING": f"{_CYAN}▶{_RST}",
+    "PENDING": f"{_YELLOW}⏳{_RST}",
+    "WAITING": f"{_GRAY}·{_RST}",
+}
+
+_STATE_COLORS = {
+    "COMPLETED": _GREEN,
+    "FAILED": _RED,
+    "TIMEOUT": _RED,
+    "CANCELLED": _YELLOW,
+    "RUNNING": _CYAN,
+    "PENDING": _YELLOW,
+    "WAITING": _GRAY,
+}
+
+_TYPE_COLORS = {
+    "train": _BLUE,
+    "eval": _MAGENTA,
 }
 
 
 def _format_status(job: JobInfo) -> str:
     """Format a single line for a job."""
     icon = _STATE_ICONS.get(job.state, "?")
-    slurm = f"[{job.slurm_id}]" if job.slurm_id else ""
+    sc = _STATE_COLORS.get(job.state, "")
+    tc = _TYPE_COLORS.get(job.job_type, "")
+    slurm = f"{_DIM}[{job.slurm_id}]{_RST}" if job.slurm_id else ""
 
     detail = ""
     if job.state == "RUNNING" and job.job_type == "train":
         if job.stage > 0:
-            detail = f" stage {job.stage}/3 step {job.step}/{job.stage_total}"
+            pct = (
+                int(job.step / job.stage_total * 100)
+                if job.stage_total
+                else 0
+            )
+            bar_w = 12
+            filled = int(bar_w * pct / 100)
+            bar = f"{_CYAN}{'█' * filled}{_GRAY}{'░' * (bar_w - filled)}{_RST}"
+            detail = f" stage {_WHITE}{_BOLD}{job.stage}/3{_RST} {bar} {_WHITE}{job.step}{_RST}/{job.stage_total} {_DIM}({pct}%){_RST}"
         elif job.step > 0:
-            detail = f" step {job.step}"
+            detail = f" step {_WHITE}{job.step}{_RST}"
         else:
-            detail = " starting..."
+            detail = f" {_DIM}starting...{_RST}"
     elif job.state == "RUNNING" and job.job_type == "eval":
         if job.eval_label:
-            detail = f" → {job.eval_label}"
+            detail = f" → {_WHITE}{job.eval_label}{_RST}"
             if job.eval_pass:
-                detail += f" (pass@1={job.eval_pass})"
+                detail += f" {_GREEN}(pass@1={job.eval_pass}){_RST}"
         else:
-            detail = " starting..."
+            detail = f" {_DIM}starting...{_RST}"
     elif job.state == "COMPLETED" and job.job_type == "train":
         if job.stage_name == "COMPLETE":
-            detail = " ✓ all 3 stages"
+            detail = f" {_GREEN}✓ all 3 stages{_RST}"
         elif job.stage > 0:
-            detail = f" completed at stage {job.stage}"
+            detail = f" {_GREEN}completed at stage {job.stage}{_RST}"
     elif job.state == "COMPLETED" and job.job_type == "eval":
         if job.eval_pass:
-            detail = f" pass@1={job.eval_pass}"
+            detail = f" {_GREEN}pass@1={job.eval_pass}{_RST}"
     elif job.state == "FAILED":
-        detail = f" exit={job.exit_code}" if job.exit_code else ""
+        detail = (
+            f" {_RED}exit={job.exit_code}{_RST}"
+            if job.exit_code
+            else ""
+        )
 
-    return f" {icon}  {job.label:<25s} {slurm:<12s} {job.state:<12s}{detail}"
+    label = f"{tc}{job.job_type}{_RST}-{_BOLD}{job.tag}{_RST}"
+    state_str = f"{sc}{job.state}{_RST}"
+
+    return (
+        f" {icon}  {label:<40s} {slurm:<20s} {state_str:<22s}{detail}"
+    )
 
 
 def _watcher_status() -> str:
     """Check if the watcher process is alive."""
     if not CHAIN_PID_FILE.exists():
-        return "\033[31mWatcher: OFF\033[0m"
+        return f"{_RED}Watcher: OFF{_RST}"
     try:
         pid = CHAIN_PID_FILE.read_text().strip()
         result = _run(f"ps -p {pid} -o pid= 2>/dev/null")
         if result:
-            return f"\033[32mWatcher: ON (PID {pid})\033[0m"
+            return (
+                f"{_GREEN}Watcher: ON{_RST} {_DIM}(PID {pid}){_RST}"
+            )
         else:
-            return f"\033[31mWatcher: DEAD (PID {pid})\033[0m"
+            return (
+                f"{_RED}Watcher: DEAD{_RST} {_DIM}(PID {pid}){_RST}"
+            )
     except Exception:
-        return "\033[31mWatcher: UNKNOWN\033[0m"
+        return f"{_RED}Watcher: UNKNOWN{_RST}"
 
 
 def _display(jobs: list[JobInfo]) -> None:
@@ -389,15 +445,18 @@ def _display(jobs: list[JobInfo]) -> None:
     failed = sum(1 for j in jobs if j.state in ("FAILED", "TIMEOUT"))
     total = len(jobs)
 
+    # Build summary badges
+    done_badge = f"{_GREEN}{completed}{_RST}/{total} done"
+    fail_badge = f"  {_RED}{failed} failed{_RST}" if failed else ""
+
     print("\033[2J\033[H", end="")  # clear screen
-    print("=" * 65)
+    print(f"{_CYAN}{'═' * 65}{_RST}")
     print(
-        f"  GRPO Pipeline Monitor — {completed}/{total} done"
-        + (f", {failed} failed" if failed else "")
+        f"  {_BOLD}{_CYAN}GRPO Pipeline Monitor{_RST} — {done_badge}{fail_badge}"
     )
     print(f"  {_watcher_status()}")
-    print(f"  {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 65)
+    print(f"  {_DIM}{time.strftime('%Y-%m-%d %H:%M:%S')}{_RST}")
+    print(f"{_CYAN}{'═' * 65}{_RST}")
     print()
 
     current_model = ""
@@ -405,30 +464,39 @@ def _display(jobs: list[JobInfo]) -> None:
         # Group separator by model
         if job.tag != current_model:
             current_model = job.tag
-            print(f"  \033[1m{current_model}\033[0m")
+            print(f"  {_BOLD}{_MAGENTA}▸ {current_model}{_RST}")
 
         print(_format_status(job))
 
     print()
-    print("-" * 65)
+    print(f"{_DIM}{'─' * 65}{_RST}")
     remaining = sum(
         1 for j in jobs if j.state in ("WAITING", "PENDING")
     )
     running = [j for j in jobs if j.state == "RUNNING"]
     if running:
         j = running[0]
+        tc = _TYPE_COLORS.get(j.job_type, "")
         if j.job_type == "train" and j.stage > 0:
             print(
-                f"  Active: {j.label} — stage {j.stage}/3, step {j.step}"
+                f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
+                f" — stage {_WHITE}{j.stage}/3{_RST}, step {_WHITE}{j.step}{_RST}"
             )
         elif j.job_type == "eval" and j.eval_label:
-            print(f"  Active: {j.label} — {j.eval_label}")
+            print(
+                f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
+                f" — {_WHITE}{j.eval_label}{_RST}"
+            )
         else:
-            print(f"  Active: {j.label}")
+            print(
+                f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
+            )
     elif remaining > 0:
-        print(f"  Waiting for next job... ({remaining} remaining)")
+        print(
+            f"  {_YELLOW}⏳ Waiting for next job... ({remaining} remaining){_RST}"
+        )
     else:
-        print("  Pipeline finished!")
+        print(f"  {_GREEN}{_BOLD}✓ Pipeline finished!{_RST}")
     print()
 
 

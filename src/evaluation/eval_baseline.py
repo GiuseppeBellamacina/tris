@@ -47,7 +47,7 @@ def generate_completions(
     prompts: list[str],
     generation_config: dict[str, Any],
     num_return_sequences: int = 1,
-    batch_size: int = 16,
+    batch_size: int = 8,
 ) -> list[list[str]]:
     """Generate completions for a list of prompts.
 
@@ -124,8 +124,15 @@ def main() -> None:
         "output_dir", "experiments/logs/baseline"
     )
     model_short = model_cfg["name"].split("/")[-1]
-    eval_output_dir = str(Path(base_output) / model_short)
-    Path(eval_output_dir).mkdir(parents=True, exist_ok=True)
+    model_base = str(Path(base_output) / model_short)
+
+    # Versioned eval subdirectory
+    from src.utils.config import resolve_run_dir
+
+    eval_dir, eval_run_id = resolve_run_dir(model_base, prefix="eval")
+    eval_output_dir = str(eval_dir)
+    print(f"[baseline] Run: {eval_run_id}")
+    print(f"[baseline]   results → {eval_output_dir}")
     os.environ["WANDB_DIR"] = eval_output_dir
     wandb.init(
         project=wandb_cfg.get("project", "grpo-strict-generation"),
@@ -182,7 +189,7 @@ def main() -> None:
         prompts=prompts,
         generation_config=gen_cfg,
         num_return_sequences=num_seqs,
-        batch_size=eval_cfg.get("batch_size", 16),
+        batch_size=eval_cfg.get("batch_size", 8),
     )
 
     # Pass@k evaluation

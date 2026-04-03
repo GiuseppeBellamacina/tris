@@ -97,6 +97,10 @@ reward:
 #         medium: 0.30
 #         hard: 0.60
 
+# --- Evaluation ---
+evaluation:
+  batch_size: 8
+
 # --- Weights & Biases ---
 wandb:
   project: "grpo-strict-generation" # nome del progetto su wandb

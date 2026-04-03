@@ -119,6 +119,26 @@ def main() -> None:
     config = load_config(args.config)
     training_cfg = config["training"]
 
+    # ── Version output directories ────────────────────────────────────────
+    from src.utils.config import resolve_run_dir
+
+    base_output = training_cfg.get(
+        "output_dir", "experiments/checkpoints/sft"
+    )
+    base_log = training_cfg.get("log_dir", "experiments/logs/sft")
+    ckpt_dir, run_id = resolve_run_dir(base_output, prefix="train")
+    from src.utils.config import _update_latest_symlink
+
+    log_dir_path = Path(base_log) / run_id
+    log_dir_path.mkdir(parents=True, exist_ok=True)
+    _update_latest_symlink(Path(base_log), run_id)
+    training_cfg["output_dir"] = str(ckpt_dir)
+    training_cfg["log_dir"] = str(log_dir_path)
+    if is_main_process():
+        print(f"[run] New run: {run_id}")
+        print(f"[run]   checkpoints → {ckpt_dir}")
+        print(f"[run]   logs        → {log_dir_path}")
+
     # ── Auto-disable Unsloth/fast_inference per multi-GPU ─────────────────
     num_gpus = config.get("model", {}).get("num_gpus", 1)
     if num_gpus > 1:

@@ -533,6 +533,51 @@ def main() -> None:
 
     config = load_config(args.config)
 
+    # ── Version output directories ────────────────────────────────────────
+    # Each run gets its own timestamped subdirectory so re-runs never
+    # overwrite previous checkpoints or logs.
+    from src.utils.config import (
+        _update_latest_symlink,
+        resolve_latest_run,
+        resolve_run_dir,
+    )
+
+    if not args.eval_only:
+        base_output = config["training"].get(
+            "output_dir", "experiments/checkpoints/grpo"
+        )
+        base_log = config["training"].get(
+            "log_dir", "experiments/logs/grpo"
+        )
+
+        if args.resume:
+            # Resuming: reuse the latest existing run directories
+            config["training"]["output_dir"] = str(
+                resolve_latest_run(base_output)
+            )
+            config["training"]["log_dir"] = str(
+                resolve_latest_run(base_log)
+            )
+            if is_main_process():
+                print(
+                    f"[run] Resuming in {config['training']['output_dir']}"
+                )
+        else:
+            # New run: create timestamped subdirectories (same run_id)
+            ckpt_dir, run_id = resolve_run_dir(
+                base_output, prefix="train"
+            )
+            log_dir_path = Path(base_log) / run_id
+            log_dir_path.mkdir(parents=True, exist_ok=True)
+            _update_latest_symlink(Path(base_log), run_id)
+
+            config["training"]["output_dir"] = str(ckpt_dir)
+            config["training"]["log_dir"] = str(log_dir_path)
+            if is_main_process():
+                print(f"[run] New run: {run_id}")
+                print(f"[run]   checkpoints → {ckpt_dir}")
+                print(f"[run]   logs        → {log_dir_path}")
+
     # ── Auto-disable Unsloth/fast_inference per multi-GPU ─────────────────
     num_gpus = config.get("model", {}).get("num_gpus", 1)
     if num_gpus > 1:
@@ -926,7 +971,7 @@ def _select_best_checkpoint(
         for i, v in enumerate(rates):
             ax.text(i, v + 0.02, f"{v:.3f}", ha="center", fontsize=9)
         fig.tight_layout()
-        figures_dir = Path("figures")
+        figures_dir = output_path / "figures"
         figures_dir.mkdir(parents=True, exist_ok=True)
         fig_path = figures_dir / "checkpoint_eval_pass_rates.png"
         fig.savefig(fig_path, dpi=150)

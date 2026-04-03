@@ -58,7 +58,7 @@ def _evaluate_model(
     difficulties: list[str],
     gen_config: dict[str, Any],
     is_checkpoint: bool = False,
-    batch_size: int = 16,
+    batch_size: int = 8,
 ) -> tuple[dict[str, Any], list[str]]:
     """Load a model from path, generate completions, compute metrics.
 
@@ -183,22 +183,38 @@ def main() -> None:
 
     config = load_config(args.config)
 
-    # Derive baseline results path from config log_dir if not explicitly set
+    # ── Resolve versioned directories ─────────────────────────────────────
+    # Checkpoints: resolve output_dir to the latest training run.
+    # Eval results: create a new timestamped eval subdirectory under log_dir.
+    from src.utils.config import resolve_latest_run, resolve_run_dir
+
+    base_output = config["training"]["output_dir"]
+    config["training"]["output_dir"] = str(
+        resolve_latest_run(base_output)
+    )
+
+    base_log = config["training"].get(
+        "log_dir", "experiments/logs/grpo"
+    )
+
+    # Baseline results live at the base log_dir level (shared across evals)
     if args.baseline_results is None:
-        log_dir = config["training"].get(
-            "log_dir", "experiments/logs/grpo"
-        )
         args.baseline_results = str(
-            Path(log_dir) / "baseline_results.json"
+            Path(base_log) / "baseline_results.json"
         )
+
+    # New versioned subdirectory for this eval run
+    eval_run_dir, eval_run_id = resolve_run_dir(
+        base_log, prefix="eval"
+    )
+    config["training"]["log_dir"] = str(eval_run_dir)
+    print(f"[eval] Run: {eval_run_id}")
+    print(f"[eval]   results → {eval_run_dir}")
 
     # Detect curriculum from config (curriculum.enabled in YAML)
+    # Used for checkpoint discovery (stage_*/checkpoint-* layout).
     curriculum_cfg = config.get("curriculum", {})
     is_curriculum = curriculum_cfg.get("enabled", False)
-
-    # --curriculum flag follows the config by default; explicit flag overrides
-    if is_curriculum:
-        args.curriculum = True
 
     # --curriculum implies --compare
     if args.curriculum:
@@ -316,7 +332,7 @@ def main() -> None:
         "do_sample": True,
     }
     eval_batch_size = config.get("evaluation", {}).get(
-        "batch_size", 16
+        "batch_size", 8
     )
 
     # We need a tokenizer for formatting — load only the tokenizer (not the model)

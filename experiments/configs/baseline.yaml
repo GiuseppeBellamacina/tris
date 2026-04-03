@@ -32,6 +32,7 @@ generation:
 
 # --- Evaluation ---
 evaluation:
+  batch_size: 8
   pass_at_k: [1, 5, 10] # valori di k per la metrica pass@k (utile se num_return_sequences > 1)
   output_dir: "experiments/logs/baseline" # cartella dove salvare results.json e completions.json
 

@@ -312,7 +312,9 @@ def _build_pipeline() -> list[JobInfo]:
     pending = _read_pending_chain()
 
     # Only parse chain log if pipeline is active (watcher running or jobs pending)
-    has_pipeline = CHAIN_PID_FILE.exists() or (CHAIN_FILE.exists() and pending)
+    has_pipeline = CHAIN_PID_FILE.exists() or (
+        CHAIN_FILE.exists() and pending
+    )
     submitted_names = _parse_chain_log() if has_pipeline else []
 
     jobs: list[JobInfo] = []
@@ -453,15 +455,28 @@ def _build_pipeline() -> list[JobInfo]:
         jobs.append(job)
 
     # 3. Standalone mode — no pipeline files found.
-    #    Discover jobs from squeue/sacct matching train-* or eval-* names.
+    #    Discover jobs from squeue/sacct matching train/eval names.
     if not jobs:
+
+        def _parse_job_name(name: str) -> tuple[str, str] | None:
+            """Extract (job_type, tag) from a SLURM job name.
+
+            Supports: 'train-smollm2-135m', 'eval-tinyllama-11b',
+            'train', 'eval' (no tag).
+            """
+            parts = name.split("-", 1)
+            if parts[0] in ("train", "eval"):
+                tag = parts[1] if len(parts) == 2 else ""
+                return parts[0], tag
+            return None
+
         for name, (sid, state, exit_code) in sorted(
             slurm_jobs.items(), key=lambda x: x[1][0]
         ):
-            parts = name.split("-", 1)
-            if len(parts) != 2 or parts[0] not in ("train", "eval"):
+            parsed = _parse_job_name(name)
+            if not parsed:
                 continue
-            job_type, tag = parts
+            job_type, tag = parsed
             job = JobInfo(job_type=job_type, config="", tag=tag)
             job.slurm_id = sid
             job.exit_code = exit_code
@@ -495,13 +510,20 @@ def _build_pipeline() -> list[JobInfo]:
         # Also check squeue for a running job not yet in sacct
         if active:
             a_name = active[1]
-            if a_name not in {f"{j.job_type}-{j.tag}" for j in jobs}:
-                parts = a_name.split("-", 1)
-                if len(parts) == 2 and parts[0] in ("train", "eval"):
+            existing_names = set()
+            for j in jobs:
+                existing_names.add(
+                    f"{j.job_type}-{j.tag}" if j.tag else j.job_type
+                )
+            full_name = a_name  # e.g. "eval" or "train-smollm2-135m"
+            if full_name not in existing_names:
+                parsed = _parse_job_name(a_name)
+                if parsed:
+                    job_type, tag = parsed
                     job = JobInfo(
-                        job_type=parts[0],
+                        job_type=job_type,
                         config="",
-                        tag=parts[1],
+                        tag=tag,
                         state="RUNNING",
                         slurm_id=active[0],
                         elapsed=active[2],
@@ -741,7 +763,10 @@ def _format_status(job: JobInfo) -> str:
         visible = len(re.sub(r"\033\[[0-9;]*m", "", s))
         return s + " " * max(0, width - visible)
 
-    label = f"{tc}{job.job_type}{_RST}-{_BOLD}{job.tag}{_RST}"
+    if job.tag:
+        label = f"{tc}{job.job_type}{_RST}-{_BOLD}{job.tag}{_RST}"
+    else:
+        label = f"{tc}{job.job_type}{_RST}"
     state_str = f"{sc}{job.state}{_RST}"
 
     return f" {icon}  {_vpad(label, 30)} {_vpad(slurm, 12)} {_vpad(state_str, 12)}{detail}"
@@ -845,8 +870,13 @@ def _display(jobs: list[JobInfo], show_table: bool = True) -> None:
         else:
             desc = ""
 
+        job_label = (
+            f"{tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
+            if j.tag
+            else f"{tc}{j.job_type}{_RST}"
+        )
         print(
-            f"  {_CYAN}▶ Active:{_RST} {tc}{j.job_type}{_RST}-{_BOLD}{j.tag}{_RST}"
+            f"  {_CYAN}▶ Active:{_RST} {job_label}"
             + (f" {_DIM}[{j.slurm_id}]{_RST}" if j.slurm_id else "")
             + (f" — {desc}" if desc else "")
         )

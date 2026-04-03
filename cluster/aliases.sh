@@ -246,7 +246,7 @@ run-eval() {
 }
 
 # Lancia tutti i modelli (train + eval curriculum)
-# Uso: run-all [--eval-only] [--train-only]
+# Uso: run-all [--eval-only] [--train-only] [--models=1t,2e,3]
 run-all() {
     cd "$PROJ_DIR" && bash cluster/run_all.sh "$@"
 }

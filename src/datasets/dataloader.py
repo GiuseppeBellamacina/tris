@@ -73,10 +73,26 @@ def format_prompt_for_model(
     If a tokenizer with apply_chat_template is provided, uses it.
     Otherwise falls back to a generic ChatML-style format.
     """
-    messages = [
-        {"role": "system", "content": sample["system_prompt"]},
-        {"role": "user", "content": sample["prompt"]},
-    ]
+    # Check if tokenizer supports system role
+    chat_template = getattr(tokenizer, "chat_template", "") or ""
+    supports_system = "system" in chat_template.lower()
+
+    if supports_system:
+        messages = [
+            {"role": "system", "content": sample["system_prompt"]},
+            {"role": "user", "content": sample["prompt"]},
+        ]
+    else:
+        # Models like Gemma 2 don't support system role —
+        # merge system prompt into user message
+        messages = [
+            {
+                "role": "user",
+                "content": sample["system_prompt"]
+                + "\n\n"
+                + sample["prompt"],
+            },
+        ]
 
     if tokenizer is not None and hasattr(
         tokenizer, "apply_chat_template"

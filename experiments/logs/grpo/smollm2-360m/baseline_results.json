@@ -1,0 +1,35 @@
+{
+  "model": "HuggingFaceTB/SmolLM2-360M-Instruct",
+  "detailed_metrics": {
+    "overall_pass_rate": 0.7733333333333333,
+    "total_samples": 300,
+    "valid_samples": 232,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 58,
+        "pass_rate": 0.58
+      },
+      "medium": {
+        "total": 100,
+        "valid": 88,
+        "pass_rate": 0.88
+      },
+      "simple": {
+        "total": 100,
+        "valid": 86,
+        "pass_rate": 0.86
+      }
+    },
+    "error_distribution": {
+      "no_code_block": 23,
+      "json_error: Unterminated string starting at": 14,
+      "json_error: Expecting ',' delimiter": 10,
+      "json_error: Extra data": 9,
+      "json_error: Expecting value": 5,
+      "json_error: Expecting property name enclosed in double quotes": 5,
+      "json_error: Expecting ':' delimiter": 1,
+      "json_error: Invalid \\escape": 1
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/smollm2-135m/train_20260403_182533/stages/stage_3_full_difficulty",
+  "label": "Stage 3: full_difficulty",
+  "metrics": {
+    "overall_pass_rate": 0.86,
+    "total_samples": 300,
+    "valid_samples": 258,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 82,
+        "pass_rate": 0.82
+      },
+      "medium": {
+        "total": 100,
+        "valid": 82,
+        "pass_rate": 0.82
+      },
+      "simple": {
+        "total": 100,
+        "valid": 94,
+        "pass_rate": 0.94
+      }
+    },
+    "error_distribution": {
+      "no_code_block": 18,
+      "json_error: Expecting ',' delimiter": 10,
+      "json_error: Expecting property name enclosed in double quotes": 6,
+      "json_error: Expecting value": 4,
+      "json_error: Invalid control character at": 2,
+      "json_error: Extra data": 1,
+      "json_error: Expecting ':' delimiter": 1
+    }
+  }
+}

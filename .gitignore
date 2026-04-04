@@ -26,7 +26,6 @@ grpo_trainer_lora_model_*/
 
 # Logs
 *.log
-logs/
 
 # Linting & formatting
 .ruff_cache/
@@ -36,7 +35,7 @@ data/synthetic/
 
 # Experiments
 experiments/checkpoints/
-
+experiments/logs/grpo/*/train*
 
 # ML model weights
 *.pt

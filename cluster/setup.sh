@@ -13,8 +13,8 @@
 if [ -z "$APPTAINER_CONTAINER" ]; then
     echo "🚀 Login node rilevato → rilancio inside srun + Apptainer..."
     ACCOUNT="${SLURM_ACCOUNT:-dl-course-q2}"
-    exec srun --account "$ACCOUNT" --partition "$ACCOUNT" --qos gpu-medium \
-         --gres=gpu:1 --gres=shard:2000 --mem=4G \
+    exec srun --account "$ACCOUNT" --partition "$ACCOUNT" --qos gpu-xlarge \
+         --gres=gpu:1 --gres=shard:22000 --mem=48G --cpus-per-task=8 \
          apptainer run --nv /shared/sifs/latest.sif \
          bash "$0" "$@"
 fi

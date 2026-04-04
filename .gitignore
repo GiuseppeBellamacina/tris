@@ -35,8 +35,8 @@ logs/
 data/synthetic/
 
 # Experiments
-experiments/logs/
 experiments/checkpoints/
+
 
 # ML model weights
 *.pt

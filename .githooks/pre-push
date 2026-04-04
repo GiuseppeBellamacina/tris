@@ -28,16 +28,19 @@ while read local_ref local_sha remote_ref remote_sha; do
     CHANGED=$(git diff --name-only "$RANGE" 2>/dev/null)
 
     SYNC_DIRS=""
+    SYNC_FILES=""
     echo "$CHANGED" | grep -q '^src/' && SYNC_DIRS="$SYNC_DIRS src/"
     echo "$CHANGED" | grep -q '^cluster/' && SYNC_DIRS="$SYNC_DIRS cluster/"
     echo "$CHANGED" | grep -q '^experiments/configs/' && SYNC_DIRS="$SYNC_DIRS experiments/configs/"
+    echo "$CHANGED" | grep -q '^pyproject\.toml$' && SYNC_FILES="$SYNC_FILES pyproject.toml"
+    echo "$CHANGED" | grep -q '^README\.md$' && SYNC_FILES="$SYNC_FILES README.md"
 
-    if [ -z "$SYNC_DIRS" ]; then
-        echo "[pre-push] No changes in src/, cluster/, experiments/configs/ — skip sync"
+    if [ -z "$SYNC_DIRS" ] && [ -z "$SYNC_FILES" ]; then
+        echo "[pre-push] No changes in tracked paths — skip sync"
         exit 0
     fi
 
-    echo "[pre-push] Syncing to cluster:$SYNC_DIRS"
+    echo "[pre-push] Syncing to cluster:${SYNC_DIRS}${SYNC_FILES}"
 
     FAILED=0
     for DIR in $SYNC_DIRS; do
@@ -50,6 +53,19 @@ while read local_ref local_sha remote_ref remote_sha; do
         scp -rq "$LOCAL_DIR." "${CLUSTER}:${REMOTE_BASE}/${DIR}" 2>&1
         if [ $? -ne 0 ]; then
             echo "[pre-push] ❌ Failed to sync $DIR"
+            FAILED=1
+        fi
+    done
+
+    for FILE in $SYNC_FILES; do
+        LOCAL_FILE="$REPO_DIR/$FILE"
+        if [ ! -f "$LOCAL_FILE" ]; then
+            continue
+        fi
+        echo "[pre-push]   syncing $FILE ..."
+        scp -q "$LOCAL_FILE" "${CLUSTER}:${REMOTE_BASE}/${FILE}" 2>&1
+        if [ $? -ne 0 ]; then
+            echo "[pre-push] ❌ Failed to sync $FILE"
             FAILED=1
         fi
     done

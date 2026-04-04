@@ -61,6 +61,8 @@ echo ""
 if [ "$CC_MAJOR" -ge 7 ] 2>/dev/null; then
     echo "📦 GPU CC >= 7.0 → installazione completa (base + fast)..."
     pip install --user -e ".[fast]"
+    echo "📦 Installazione flash-attn (compilazione CUDA)..."
+    pip install --user --no-deps --no-build-isolation "flash-attn>=2.6.3"
 else
     echo "📦 GPU CC < 7.0 → installazione base (senza Unsloth/vLLM)..."
     echo "   Usa config con: use_unsloth: false, fast_inference: false"

@@ -43,7 +43,7 @@ def plot_per_category_breakdown(
     ax.set_ylabel("Pass Rate")
     ax.set_title(title)
     ax.set_ylim(0, 1.15)
-    plt.xticks(rotation=30, ha="right")
+    plt.xticks(rotation=0, ha="center")
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()
@@ -116,7 +116,7 @@ def plot_baseline_vs_grpo_comparison(
     ax.set_ylabel("Pass@1")
     ax.set_title("Pass Rate per Category")
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=20, ha="right")
+    ax.set_xticklabels(labels, rotation=0, ha="center")
     ax.legend()
     ax.bar_label(bars_b, fmt="%.2f", padding=3, fontsize=8)
     ax.bar_label(bars_g, fmt="%.2f", padding=3, fontsize=8)
@@ -132,7 +132,7 @@ def plot_baseline_vs_grpo_comparison(
     ax2.set_ylabel("Δ Pass@1 (GRPO − Baseline)")
     ax2.set_title("Delta per Category")
     ax2.set_xticks(x)
-    ax2.set_xticklabels(labels, rotation=20, ha="right")
+    ax2.set_xticklabels(labels, rotation=0, ha="center")
     ax2.bar_label(bars_d, fmt="%+.3f", padding=3, fontsize=8)
 
     fig.tight_layout()
@@ -208,11 +208,11 @@ def plot_curriculum_progression(
     ax.set_ylabel("Pass@1")
     ax.set_title("Pass Rate per Category")
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=20, ha="right")
+    ax.set_xticklabels(labels, rotation=0, ha="center")
     ax.legend(
         fontsize=8,
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.15),
+        bbox_to_anchor=(0.5, -0.08),
         ncol=n_stages,
     )
     for bars, values in all_bars:
@@ -249,7 +249,7 @@ def plot_curriculum_progression(
     ax2.set_ylabel("Δ Pass@1 (vs Baseline)")
     ax2.set_title("Improvement over Baseline")
     ax2.set_xticks(x)
-    ax2.set_xticklabels(labels, rotation=20, ha="right")
+    ax2.set_xticklabels(labels, rotation=0, ha="center")
     ax2.legend(fontsize=8, loc="upper left")
 
     fig.tight_layout()
@@ -460,9 +460,15 @@ def plot_error_evolution(
     ax.set_title(suptitle, fontsize=13, fontweight="bold")
     ax.set_ylabel("Percentage (%)")
     ax.set_xticks(x)
-    ax.set_xticklabels(stage_labels, rotation=15, ha="right")
+    ax.set_xticklabels(stage_labels, rotation=0, ha="center")
     ax.set_ylim(0, 105)
-    ax.legend(loc="upper right")
+    n_cats = len(categories)
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.06),
+        fontsize=8,
+        ncol=n_cats,
+    )
 
     fig.tight_layout()
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

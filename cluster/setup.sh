@@ -44,10 +44,15 @@ if torch.cuda.is_available():
 else:
     print('  GPU: NESSUNA GPU rilevata')
     print('CC_MAJOR=0')
-") || { echo "❌ Errore nel rilevamento GPU:"; $PY -c "import torch; print(torch.cuda.is_available())"; exit 1; }
+" 2>&1) || true
 
-echo "$GPU_INFO" | grep -v CC_MAJOR
-CC_MAJOR=$(echo "$GPU_INFO" | grep CC_MAJOR | cut -d= -f2)
+if echo "$GPU_INFO" | grep -q "CC_MAJOR="; then
+    echo "$GPU_INFO" | grep -v CC_MAJOR
+    CC_MAJOR=$(echo "$GPU_INFO" | grep CC_MAJOR | cut -d= -f2)
+else
+    echo "  ⚠️  torch non disponibile (login node?) → assume GPU moderna (CC >= 7)"
+    CC_MAJOR=8
+fi
 
 # ── 2. Installa dipendenze dal pyproject.toml ─────────────────────────────────
 echo ""

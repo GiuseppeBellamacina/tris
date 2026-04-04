@@ -101,14 +101,11 @@ function Upload {
 function DownloadAll {
     Write-Host "Downloading all outputs from cluster..." -ForegroundColor Cyan
 
-    Write-Progress -Activity "Download" -Status "[1/3] experiments/logs..." -PercentComplete 0
+    Write-Progress -Activity "Download" -Status "[1/2] experiments/logs..." -PercentComplete 0
     DownloadLogs
 
-    Write-Progress -Activity "Download" -Status "[2/3] experiments/checkpoints..." -PercentComplete 33
+    Write-Progress -Activity "Download" -Status "[2/2] experiments/checkpoints..." -PercentComplete 50
     DownloadCheckpoints
-
-    Write-Progress -Activity "Download" -Status "[3/3] wandb offline runs..." -PercentComplete 66
-    DownloadWandb
 
     Write-Progress -Activity "Download" -Completed
     Write-Host "Download complete." -ForegroundColor Green

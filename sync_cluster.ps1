@@ -31,6 +31,7 @@ function Upload {
         "src",
         "cluster",
         "experiments/configs",
+        "pyproject.toml",
         ".env"
     )
 

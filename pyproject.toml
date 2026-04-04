@@ -48,6 +48,7 @@ dev = [
 fast = [
     "unsloth==2026.3.17",
     "vllm==0.18.0",
+    "flash-attn>=2.6.3",
 ]
 
 [tool.isort]

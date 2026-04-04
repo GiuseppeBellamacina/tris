@@ -294,10 +294,32 @@ monitor() {
     cd "$PROJ_DIR" && python3 -u -m src.utils.chain_monitor "$@"
 }
 
+# ── Pip / Environment ────────────────────────────────────────────────────────
+
+# Pulisci tutti i pacchetti --user
+pip-clean() {
+    echo "🗑️  Rimozione pacchetti pip --user..."
+    rm -rf ~/.local/lib/python3.*/site-packages/*
+    rm -rf ~/.local/bin/*
+    echo "✅ ~/.local ripulito"
+}
+
+# (Re)installa dipendenze da setup.sh
+pip-setup() {
+    echo "📦 Installazione dipendenze..."
+    cd "$PROJ_DIR" && bash cluster/setup.sh
+}
+
+# Pulisci e reinstalla da zero
+pip-reset() {
+    pip-clean
+    pip-setup
+}
+
 # ── Meta ─────────────────────────────────────────────────────────────────────
 
 # Lista di tutti i comandi custom registrati
-_GRPO_ALIASES="myjobs jobinfo killjob killalljobs trainlog evallog baselog lastlog tree ltree gpu quota proj ckpts trainlog-table trainlog-plot trainlog-live train run-eval run-all watcher-status watcher-kill clean-model pipeline-monitor claudio unload-aliases install-aliases uninstall-aliases"
+_GRPO_ALIASES="myjobs jobinfo killjob killalljobs trainlog evallog baselog lastlog tree ltree gpu quota proj ckpts trainlog-table trainlog-plot trainlog-live train run-eval run-all watcher-status watcher-kill clean-model pipeline-monitor claudio pip-clean pip-setup pip-reset unload-aliases install-aliases uninstall-aliases"
 
 # Mostra i comandi disponibili
 claudio() {
@@ -334,6 +356,10 @@ claudio() {
     echo "                     — pulisci checkpoints/logs di un modello"
     echo "   monitor [--poll N]"
     echo "                     — monitor live della pipeline (refresh ogni Ns)"
+    echo ""
+    echo "   pip-clean         — rimuovi tutti i pacchetti pip --user"
+    echo "   pip-setup         — (re)installa dipendenze (cluster/setup.sh)"
+    echo "   pip-reset         — pip-clean + pip-setup"
     echo ""
     echo "   claudio           — mostra questo messaggio"
     echo "   unload-aliases    — rimuovi alias (sessione corrente)"

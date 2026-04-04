@@ -49,31 +49,18 @@ else:
 echo "$GPU_INFO" | grep -v CC_MAJOR
 CC_MAJOR=$(echo "$GPU_INFO" | grep CC_MAJOR | cut -d= -f2)
 
-# ── 2. Installa dipendenze base ──────────────────────────────────────────────
+# ── 2. Installa dipendenze dal pyproject.toml ─────────────────────────────────
 echo ""
-echo "📦 Installazione dipendenze base (pip --user)..."
-pip install --user \
-    trl==0.24.0 peft bitsandbytes accelerate datasets \
-    wandb seaborn scikit-learn python-dotenv tqdm pyyaml \
-    matplotlib numpy pandas ipywidgets tensorboard
-
-# ── 3. Installa Unsloth + vLLM se GPU supportata (CC >= 7) ───────────────────
 if [ "$CC_MAJOR" -ge 7 ] 2>/dev/null; then
-    echo ""
-    echo "📦 GPU CC >= 7.0 → installazione Unsloth + vLLM..."
-    pip install --user unsloth==2026.3.17 vllm==0.18.0
+    echo "📦 GPU CC >= 7.0 → installazione completa (base + fast)..."
+    pip install --user -e ".[fast]"
 else
-    echo ""
-    echo "⚠️  GPU CC < 7.0 (K80?) → Unsloth e vLLM NON supportati."
+    echo "📦 GPU CC < 7.0 → installazione base (senza Unsloth/vLLM)..."
     echo "   Usa config con: use_unsloth: false, fast_inference: false"
+    pip install --user -e .
 fi
 
-# ── 4. Installa il progetto in editable mode ──────────────────────────────────
-echo ""
-echo "📦 Installazione progetto (editable)..."
-pip install --user --no-deps -e .
-
-# ── 5. Genera dataset sintetico ───────────────────────────────────────────────
+# ── 3. Genera dataset sintetico ───────────────────────────────────────────────
 if [ ! -d "data/synthetic" ]; then
     echo ""
     echo "📊 Generazione dataset sintetico (5000 samples)..."
@@ -88,7 +75,7 @@ else
     echo "✅ Dataset già presente in data/synthetic"
 fi
 
-# ── 6. Verifica installazione ─────────────────────────────────────────────────
+# ── 4. Verifica installazione ─────────────────────────────────────────────────
 echo ""
 echo "🔍 Verifica installazione..."
 $PY -c "

@@ -209,7 +209,12 @@ def plot_curriculum_progression(
     ax.set_title("Pass Rate per Category")
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=20, ha="right")
-    ax.legend(fontsize=8, loc="upper left")
+    ax.legend(
+        fontsize=8,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=n_stages,
+    )
     for bars, values in all_bars:
         ax.bar_label(bars, fmt="%.2f", padding=2, fontsize=7)
     ax.axhline(0, color="black", linewidth=0.5)
@@ -306,15 +311,25 @@ def plot_completions_error_breakdown(
         "json_error": "#ff7f0e",
     }
     colors = [color_map.get(lbl, "#9467bd") for lbl in pie_labels]
-    ax.pie(
+    wedges, _, autotexts = ax.pie(
         pie_values,
-        labels=[
-            f"{lbl}\n({v}/{total})"
+        colors=colors,
+        autopct=lambda pct: f"{pct:.1f}%" if pct >= 5 else "",
+        startangle=90,
+        pctdistance=0.75,
+    )
+    for at in autotexts:
+        at.set_fontsize(9)
+    ax.legend(
+        wedges,
+        [
+            f"{lbl} ({v}/{total} — {v/total*100:.1f}%)"
             for lbl, v in zip(pie_labels, pie_values)
         ],
-        colors=colors,
-        autopct="%.1f%%",
-        startangle=90,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.02),
+        fontsize=8,
+        ncol=2,
     )
     ax.set_title("Error Type Distribution")
 
@@ -561,6 +576,7 @@ def plot_stage_difficulty_heatmap(
     im = ax.imshow(
         matrix, cmap="RdYlGn", vmin=0, vmax=1, aspect="auto"
     )
+    ax.grid(False)
 
     ax.set_xticks(range(len(diffs_sorted)))
     ax.set_xticklabels(diffs_sorted)
@@ -666,15 +682,25 @@ def plot_rescued_vs_regressed(
     pie_labels = [k for k, v in categories.items() if v > 0]
     pie_values = [categories[k] for k in pie_labels]
     pie_colors = [color_map[k] for k in pie_labels]
-    ax.pie(
+    wedges, _, autotexts = ax.pie(
         pie_values,
-        labels=[
-            f"{lbl}\n({v}/{total})"
+        colors=pie_colors,
+        autopct=lambda pct: f"{pct:.1f}%" if pct >= 5 else "",
+        startangle=90,
+        pctdistance=0.75,
+    )
+    for at in autotexts:
+        at.set_fontsize(9)
+    ax.legend(
+        wedges,
+        [
+            f"{lbl} ({v}/{total} — {v/total*100:.1f}%)"
             for lbl, v in zip(pie_labels, pie_values)
         ],
-        colors=pie_colors,
-        autopct="%.1f%%",
-        startangle=90,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.02),
+        fontsize=8,
+        ncol=2,
     )
     ax.set_title("Overall")
 

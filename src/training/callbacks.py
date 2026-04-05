@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections import deque
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import wandb
 from transformers import (
@@ -187,3 +188,185 @@ class SaveWandbRunIdCallback(TrainerCallback):
         if wandb.run is not None:
             self._run_id_file.write_text(wandb.run.id)
             print(f"[wandb] Run id saved: {wandb.run.id}")
+
+
+# ---------------------------------------------------------------------------
+# Completion sample logging
+# ---------------------------------------------------------------------------
+
+_SEPARATOR = "─" * 70
+
+
+def _truncate(text: str, max_len: int = 300) -> str:
+    """Truncate text with ellipsis if too long."""
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + " [...]"
+
+
+def _extract_user_instruction(prompt: Any) -> str:
+    """Extract the user message from a prompt (chat messages or string)."""
+    if isinstance(prompt, list):
+        for msg in reversed(prompt):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                return msg.get("content", "")
+    return str(prompt) if prompt is not None else ""
+
+
+class CompletionSampleLogger:
+    """Wraps reward functions to capture (prompt, completion, rewards) samples.
+
+    The first reward function is wrapped with an interceptor that stores
+    the last batch of completions and prompts.  The callback reads from
+    this buffer and prints periodically.
+
+    Usage::
+
+        logger = CompletionSampleLogger(reward_fns, reward_weights, n_samples=3)
+        wrapped_fns = logger.wrapped_reward_fns
+        # pass wrapped_fns to GRPOTrainer
+        # pass logger to CompletionSampleCallback
+    """
+
+    def __init__(
+        self,
+        reward_fns: list[Callable[..., list[float]]],
+        reward_weights: list[float],
+        n_samples: int = 3,
+    ) -> None:
+        from src.training.rewards import (
+            extract_code_block,
+            format_reward,
+            reasoning_reward,
+            truncation_reward,
+            validity_reward,
+        )
+
+        self._reward_fns = list(reward_fns)
+        self._reward_weights = list(reward_weights)
+        self._n_samples = n_samples
+        self._buffer: deque[dict[str, Any]] = deque(maxlen=n_samples)
+
+        # Component functions for per-sample breakdown
+        self._component_fns = {
+            "format": format_reward,
+            "validity": validity_reward,
+            "reasoning": reasoning_reward,
+            "truncation": truncation_reward,
+        }
+        self._extract = extract_code_block
+
+        # Wrap the first reward function to intercept
+        original_fn = self._reward_fns[0]
+
+        def _interceptor(
+            completions: list[Any],
+            prompts: list[Any] | None = None,
+            **kwargs: Any,
+        ) -> list[float]:
+            self._capture(completions, prompts)
+            return original_fn(completions, prompts=prompts, **kwargs)
+
+        _interceptor.__name__ = original_fn.__name__
+        self._reward_fns[0] = _interceptor
+
+    def _capture(
+        self,
+        completions: list[Any],
+        prompts: list[Any] | None,
+    ) -> None:
+        """Store the first N samples from this batch."""
+        self._buffer.clear()
+        n = min(self._n_samples, len(completions))
+        for i in range(n):
+            comp = completions[i]
+            text: str = (
+                comp[0]["content"] if isinstance(comp, list) else comp
+            )
+            prompt = prompts[i] if prompts else None
+            instruction = _extract_user_instruction(prompt)
+
+            breakdown: dict[str, float] = {}
+            for name, fn in self._component_fns.items():
+                try:
+                    breakdown[name] = fn(text)
+                except TypeError:
+                    breakdown[name] = fn(text, instruction)  # type: ignore[call-arg]
+
+            self._buffer.append(
+                {
+                    "instruction": instruction,
+                    "completion": text,
+                    "breakdown": breakdown,
+                }
+            )
+
+    @property
+    def wrapped_reward_fns(self) -> list[Callable[..., list[float]]]:
+        return self._reward_fns
+
+    def format_samples(self) -> str:
+        """Format buffered samples as a readable string for logging."""
+        if not self._buffer:
+            return ""
+        lines = [
+            f"\n{'═' * 70}",
+            "  COMPLETION SAMPLES",
+            f"{'═' * 70}",
+        ]
+        for idx, sample in enumerate(self._buffer, 1):
+            instr = _truncate(sample["instruction"], 150)
+            comp = _truncate(sample["completion"], 400)
+            bd = sample["breakdown"]
+            reward_parts = "  ".join(
+                f"{k}={v:+.2f}" for k, v in bd.items()
+            )
+            lines.append(f"\n{_SEPARATOR}")
+            lines.append(f"  Sample {idx}")
+            lines.append(f"{_SEPARATOR}")
+            lines.append(f"  PROMPT: {instr}")
+            lines.append("  COMPLETION:")
+            for cl in comp.splitlines():
+                lines.append(f"    {cl}")
+            lines.append(f"  REWARDS: {reward_parts}")
+        lines.append(f"{'═' * 70}\n")
+        return "\n".join(lines)
+
+
+class CompletionSampleCallback(TrainerCallback):
+    """Print completion samples every ``every_n_steps`` steps.
+
+    Args:
+        logger: The CompletionSampleLogger instance.
+        every_n_steps: Print samples every N training steps.
+    """
+
+    def __init__(
+        self,
+        logger: CompletionSampleLogger,
+        every_n_steps: int = 5,
+    ) -> None:
+        self._logger = logger
+        self._every_n_steps = every_n_steps
+        self._last_printed_step = -1
+
+    def on_log(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        logs: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        if not state.is_local_process_zero:
+            return
+        step = state.global_step
+        if (
+            step > 0
+            and step % self._every_n_steps == 0
+            and step != self._last_printed_step
+        ):
+            output = self._logger.format_samples()
+            if output:
+                print(output)
+            self._last_printed_step = step

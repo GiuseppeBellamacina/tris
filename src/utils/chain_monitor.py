@@ -21,7 +21,7 @@ import os
 import re
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -76,6 +76,7 @@ class JobInfo:
     elapsed: str = ""  # elapsed time from squeue (e.g. "12:34")
     tqdm_elapsed: str = ""  # elapsed time from tqdm bar
     tqdm_eta: str = ""  # remaining time from tqdm bar
+    completion_samples: list[str] = field(default_factory=list)
 
     @property
     def label(self) -> str:
@@ -193,6 +194,24 @@ def _grep_lines(
     return out.splitlines() if out else []
 
 
+def _extract_completion_samples(lines: list[str]) -> list[str]:
+    """Extract the last completion sample block from log lines."""
+    block: list[str] = []
+    in_block = False
+    for line in lines:
+        stripped = line.strip()
+        if "COMPLETION SAMPLES" in stripped:
+            in_block = True
+            block = [stripped]
+            continue
+        if in_block:
+            block.append(stripped)
+            if stripped.startswith("\u2550" * 10) and len(block) > 3:
+                # End of block
+                in_block = False
+    return block
+
+
 def _parse_training_log(log_path: Path, job: JobInfo) -> None:
     """Parse a training log file and update job state.
 
@@ -218,7 +237,12 @@ def _parse_training_log(log_path: Path, job: JobInfo) -> None:
         job.stage_name = "COMPLETE"
 
     # 3. Get current step from last lines (step= or tqdm progress bar)
-    tail = _tail_lines(log_path, n=100)
+    tail = _tail_lines(log_path, n=200)
+
+    # 3b. Extract completion samples from tail
+    samples = _extract_completion_samples(tail)
+    if samples:
+        job.completion_samples = samples
     for line in reversed(tail):
         # Try key=value format: "  step=420  loss=0.005..."
         m = _KV_STEP.search(line)
@@ -811,9 +835,7 @@ def _display(jobs: list[JobInfo], show_table: bool = True) -> None:
     done_badge = f"{_GREEN}{completed}{_RST}/{total} done"
     fail_badge = f"  {_RED}{failed} failed{_RST}" if failed else ""
 
-    # Move cursor home + clear from cursor to end of screen
-    # (avoids full clear → no flicker)
-    print("\033[H\033[J", end="")
+    os.system("clear")
     print(f"{_CYAN}{'═' * 65}{_RST}")
     if is_pipeline:
         print(
@@ -934,23 +956,29 @@ def _display(jobs: list[JobInfo], show_table: bool = True) -> None:
     else:
         print(f"  {_GREEN}{_BOLD}✓ Pipeline finished!{_RST}")
 
-        # Show summary table of eval results
-        eval_jobs = [j for j in jobs if j.job_type == "eval"]
-        if eval_jobs:
-            print()
-            print(
-                f"  {_BOLD}{'Model':<25s} {'Status':<12s} {'Pass@1'}{_RST}"
-            )
-            print(f"  {'─' * 50}")
-            for ej in eval_jobs:
-                sc = _STATE_COLORS.get(ej.state, "")
-                status = f"{sc}{ej.state}{_RST}"
-                p1 = ej.eval_pass if ej.eval_pass else "-"
-                if ej.state == "COMPLETED" and ej.eval_pass:
-                    p1 = f"{_GREEN}{_BOLD}{ej.eval_pass}{_RST}"
-                elif ej.state == "FAILED":
-                    p1 = f"{_RED}—{_RST}"
-                print(f"  {ej.tag:<25s} {status:<22s} {p1}")
+    # Show completion samples from the active training job
+    if running and running[0].completion_samples:
+        print()
+        for sl in running[0].completion_samples:
+            print(f"  {sl}")
+
+    # Show summary table of eval results
+    eval_jobs = [j for j in jobs if j.job_type == "eval"]
+    if eval_jobs:
+        print()
+        print(
+            f"  {_BOLD}{'Model':<25s} {'Status':<12s} {'Pass@1'}{_RST}"
+        )
+        print(f"  {'─' * 50}")
+        for ej in eval_jobs:
+            sc = _STATE_COLORS.get(ej.state, "")
+            status = f"{sc}{ej.state}{_RST}"
+            p1 = ej.eval_pass if ej.eval_pass else "-"
+            if ej.state == "COMPLETED" and ej.eval_pass:
+                p1 = f"{_GREEN}{_BOLD}{ej.eval_pass}{_RST}"
+            elif ej.state == "FAILED":
+                p1 = f"{_RED}—{_RST}"
+            print(f"  {ej.tag:<25s} {status:<22s} {p1}")
 
     print()
 

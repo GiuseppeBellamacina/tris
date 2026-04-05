@@ -187,6 +187,54 @@ def _safe_filename(label: str) -> str:
     )
 
 
+def _print_eval_samples(
+    prompts: list[str],
+    completions: list[str],
+    difficulties: list[str],
+    n: int = 5,
+) -> None:
+    """Print the first *n* eval completions with per-component rewards."""
+    from src.training.rewards import (
+        format_reward,
+        reasoning_reward,
+        truncation_reward,
+        validity_reward,
+    )
+
+    sep = "─" * 70
+    print(f"\n{'═' * 70}")
+    print("  EVAL COMPLETION SAMPLES")
+    print(f"{'═' * 70}")
+    for i in range(min(n, len(completions))):
+        comp = completions[i]
+        diff = difficulties[i]
+        # Truncate prompt to user instruction
+        prompt_short = prompts[i]
+        if len(prompt_short) > 150:
+            prompt_short = prompt_short[:150] + " [...]"
+        # Per-component rewards
+        fmt = format_reward(comp)
+        val = validity_reward(comp)
+        reas = reasoning_reward(comp)
+        trunc = truncation_reward(comp)
+        comp_display = (
+            comp if len(comp) <= 400 else comp[:400] + " [...]"
+        )
+
+        print(f"\n{sep}")
+        print(f"  Sample {i + 1}  [difficulty={diff}]")
+        print(sep)
+        print(f"  PROMPT: {prompt_short}")
+        print("  COMPLETION:")
+        for line in comp_display.splitlines():
+            print(f"    {line}")
+        print(
+            f"  REWARDS: format={fmt:+.2f}  validity={val:+.2f}  "
+            f"reasoning={reas:+.2f}  truncation={trunc:+.2f}"
+        )
+    print(f"{'═' * 70}\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Post-training evaluation of GRPO model"
@@ -491,7 +539,8 @@ def main() -> None:
         )
         print(f"Results saved to {results_path}")
 
-        # Save completions with validation results
+        # Print a few completion samples for quick inspection
+        _print_eval_samples(prompts, completions, difficulties, n=5)
         completions_data = []
         for p, d, c in zip(prompts, difficulties, completions):
             valid, error = check_syntax(c)

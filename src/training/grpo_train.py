@@ -36,6 +36,8 @@ from src.datasets.dataloader import (
 from src.evaluation.eval_baseline import generate_completions
 from src.models.model_loader import load_model_and_tokenizer
 from src.training.callbacks import (
+    CompletionSampleCallback,
+    CompletionSampleLogger,
     CurriculumStageCallback,
     HighPrecisionLogCallback,
     SaveWandbRunIdCallback,
@@ -402,6 +404,12 @@ def _run_curriculum_training(
             stage_reward_cfg, thinking=thinking
         )
 
+        # 4b. Completion sample logger
+        sample_logger = CompletionSampleLogger(
+            reward_fns, rw, n_samples=3
+        )
+        reward_fns = sample_logger.wrapped_reward_fns
+
         # 5. Build GRPOConfig
         stage_wandb = {
             **wandb_cfg,
@@ -447,6 +455,7 @@ def _run_curriculum_training(
                     difficulty_weights=stage["difficulty_weights"],
                 ),
                 SaveWandbRunIdCallback(wandb_run_id_file),
+                CompletionSampleCallback(sample_logger),
             ],
         )
 
@@ -630,6 +639,12 @@ def main() -> None:
         config.get("reward", {}), thinking=thinking
     )
 
+    # Completion sample logger
+    sample_logger = CompletionSampleLogger(
+        reward_fns, reward_weights, n_samples=3
+    )
+    reward_fns = sample_logger.wrapped_reward_fns
+
     # Build GRPO config
     grpo_config = _build_grpo_config(
         config["training"],
@@ -736,6 +751,7 @@ def main() -> None:
             HighPrecisionLogCallback(),
             WandbAlertCallback(),
             SaveWandbRunIdCallback(wandb_run_id_file),
+            CompletionSampleCallback(sample_logger),
         ],
     )
 

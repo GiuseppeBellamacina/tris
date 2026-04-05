@@ -420,6 +420,7 @@ uninstall-aliases() {
     else
         echo "⚠️  Alias non presenti in ~/.bashrc"
     fi
+    unload-aliases
 }
 
 echo "✅ Alias GRPO caricati. Digita 'claudio' per la lista comandi."

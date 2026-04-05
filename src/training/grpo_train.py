@@ -43,7 +43,10 @@ from src.training.callbacks import (
     SaveWandbRunIdCallback,
     WandbAlertCallback,
 )
-from src.training.rewards import build_reward_functions
+from src.training.rewards import (
+    build_reward_functions,
+    register_schema_metadata,
+)
 from src.utils.config import load_config
 from src.utils.distributed import is_main_process
 from src.utils.metrics import compute_detailed_metrics
@@ -134,11 +137,23 @@ def _prepare_prompt_dataset(
     for i in range(len(train_ds)):
         sample = train_ds[i]
         prompt = format_prompt_for_model(sample, tokenizer)
-        formatted.append(
-            {"prompt": prompt, "difficulty": sample["difficulty"]}
+        entry: dict[str, str] = {
+            "prompt": prompt,
+            "difficulty": sample["difficulty"],
+        }
+        if "schema_meta" in sample:
+            entry["schema_meta"] = sample["schema_meta"]
+        formatted.append(entry)
+
+    result = Dataset.from_list(formatted)
+
+    # Register schema metadata for reward function lookups
+    if "schema_meta" in result.column_names:
+        register_schema_metadata(
+            result["prompt"], result["schema_meta"]
         )
 
-    return Dataset.from_list(formatted)
+    return result
 
 
 def _generate_curriculum_dataset(
@@ -195,11 +210,19 @@ def _generate_curriculum_dataset(
                         prompt = format_prompt_for_model(
                             sample, tokenizer
                         )
-                        formatted.append(
-                            {
-                                "prompt": prompt,
-                                "difficulty": sample["difficulty"],
-                            }
+                        entry: dict[str, str] = {
+                            "prompt": prompt,
+                            "difficulty": sample["difficulty"],
+                        }
+                        if "schema_meta" in sample:
+                            entry["schema_meta"] = sample[
+                                "schema_meta"
+                            ]
+                        formatted.append(entry)
+                    result = Dataset.from_list(formatted)
+                    if "schema_meta" in result.column_names:
+                        register_schema_metadata(
+                            result["prompt"], result["schema_meta"]
                         )
                     if is_main_process():
                         diffs = list(train_ds["difficulty"])
@@ -210,7 +233,7 @@ def _generate_curriculum_dataset(
                             count = sum(1 for x in diffs if x == d)
                             pct = count / len(diffs) * 100
                             print(f"  {d}: {count} ({pct:.1f}%)")
-                    return Dataset.from_list(formatted)
+                    return result
                 else:
                     if is_main_process():
                         print(
@@ -276,11 +299,20 @@ def _generate_curriculum_dataset(
     for i in range(len(train_ds)):
         sample = train_ds[i]
         prompt = format_prompt_for_model(sample, tokenizer)
-        formatted.append(
-            {"prompt": prompt, "difficulty": sample["difficulty"]}
-        )
+        entry_fmt: dict[str, str] = {
+            "prompt": prompt,
+            "difficulty": sample["difficulty"],
+        }
+        if "schema_meta" in sample:
+            entry_fmt["schema_meta"] = sample["schema_meta"]
+        formatted.append(entry_fmt)
 
-    return Dataset.from_list(formatted)
+    result = Dataset.from_list(formatted)
+    if "schema_meta" in result.column_names:
+        register_schema_metadata(
+            result["prompt"], result["schema_meta"]
+        )
+    return result
 
 
 def _run_curriculum_training(

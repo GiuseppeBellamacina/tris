@@ -19,6 +19,61 @@ import re
 from typing import Any, Callable
 
 # ---------------------------------------------------------------------------
+# Schema metadata registry
+# ---------------------------------------------------------------------------
+# Maps prompt text (first 200 chars) → parsed schema dict.
+# Populated by ``register_schema_metadata()`` at dataset load time so that
+# ``schema_reward`` can use exact structural constraints without embedding
+# them in the prompt visible to the LLM.
+
+_schema_registry: dict[str, dict[str, Any]] = {}
+
+
+def register_schema_metadata(
+    prompts: list[str], schema_metas: list[str]
+) -> None:
+    """Populate the schema registry from formatted prompts and JSON metadata.
+
+    Called once after loading the dataset, before training starts.
+    """
+    _schema_registry.clear()
+    count = 0
+    for prompt, meta in zip(prompts, schema_metas):
+        if not meta:
+            continue
+        key = str(prompt)[:200]
+        try:
+            _schema_registry[key] = json.loads(meta)
+            count += 1
+        except json.JSONDecodeError:
+            pass
+    print(
+        f"[schema] Registered {count}/{len(prompts)} schema metadata entries"
+    )
+
+
+def _lookup_schema(prompt: str) -> dict[str, Any] | None:
+    """Look up schema metadata for a prompt.
+
+    Priority:
+      1. Module-level registry (populated from dataset at training time)
+      2. Inline ``[SCHEMA:{...}]`` tag in the text (used in tests / eval)
+    """
+    key = str(prompt)[:200]
+    result = _schema_registry.get(key)
+    if result is not None:
+        return result
+    # Fallback: parse inline tag (for tests, eval, and backward compat)
+    m = re.search(r"\[SCHEMA:(.+)\]", prompt)
+    if m:
+        try:
+            return json.loads(m.group(1))  # type: ignore[no-any-return]
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
 
@@ -141,17 +196,23 @@ def _extract_min_count(instruction: str) -> int | None:
 def _extract_required_keys(instruction: str) -> list[str]:
     """Extract JSON key names that must appear in the output.
 
-    Looks for two reliable patterns:
-      - ``"key_name" (type description)`` — e.g. ``"id" (integer)``
+    Looks for three reliable patterns:
+      - ``"key_name" (type)`` or ``"key_name" key (type)`` — with parenthesised type
+      - ``"key_name" key containing/which/...`` — key designator without type
       - Explicit field lists in parentheses after words like "fields" or
         "including": ``fields (page, per_page, total, total_pages)``
     """
     keys: list[str] = []
 
-    # Pattern 1: "key_name" (type ...) — key followed by parenthesised type
-    keys.extend(re.findall(r'"(\w+)"\s*\(', instruction))
+    # Pattern 1: "key_name" [optional words] (type ...) — key followed by
+    # parenthesised type, with optional intervening words like "key"
+    keys.extend(re.findall(r'"(\w+)"(?:\s+\w+)*\s*\(', instruction))
 
-    # Pattern 2: unquoted word list inside parens after "fields"/"including"
+    # Pattern 2: "key_name" key ... — explicit "key" designator without type
+    # annotation (e.g. '"items" key containing a flat array')
+    keys.extend(re.findall(r'"(\w+)"\s+key\b', instruction))
+
+    # Pattern 3: unquoted word list inside parens after "fields"/"including"
     m = re.search(
         r"(?:fields?|including?|attributes?|properties)\s*\(([^)]+)\)",
         instruction,
@@ -248,15 +309,26 @@ def validity_reward(completion: str) -> float:
     return 0.10
 
 
-def schema_reward(completion: str, instruction: str) -> float:
+def schema_reward(
+    completion: str,
+    instruction: str,
+    raw_prompt: str = "",
+) -> float:
     """Score structural compliance with the constraints stated in the instruction.
 
+    If schema metadata is available in the registry (populated at dataset
+    load time from template metadata), uses exact constraints for precise
+    validation.  The registry is keyed on the full formatted prompt
+    (``raw_prompt``).  Otherwise falls back to regex-based extraction from
+    the instruction text.
+
     Checks (each contributing equally to the final average):
-      1. Exact array count     — if "N items/steps/widgets/…" in instruction
-      2. Minimum count         — if "at least N" in instruction
-      3. Required key presence — keys annotated as ``"key" (type)``
-      4. Nesting depth         — for "deeply nested" / "at least N levels"
-      5. Top-level type        — array vs object when unambiguous
+      1. Exact array/item count
+      2. Minimum count
+      3. Required top-level keys  (strict when from registry, lenient when from regex)
+      4. Item keys (arrays of objects)  — *registry-only*
+      5. Nesting depth
+      6. Top-level type (array vs object)
 
     Returns 0.0 if JSON is unparseable.
     Returns 1.0 if the JSON is valid but no constraints can be extracted.
@@ -269,14 +341,20 @@ def schema_reward(completion: str, instruction: str) -> float:
     if parsed is None:
         return 0.0
 
+    # Try registry lookup using full formatted prompt, then instruction text
+    schema = (
+        _lookup_schema(raw_prompt) if raw_prompt else None
+    ) or _lookup_schema(instruction)
     scores: list[float] = []
 
-    # 1. Exact count
-    exact = _extract_exact_count(instruction)
+    # 1. Exact count — from tag or regex
+    exact = (
+        schema.get("count")
+        if schema
+        else _extract_exact_count(instruction)
+    )
     if exact is not None:
         lengths = _collect_array_lengths(parsed)
-        # Fallback: if no arrays found and top-level is a dict, use the
-        # number of keys (handles "exactly N key-value pairs" templates).
         if not lengths and isinstance(parsed, dict):
             lengths.append(len(parsed))
         if lengths:
@@ -293,8 +371,12 @@ def schema_reward(completion: str, instruction: str) -> float:
         else:
             scores.append(0.0)
 
-    # 2. Minimum count
-    minimum = _extract_min_count(instruction)
+    # 2. Minimum count — from tag or regex
+    minimum = (
+        schema.get("min_count")
+        if schema
+        else _extract_min_count(instruction)
+    )
     if minimum is not None:
         lengths = _collect_array_lengths(parsed)
         best = (
@@ -304,28 +386,64 @@ def schema_reward(completion: str, instruction: str) -> float:
         )
         scores.append(min(best / minimum, 1.0))
 
-    # 3. Required keys
-    req_keys = _extract_required_keys(instruction)
+    # 3. Required top-level keys
+    if schema:
+        req_keys = schema.get("keys", [])
+    else:
+        req_keys = _extract_required_keys(instruction)
     if req_keys:
-        all_keys = _collect_all_keys(parsed)
-        present = sum(1 for k in req_keys if k in all_keys)
-        scores.append(present / len(req_keys))
+        if schema:
+            # Strict: keys must be at the TOP LEVEL of the object
+            if isinstance(parsed, dict):
+                present = sum(1 for k in req_keys if k in parsed)
+                scores.append(present / len(req_keys))
+            else:
+                scores.append(0.0)
+        else:
+            # Lenient fallback: search recursively
+            all_keys = _collect_all_keys(parsed)
+            present = sum(1 for k in req_keys if k in all_keys)
+            scores.append(present / len(req_keys))
 
-    # 4. Nesting depth
-    req_depth = _extract_required_depth(instruction)
+    # 4. Item keys — only from schema tag (for arrays of objects)
+    item_keys: list[str] = (
+        schema.get("item_keys", []) if schema else []
+    )
+    if item_keys and isinstance(parsed, list) and len(parsed) > 0:
+        item_scores: list[float] = []
+        for item in parsed:
+            if isinstance(item, dict):
+                present = sum(1 for k in item_keys if k in item)
+                item_scores.append(present / len(item_keys))
+            else:
+                item_scores.append(0.0)
+        scores.append(sum(item_scores) / len(item_scores))
+
+    # 5. Nesting depth — from tag or regex
+    req_depth = (
+        schema.get("depth")
+        if schema
+        else _extract_required_depth(instruction)
+    )
     if req_depth is not None:
         scores.append(
             min(_max_nesting_depth(parsed) / req_depth, 1.0)
         )
 
-    # 5. Top-level type
-    tl = _requires_array_toplevel(instruction)
-    if tl is True:
-        scores.append(1.0 if isinstance(parsed, list) else 0.0)
-    elif tl is False:
-        scores.append(1.0 if isinstance(parsed, dict) else 0.0)
+    # 6. Top-level type — from tag or regex
+    if schema:
+        tl_str = schema.get("toplevel")
+        if tl_str == "array":
+            scores.append(1.0 if isinstance(parsed, list) else 0.0)
+        elif tl_str == "object":
+            scores.append(1.0 if isinstance(parsed, dict) else 0.0)
+    else:
+        tl = _requires_array_toplevel(instruction)
+        if tl is True:
+            scores.append(1.0 if isinstance(parsed, list) else 0.0)
+        elif tl is False:
+            scores.append(1.0 if isinstance(parsed, dict) else 0.0)
 
-    # No extractable constraints → full credit if JSON is valid
     return sum(scores) / len(scores) if scores else 1.0
 
 
@@ -654,6 +772,11 @@ def _make_single_reward_fn(
 ) -> Callable[..., list[float]]:
     """Wrap a single-sample reward component into the GRPOTrainer-compatible
     signature: ``fn(completions, prompts=None, **kwargs) -> list[float]``.
+
+    For ``schema_reward`` (``needs_instruction=True``), the full formatted
+    prompt is passed so that ``_lookup_schema`` can find the registered
+    metadata by key.  The extracted user instruction is used as a fallback
+    for regex-based constraint extraction.
     """
 
     def _instruction_from_prompt(prompt: Any) -> str:
@@ -671,20 +794,30 @@ def _make_single_reward_fn(
         prompts: list[Any] | None = None,
         **kwargs: Any,
     ) -> list[float]:
-        instructions = (
-            [_instruction_from_prompt(p) for p in prompts]
+        raw_prompts = (
+            [str(p) if p is not None else "" for p in prompts]
             if prompts
             else [""] * len(completions)
         )
+        instructions = (
+            [_instruction_from_prompt(p) for p in prompts]
+            if prompts
+            else raw_prompts
+        )
         results: list[float] = []
-        for completion, instruction in zip(completions, instructions):
+        for completion, instruction, raw_prompt in zip(
+            completions, instructions, raw_prompts
+        ):
             text: str = (
                 completion[0]["content"]
                 if isinstance(completion, list)
                 else completion
             )
             if needs_instruction:
-                results.append(component_fn(text, instruction))
+                # Pass raw prompt for schema registry lookup
+                results.append(
+                    component_fn(text, instruction, raw_prompt)
+                )
             else:
                 results.append(component_fn(text))
         return results

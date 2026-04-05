@@ -330,12 +330,13 @@ class CompletionSampleLogger:
             )
             difficulty = self._difficulty_map.get(prompt_key, "?")
 
+            raw_prompt = str(prompt) if prompt is not None else ""
             breakdown: dict[str, float] = {}
             for name, fn in self._component_fns.items():
                 try:
                     breakdown[name] = fn(text)
                 except TypeError:
-                    breakdown[name] = fn(text, instruction)  # type: ignore[call-arg]
+                    breakdown[name] = fn(text, instruction, raw_prompt)  # type: ignore[call-arg]
 
             self._buffer.append(
                 {

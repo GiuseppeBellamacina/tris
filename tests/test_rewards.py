@@ -136,6 +136,71 @@ class TestSchemaReward:
             == 0.0
         )
 
+    # --- Schema tag tests ---
+
+    def test_schema_tag_keys_strict_toplevel(self):
+        """Schema tag: keys must be at top level, not nested."""
+        instr = 'Generate JSON.\n[SCHEMA:{"keys":["name","age"],"toplevel":"object"}]'
+        good = '```json\n{"name": "x", "age": 30}\n```'
+        assert schema_reward(good, instr) == 1.0
+        # Keys present but nested → strict check fails
+        bad = '```json\n{"data": {"name": "x", "age": 30}}\n```'
+        score = schema_reward(bad, instr)
+        assert score < 1.0
+
+    def test_schema_tag_wrong_keys(self):
+        """Schema tag: wrong key names penalised."""
+        instr = 'Generate JSON.\n[SCHEMA:{"keys":["group","items"],"toplevel":"object"}]'
+        wrong = '```json\n{"type": "group", "items": [1,2,3]}\n```'
+        right = '```json\n{"group": "test", "items": [1,2,3]}\n```'
+        assert schema_reward(right, instr) > schema_reward(
+            wrong, instr
+        )
+
+    def test_schema_tag_count(self):
+        """Schema tag: exact count validation."""
+        instr = (
+            'Generate array.\n[SCHEMA:{"toplevel":"array","count":3}]'
+        )
+        exact = "```json\n[1, 2, 3]\n```"
+        assert schema_reward(exact, instr) == 1.0
+        off = "```json\n[1, 2]\n```"
+        assert schema_reward(off, instr) < 1.0
+
+    def test_schema_tag_item_keys(self):
+        """Schema tag: item_keys check on array of objects."""
+        instr = 'Generate.\n[SCHEMA:{"toplevel":"array","count":2,"item_keys":["name","value"]}]'
+        good = '```json\n[{"name":"a","value":1},{"name":"b","value":2}]\n```'
+        assert schema_reward(good, instr) == 1.0
+        bad = '```json\n[{"label":"a","count":1},{"label":"b","count":2}]\n```'
+        # toplevel=1.0, count=1.0, item_keys=0.0 → avg ≈ 0.67
+        assert schema_reward(bad, instr) < 1.0
+        assert schema_reward(good, instr) > schema_reward(bad, instr)
+
+    def test_schema_tag_min_count(self):
+        """Schema tag: minimum count."""
+        instr = (
+            'Generate.\n[SCHEMA:{"toplevel":"object","min_count":3}]'
+        )
+        enough = '```json\n{"a":1,"b":2,"c":3,"d":4}\n```'
+        assert schema_reward(enough, instr) == 1.0
+        too_few = '```json\n{"a":1}\n```'
+        assert schema_reward(too_few, instr) < 1.0
+
+    def test_schema_tag_depth(self):
+        """Schema tag: nesting depth."""
+        instr = 'Generate.\n[SCHEMA:{"toplevel":"object","depth":3}]'
+        deep = '```json\n{"a":{"b":{"c":1}}}\n```'
+        assert schema_reward(deep, instr) == 1.0
+        shallow = '```json\n{"a":1}\n```'
+        assert schema_reward(shallow, instr) < 1.0
+
+    def test_schema_tag_fallback_when_absent(self):
+        """Without schema tag, regex fallback works as before."""
+        text = '```json\n{"id": 1, "name": "x"}\n```'
+        instr = 'Object with "id" (integer) and "name" (string).'
+        assert schema_reward(text, instr) == 1.0
+
 
 class TestReasoningReward:
     def test_with_long_reasoning(self):

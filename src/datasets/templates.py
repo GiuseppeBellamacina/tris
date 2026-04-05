@@ -1,17 +1,18 @@
 """JSON prompt templates for synthetic dataset generation.
 
 Templates are organized by difficulty level (simple, medium, hard).
-Each template has an 'instruction' format string and a 'params' callable
-that returns randomized parameters via the provided RNG.
+Each template has an 'instruction' format string, a 'params' callable
+that returns randomized parameters via the provided RNG, and an optional
+'schema' callable that returns structural metadata for exact reward
+validation (expected keys, toplevel type, counts, etc.).
 """
 
 from __future__ import annotations
 
-import random
-from typing import Any, Callable
+from typing import Any
 
 # Type alias for a single template entry
-Template = dict[str, str | Callable[[random.Random], dict[str, Any]]]
+Template = dict[str, Any]
 
 # ---------------------------------------------------------------------------
 # Simple — flat objects, single arrays, basic key-value pairs
@@ -58,6 +59,10 @@ SIMPLE: list[Template] = [
                 ]
             ),
         },
+        "schema": lambda p: {
+            "keys": [p["k1"], p["k2"], p["k3"]],
+            "toplevel": "object",
+        },
     },
     {
         "instruction": "Generate a JSON array containing exactly {n} strings representing {topic}.",
@@ -78,6 +83,10 @@ SIMPLE: list[Template] = [
                 ]
             ),
         },
+        "schema": lambda p: {
+            "toplevel": "array",
+            "count": p["n"],
+        },
     },
     {
         "instruction": (
@@ -90,6 +99,11 @@ SIMPLE: list[Template] = [
                 ["values", "scores", "data", "items", "measurements"]
             ),
             "n": rng.randint(3, 6),
+        },
+        "schema": lambda p: {
+            "keys": [p["k1"], p["k2"]],
+            "toplevel": "object",
+            "count": p["n"],
         },
     },
     {
@@ -110,6 +124,10 @@ SIMPLE: list[Template] = [
                     "health",
                 ]
             ),
+        },
+        "schema": lambda p: {
+            "toplevel": "object",
+            "count": p["n"],
         },
     },
     {
@@ -141,6 +159,10 @@ SIMPLE: list[Template] = [
             ),
             "t3": "boolean",
         },
+        "schema": lambda p: {
+            "keys": [p["k1"], p["k2"], p["k3"]],
+            "toplevel": "object",
+        },
     },
     {
         "instruction": (
@@ -155,6 +177,11 @@ SIMPLE: list[Template] = [
             "k2": rng.choice(
                 ["value", "count", "score", "amount", "population"]
             ),
+        },
+        "schema": lambda p: {
+            "toplevel": "array",
+            "count": p["n"],
+            "item_keys": [p["k1"], p["k2"]],
         },
     },
     {
@@ -173,6 +200,11 @@ SIMPLE: list[Template] = [
             "elem_type": rng.choice(
                 ["strings", "integers", "booleans"]
             ),
+        },
+        "schema": lambda p: {
+            "keys": [p["k1"], p["k2"]],
+            "toplevel": "object",
+            "count": p["n"],
         },
     },
     {
@@ -193,6 +225,10 @@ SIMPLE: list[Template] = [
                     "unit of measurement",
                 ]
             ),
+        },
+        "schema": lambda p: {
+            "toplevel": "object",
+            "count": p["n"],
         },
     },
 ]
@@ -232,6 +268,11 @@ MEDIUM: list[Template] = [
                 ["zip", "country", "phone", "region", "code"]
             ),
         },
+        "schema": lambda p: {
+            "toplevel": "array",
+            "count": p["n"],
+            "item_keys": [p["k1"], p["k2"], p["k3"]],
+        },
     },
     {
         "instruction": (
@@ -254,6 +295,10 @@ MEDIUM: list[Template] = [
                 ]
             ),
             "n": rng.randint(5, 8),
+        },
+        "schema": lambda p: {
+            "toplevel": "object",
+            "min_count": p["n"],
         },
     },
     {
@@ -285,6 +330,10 @@ MEDIUM: list[Template] = [
             "k3": rng.choice(
                 ["auth", "ssl", "logging", "metrics", "cors"]
             ),
+        },
+        "schema": lambda p: {
+            "keys": [p["k1"], p["k2"], p["k3"]],
+            "toplevel": "object",
         },
     },
     {
@@ -319,6 +368,9 @@ MEDIUM: list[Template] = [
                 ]
             ),
         },
+        "schema": lambda p: {
+            "toplevel": "object",
+        },
     },
     {
         "instruction": (
@@ -348,6 +400,10 @@ MEDIUM: list[Template] = [
                 ["footer", "signature", "status", "notes"]
             ),
         },
+        "schema": lambda p: {
+            "keys": [p["s1"], p["s2"], p["s3"]],
+            "toplevel": "object",
+        },
     },
     {
         "instruction": (
@@ -370,6 +426,10 @@ MEDIUM: list[Template] = [
                 ["amount", "hours", "progress", "value"]
             ),
         },
+        "schema": lambda p: {
+            "keys": [p["k1"], p["k2"], p["k3"]],
+            "toplevel": "object",
+        },
     },
     {
         "instruction": (
@@ -391,6 +451,9 @@ MEDIUM: list[Template] = [
             ),
             "n": rng.randint(4, 7),
         },
+        "schema": lambda p: {
+            "toplevel": "object",
+        },
     },
     {
         "instruction": (
@@ -411,6 +474,10 @@ MEDIUM: list[Template] = [
                     "experiment",
                 ]
             ),
+        },
+        "schema": lambda p: {
+            "keys": ["id", "name", "tags", "metadata"],
+            "toplevel": "object",
         },
     },
 ]
@@ -440,6 +507,9 @@ HARD: list[Template] = [
                 ]
             ),
         },
+        "schema": lambda p: {
+            "toplevel": "object",
+        },
     },
     {
         "instruction": (
@@ -463,6 +533,16 @@ HARD: list[Template] = [
             "n": rng.randint(2, 4),
             "f": rng.randint(4, 6),
         },
+        "schema": lambda p: {
+            "keys": [
+                "page",
+                "per_page",
+                "total",
+                "total_pages",
+                "results",
+            ],
+            "toplevel": "object",
+        },
     },
     {
         "instruction": (
@@ -481,6 +561,11 @@ HARD: list[Template] = [
                     "permission role hierarchy",
                 ]
             ),
+        },
+        "schema": lambda p: {
+            "keys": ["name", "id", "children"],
+            "toplevel": "object",
+            "depth": 4,
         },
     },
     {
@@ -501,6 +586,9 @@ HARD: list[Template] = [
                     "notification",
                 ]
             ),
+        },
+        "schema": lambda p: {
+            "toplevel": "object",
         },
     },
     {
@@ -523,6 +611,10 @@ HARD: list[Template] = [
             ),
             "n": rng.randint(4, 6),
         },
+        "schema": lambda p: {
+            "toplevel": "object",
+            "min_count": p["n"],
+        },
     },
     {
         "instruction": (
@@ -534,6 +626,9 @@ HARD: list[Template] = [
         ),
         "params": lambda rng: {
             "n": rng.randint(3, 6),
+        },
+        "schema": lambda p: {
+            "toplevel": "object",
         },
     },
     {
@@ -556,6 +651,19 @@ HARD: list[Template] = [
             ),
             "n": rng.randint(4, 7),
         },
+        "schema": lambda p: {
+            "keys": [
+                "specversion",
+                "id",
+                "source",
+                "type",
+                "subject",
+                "time",
+                "datacontenttype",
+                "data",
+            ],
+            "toplevel": "object",
+        },
     },
     {
         "instruction": (
@@ -567,6 +675,9 @@ HARD: list[Template] = [
         ),
         "params": lambda rng: {
             "n": rng.randint(3, 6),
+        },
+        "schema": lambda p: {
+            "toplevel": "object",
         },
     },
 ]

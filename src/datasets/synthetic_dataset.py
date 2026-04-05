@@ -68,12 +68,22 @@ def generate_sample(
 
     params = template["params"](rng)  # type: ignore[operator]
     instruction = template["instruction"].format(**params)  # type: ignore[union-attr]
+
+    # Compute structured schema metadata from template (if defined)
+    schema_fn = template.get("schema")
+    schema_meta = ""
+    if schema_fn is not None:
+        schema_meta = json.dumps(
+            schema_fn(params), separators=(",", ":")
+        )
+
     system_prompt = _build_system_prompt(thinking)
 
     return {
         "system_prompt": system_prompt,
         "prompt": instruction,
         "difficulty": difficulty,
+        "schema_meta": schema_meta,
     }
 
 
@@ -105,7 +115,12 @@ def generate_dataset(
         if not rows:
             return {
                 k: []
-                for k in ["system_prompt", "prompt", "difficulty"]
+                for k in [
+                    "system_prompt",
+                    "prompt",
+                    "difficulty",
+                    "schema_meta",
+                ]
             }
         return {k: [r[k] for r in rows] for k in rows[0]}
 

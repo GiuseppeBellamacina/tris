@@ -29,7 +29,7 @@ jobinfo() {
 alias killjob='scancel'
 
 # Cancella tutti i miei job
-alias killalljobs='scancel --me'
+alias killalljobs='watcher-kill && scancel --me'
 
 # ── Log monitoring ───────────────────────────────────────────────────────────
 

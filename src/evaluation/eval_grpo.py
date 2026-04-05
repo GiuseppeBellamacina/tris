@@ -53,7 +53,6 @@ load_dotenv()
 def _evaluate_model(
     config: dict[str, Any],
     model_path: str,
-    test_ds: Any,
     prompts: list[str],
     difficulties: list[str],
     gen_config: dict[str, Any],
@@ -192,6 +191,7 @@ def _print_eval_samples(
     completions: list[str],
     difficulties: list[str],
     n: int = 5,
+    raw_prompts: list[str] | None = None,
 ) -> None:
     """Print the first *n* eval completions with per-component rewards."""
     from src.training.callbacks import _split_think
@@ -219,7 +219,8 @@ def _print_eval_samples(
         # Per-component rewards
         fmt = format_reward(comp)
         val = validity_reward(comp)
-        sch = schema_reward(comp, prompts[i])
+        raw_p = raw_prompts[i] if raw_prompts else ""
+        sch = schema_reward(comp, prompts[i], raw_prompt=raw_p)
         reas = reasoning_reward(comp)
         trunc = truncation_reward(comp)
         rep = repetition_reward(comp)
@@ -465,6 +466,14 @@ def main() -> None:
     ]
     difficulties = list(test_ds["difficulty"])
 
+    # Register schema metadata for precise reward computation during eval
+    if "schema_meta" in test_ds.column_names:
+        from src.training.rewards import register_schema_metadata
+
+        register_schema_metadata(
+            prompts, list(test_ds["schema_meta"])
+        )
+
     # ── Discover models to evaluate ─────────────────────────────────────
     # In curriculum mode, evaluate all stage_end models; otherwise just the
     # single checkpoint.
@@ -523,7 +532,6 @@ def main() -> None:
         metrics, completions = _evaluate_model(
             config,
             model_path,
-            test_ds,
             prompts,
             difficulties,
             gen_config,
@@ -558,7 +566,13 @@ def main() -> None:
         print(f"Results saved to {results_path}")
 
         # Print a few completion samples for quick inspection
-        _print_eval_samples(prompts, completions, difficulties, n=5)
+        _print_eval_samples(
+            prompts,
+            completions,
+            difficulties,
+            n=5,
+            raw_prompts=prompts,
+        )
         completions_data = []
         for p, d, c in zip(prompts, difficulties, completions):
             valid, error = check_syntax(c)
@@ -636,7 +650,6 @@ def main() -> None:
             baseline_metrics, baseline_completions = _evaluate_model(
                 config,
                 config["model"]["name"],
-                test_ds,
                 prompts,
                 difficulties,
                 gen_config,

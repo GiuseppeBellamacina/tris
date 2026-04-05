@@ -230,6 +230,7 @@ def _extract_completion_samples(
     think_lines: list[str] = []
     output_lines: list[str] = []
     rewards_line = ""
+    total_line = ""
     schema_line = ""
     difficulty = ""
     section = ""  # "think", "output", or ""
@@ -252,6 +253,10 @@ def _extract_completion_samples(
             continue
         if line.startswith("REWARDS:"):
             rewards_line = line
+            section = ""
+            continue
+        if line.startswith("TOTAL:"):
+            total_line = line
             section = ""
             continue
         if line.startswith("SCHEMA:"):
@@ -324,6 +329,14 @@ def _extract_completion_samples(
             result.append(f"  REWARDS: {'  '.join(colored_parts)}")
         else:
             result.append(f"  {_CYAN}{rewards_line}{_RST}")
+
+    # Total weighted reward (colored by sign)
+    if total_line:
+        tm = re.search(r"([+-]?\d+\.\d+)", total_line)
+        if tm:
+            tv = float(tm.group(1))
+            tc = _GREEN if tv > 0 else (_RED if tv < 0 else _GRAY)
+            result.append(f"  {tc}{total_line.strip()}{_RST}")
 
     # Schema metadata line (dim yellow)
     if schema_line:

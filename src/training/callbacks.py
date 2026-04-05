@@ -247,6 +247,7 @@ class CompletionSampleLogger:
         reward_fns: list[Callable[..., list[float]]],
         reward_weights: list[float],
         n_samples: int = 3,
+        thinking: bool = True,
     ) -> None:
         from src.training.rewards import (
             extract_code_block,
@@ -265,16 +266,24 @@ class CompletionSampleLogger:
         self._buffer: deque[dict[str, Any]] = deque(maxlen=n_samples)
         self._difficulty_map: dict[str, str] = {}
 
+        # Build component_name → weight mapping from the wrapped reward fns
+        # fn.__name__ is e.g. "format_reward" → key "format"
+        self._weight_map: dict[str, float] = {}
+        for fn, w in zip(reward_fns, reward_weights):
+            key = fn.__name__.replace("_reward", "")
+            self._weight_map[key] = w
+
         # Component functions for per-sample breakdown
         self._component_fns = {
             "format": format_reward,
             "validity": validity_reward,
             "schema": schema_reward,
-            "reasoning": reasoning_reward,
             "truncation": truncation_reward,
             "repetition": repetition_reward,
             "strictness": strictness_reward,
         }
+        if thinking:
+            self._component_fns["reasoning"] = reasoning_reward
         self._extract = extract_code_block
 
         # Wrap the first reward function to intercept
@@ -387,6 +396,11 @@ class CompletionSampleLogger:
             for cl in output.splitlines():
                 lines.append(f"    {cl}")
             lines.append(f"  REWARDS: {reward_parts}")
+            total = sum(
+                self._weight_map.get(k, 0.0) * v
+                for k, v in bd.items()
+            )
+            lines.append(f"  TOTAL:   {total:+.4f}")
             schema = sample.get("schema")
             if schema:
                 import json as _json

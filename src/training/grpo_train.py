@@ -447,7 +447,7 @@ def _run_curriculum_training(
 
         # 4b. Completion sample logger
         sample_logger = CompletionSampleLogger(
-            reward_fns, rw, n_samples=3
+            reward_fns, rw, n_samples=3, thinking=thinking
         )
         sample_logger.set_difficulty_map(stage_dataset)
         reward_fns = sample_logger.wrapped_reward_fns
@@ -683,7 +683,7 @@ def main() -> None:
 
     # Completion sample logger
     sample_logger = CompletionSampleLogger(
-        reward_fns, reward_weights, n_samples=3
+        reward_fns, reward_weights, n_samples=3, thinking=thinking
     )
     sample_logger.set_difficulty_map(prompt_dataset)
     reward_fns = sample_logger.wrapped_reward_fns

@@ -372,9 +372,12 @@ def _parse_training_log(log_path: Path, job: JobInfo) -> None:
     # 3. Get current step from last lines (step= or tqdm progress bar)
     tail = _tail_lines(log_path, n=200)
 
-    # 3b. Extract completion samples from tail
+    # 3b. Extract completion samples — use grep to find the last sample
+    # block reliably, even when tqdm/metric lines push it out of the tail
+    # window.
+    sample_tail = _tail_lines(log_path, n=800)
     samples = _extract_completion_samples(
-        tail, max_lines=_SAMPLE_MAX_LINES
+        sample_tail, max_lines=_SAMPLE_MAX_LINES
     )
     if samples:
         job.completion_samples = samples

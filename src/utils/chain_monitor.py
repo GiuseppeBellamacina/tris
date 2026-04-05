@@ -199,7 +199,7 @@ def _extract_completion_samples(
 ) -> list[str]:
     """Extract a compact view of the last sample from the log.
 
-    Returns a short list of lines: truncated completion + reward breakdown.
+    Returns a short list of lines showing think (if any), output, and rewards.
     Only keeps the first sample from the last block.
     """
     # Find the last COMPLETION SAMPLES block
@@ -219,10 +219,11 @@ def _extract_completion_samples(
     if not block:
         return []
 
-    # Parse first sample only: look for COMPLETION: ... REWARDS: ...
-    completion_lines: list[str] = []
+    # Parse first sample only: THINK / OUTPUT / REWARDS sections
+    think_lines: list[str] = []
+    output_lines: list[str] = []
     rewards_line = ""
-    in_completion = False
+    section = ""  # "think", "output", or ""
     found_first = False
     for line in block:
         if line.startswith("Sample ") and found_first:
@@ -230,28 +231,39 @@ def _extract_completion_samples(
         if line.startswith("Sample "):
             found_first = True
             continue
-        if line == "COMPLETION:":
-            in_completion = True
+        if line == "THINK:":
+            section = "think"
+            continue
+        if line == "OUTPUT:":
+            section = "output"
             continue
         if line.startswith("REWARDS:"):
             rewards_line = line
-            in_completion = False
+            section = ""
             continue
-        if in_completion:
-            completion_lines.append(line)
+        if section == "think":
+            think_lines.append(line)
+        elif section == "output":
+            output_lines.append(line)
 
-    if not completion_lines and not rewards_line:
+    if not output_lines and not rewards_line:
         return []
 
-    # Truncate completion to ~3 lines
-    comp_text = "\n".join(completion_lines).strip()
-    display_lines = comp_text.splitlines()
-    if len(display_lines) > 3:
-        display_lines = display_lines[:3] + ["[...]"]
-
     result = [f"{_DIM}─── Last completion ───{_RST}"]
-    for dl in display_lines:
-        result.append(f"  {_DIM}{dl}{_RST}")
+    if think_lines:
+        think_text = " ".join(
+            tl.strip() for tl in think_lines
+        ).strip()
+        if len(think_text) > 80:
+            think_text = think_text[:80] + "..."
+        result.append(f"  {_DIM}think: {think_text}{_RST}")
+    # Show output (max 2 lines)
+    if output_lines:
+        display = output_lines[:2]
+        if len(output_lines) > 2:
+            display.append("[...]")
+        for dl in display:
+            result.append(f"  {_DIM}{dl}{_RST}")
     if rewards_line:
         result.append(f"  {_CYAN}{rewards_line}{_RST}")
     return result

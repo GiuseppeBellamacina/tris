@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import deque
 from pathlib import Path
 from typing import Any, Callable
@@ -197,6 +198,19 @@ class SaveWandbRunIdCallback(TrainerCallback):
 _SEPARATOR = "─" * 70
 
 
+_THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+
+
+def _split_think(text: str) -> tuple[str, str]:
+    """Split completion into (think_content, output_content)."""
+    m = _THINK_RE.search(text)
+    if m:
+        think = m.group(1).strip()
+        output = text[m.end() :].strip()
+        return think, output
+    return "", text.strip()
+
+
 def _truncate(text: str, max_len: int = 300) -> str:
     """Truncate text with ellipsis if too long."""
     if len(text) <= max_len:
@@ -325,8 +339,13 @@ class CompletionSampleLogger:
             lines.append(f"  Sample {idx}")
             lines.append(f"{_SEPARATOR}")
             lines.append(f"  PROMPT: {instr}")
-            lines.append("  COMPLETION:")
-            for cl in comp.splitlines():
+            think, output = _split_think(comp)
+            if think:
+                lines.append("  THINK:")
+                for cl in _truncate(think, 200).splitlines():
+                    lines.append(f"    {cl}")
+            lines.append("  OUTPUT:")
+            for cl in _truncate(output, 300).splitlines():
                 lines.append(f"    {cl}")
             lines.append(f"  REWARDS: {reward_parts}")
         lines.append(f"{'═' * 70}\n")

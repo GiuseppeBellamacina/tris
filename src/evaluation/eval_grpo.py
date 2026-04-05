@@ -194,6 +194,7 @@ def _print_eval_samples(
     n: int = 5,
 ) -> None:
     """Print the first *n* eval completions with per-component rewards."""
+    from src.training.callbacks import _split_think
     from src.training.rewards import (
         format_reward,
         reasoning_reward,
@@ -217,16 +218,25 @@ def _print_eval_samples(
         val = validity_reward(comp)
         reas = reasoning_reward(comp)
         trunc = truncation_reward(comp)
-        comp_display = (
-            comp if len(comp) <= 400 else comp[:400] + " [...]"
-        )
+
+        think, output = _split_think(comp)
 
         print(f"\n{sep}")
         print(f"  Sample {i + 1}  [difficulty={diff}]")
         print(sep)
         print(f"  PROMPT: {prompt_short}")
-        print("  COMPLETION:")
-        for line in comp_display.splitlines():
+        if think:
+            think_display = (
+                think if len(think) <= 200 else think[:200] + " [...]"
+            )
+            print("  THINK:")
+            for line in think_display.splitlines():
+                print(f"    {line}")
+        output_display = (
+            output if len(output) <= 300 else output[:300] + " [...]"
+        )
+        print("  OUTPUT:")
+        for line in output_display.splitlines():
             print(f"    {line}")
         print(
             f"  REWARDS: format={fmt:+.2f}  validity={val:+.2f}  "

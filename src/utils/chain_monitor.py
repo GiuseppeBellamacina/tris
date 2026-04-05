@@ -230,6 +230,7 @@ def _extract_completion_samples(
     think_lines: list[str] = []
     output_lines: list[str] = []
     rewards_line = ""
+    schema_line = ""
     difficulty = ""
     section = ""  # "think", "output", or ""
     found_first = False
@@ -251,6 +252,10 @@ def _extract_completion_samples(
             continue
         if line.startswith("REWARDS:"):
             rewards_line = line
+            section = ""
+            continue
+        if line.startswith("SCHEMA:"):
+            schema_line = line
             section = ""
             continue
         if section == "think":
@@ -296,9 +301,33 @@ def _extract_completion_samples(
         for dl in display:
             result.append(f"  {_DIM}{dl}{_RST}")
 
-    # Rewards line (colored)
+    # Rewards line (per-value coloring: green +, gray 0, red -)
     if rewards_line:
-        result.append(f"  {_CYAN}{rewards_line}{_RST}")
+        # Parse "REWARDS: format=+1.00  validity=+0.00  schema=-0.50 ..."
+        parts = re.findall(r"(\w+)=([+-]?\d+\.\d+)", rewards_line)
+        if parts:
+            colored_parts: list[str] = []
+            for name, val_str in parts:
+                v = float(val_str)
+                if v > 0:
+                    colored_parts.append(
+                        f"{_GREEN}{name}={val_str}{_RST}"
+                    )
+                elif v < 0:
+                    colored_parts.append(
+                        f"{_RED}{name}={val_str}{_RST}"
+                    )
+                else:
+                    colored_parts.append(
+                        f"{_GRAY}{name}={val_str}{_RST}"
+                    )
+            result.append(f"  REWARDS: {'  '.join(colored_parts)}")
+        else:
+            result.append(f"  {_CYAN}{rewards_line}{_RST}")
+
+    # Schema metadata line (dim yellow)
+    if schema_line:
+        result.append(f"  {_YELLOW}{schema_line}{_RST}")
 
     return result
 

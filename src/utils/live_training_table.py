@@ -44,10 +44,6 @@ _DICT_PATTERN = re.compile(r"\{.*\}")
 # Matches "step=240  loss=0.001  reward=0.55 ..." key=value lines
 _KV_PATTERN = re.compile(r"step=\d+")
 
-# Completion sample block markers (from CompletionSampleCallback)
-_SAMPLE_START = "═" * 70
-_SAMPLE_END = "═" * 70
-
 
 def _parse_kv_line(line: str) -> dict | None:
     """Parse 'key=value  key=value ...' formatted log lines."""
@@ -91,7 +87,6 @@ def _redraw(
     header: str,
     separator: str,
     rows: deque[str],
-    samples: list[str],
 ) -> None:
     """Clear and redraw the full display."""
     _clear()
@@ -99,10 +94,6 @@ def _redraw(
     print(f" {separator}")
     for row in rows:
         print(f" {row}")
-    if samples:
-        print()
-        for line in samples:
-            print(line)
     sys.stdout.flush()
 
 
@@ -129,12 +120,9 @@ def main() -> None:
     widths: list[int] = []
     active_cols: list[str] = []
     header_ready = False
-    latest_samples: list[str] = []
 
-    # Completion sample block capture
+    # Skip completion sample blocks printed by CompletionSampleCallback
     in_sample_block = False
-    sample_buffer: list[str] = []
-    # Track ═══ lines: the block is ═══ / COMPLETION SAMPLES / ═══ / ... / ═══
     pending_separator = False
 
     try:
@@ -153,31 +141,18 @@ def main() -> None:
             is_separator = stripped.startswith("═" * 10)
 
             if in_sample_block:
-                sample_buffer.append(stripped)
-                # The closing separator: it's a ═══ line that is NOT
-                # immediately after the title (we already consumed those).
-                if is_separator and len(sample_buffer) > 3:
-                    latest_samples = list(sample_buffer)
-                    sample_buffer.clear()
+                # Inside a sample block — skip all lines until closing ═══
+                if is_separator:
                     in_sample_block = False
                     pending_separator = False
-                    if header_ready:
-                        _redraw(
-                            header,
-                            separator,
-                            metric_rows,
-                            latest_samples,
-                        )
                 continue
 
             if is_separator and not in_sample_block:
-                # Could be the opening ═══ of a sample block — wait for next line
                 pending_separator = True
                 continue
 
             if pending_separator and "COMPLETION SAMPLES" in stripped:
                 in_sample_block = True
-                sample_buffer = [_SAMPLE_START, stripped]
                 pending_separator = False
                 continue
 
@@ -229,7 +204,7 @@ def main() -> None:
             metric_rows.append(row)
 
             # Redraw
-            _redraw(header, separator, metric_rows, latest_samples)
+            _redraw(header, separator, metric_rows)
 
     except KeyboardInterrupt:
         pass

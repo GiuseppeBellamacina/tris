@@ -338,12 +338,18 @@ class CompletionSampleLogger:
                 except TypeError:
                     breakdown[name] = fn(text, instruction, raw_prompt)  # type: ignore[call-arg]
 
+            # Look up schema metadata used by schema_reward
+            from src.training.rewards import _lookup_schema
+
+            schema_info = _lookup_schema(raw_prompt)
+
             self._buffer.append(
                 {
                     "instruction": instruction,
                     "completion": text,
                     "difficulty": difficulty,
                     "breakdown": breakdown,
+                    "schema": schema_info,
                 }
             )
 
@@ -381,6 +387,13 @@ class CompletionSampleLogger:
             for cl in output.splitlines():
                 lines.append(f"    {cl}")
             lines.append(f"  REWARDS: {reward_parts}")
+            schema = sample.get("schema")
+            if schema:
+                import json as _json
+
+                lines.append(
+                    f"  SCHEMA: {_json.dumps(schema, separators=(',', ':'))}"
+                )
         lines.append(f"{'═' * 70}\n")
         return "\n".join(lines)
 

@@ -902,7 +902,7 @@ def _display(jobs: list[JobInfo], show_table: bool = True) -> None:
             total_eta = _estimate_total_eta(j)
             time_parts = ""
             if j.elapsed:
-                time_parts += f" ⏱  {_DIM}{j.elapsed}{_RST}"
+                time_parts += f" ⏰ {_DIM}{j.elapsed}{_RST}"
             if eta:
                 time_parts += f" ⏳ {_DIM}~{eta}{_RST}"
             if total_eta and total_eta != eta:

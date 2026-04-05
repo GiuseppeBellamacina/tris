@@ -11,7 +11,7 @@ import random
 from typing import Any, Callable
 
 # Type alias for a single template entry
-Template = dict[str, str | Callable[[], dict[str, Any]]]
+Template = dict[str, str | Callable[[random.Random], dict[str, Any]]]
 
 # ---------------------------------------------------------------------------
 # Simple — flat objects, single arrays, basic key-value pairs
@@ -23,8 +23,8 @@ SIMPLE: list[Template] = [
             "Generate a valid JSON object with the following keys: "
             '"{k1}" (string), "{k2}" (integer), "{k3}" (boolean).'
         ),
-        "params": lambda: {
-            "k1": random.choice(
+        "params": lambda rng: {
+            "k1": rng.choice(
                 [
                     "name",
                     "title",
@@ -35,7 +35,7 @@ SIMPLE: list[Template] = [
                     "category",
                 ]
             ),
-            "k2": random.choice(
+            "k2": rng.choice(
                 [
                     "age",
                     "count",
@@ -46,7 +46,7 @@ SIMPLE: list[Template] = [
                     "price",
                 ]
             ),
-            "k3": random.choice(
+            "k3": rng.choice(
                 [
                     "active",
                     "verified",
@@ -61,9 +61,9 @@ SIMPLE: list[Template] = [
     },
     {
         "instruction": "Generate a JSON array containing exactly {n} strings representing {topic}.",
-        "params": lambda: {
-            "n": random.randint(3, 7),
-            "topic": random.choice(
+        "params": lambda rng: {
+            "n": rng.randint(3, 7),
+            "topic": rng.choice(
                 [
                     "fruit names",
                     "country names",
@@ -84,14 +84,12 @@ SIMPLE: list[Template] = [
             'Generate a JSON object with a key "{k1}" (string) and a key '
             '"{k2}" which is an array of {n} integers.'
         ),
-        "params": lambda: {
-            "k1": random.choice(
-                ["id", "name", "label", "code", "tag"]
-            ),
-            "k2": random.choice(
+        "params": lambda rng: {
+            "k1": rng.choice(["id", "name", "label", "code", "tag"]),
+            "k2": rng.choice(
                 ["values", "scores", "data", "items", "measurements"]
             ),
-            "n": random.randint(3, 6),
+            "n": rng.randint(3, 6),
         },
     },
     {
@@ -99,10 +97,10 @@ SIMPLE: list[Template] = [
             "Generate a JSON object with exactly {n} key-value pairs where all "
             "values are of type {vtype}. Use descriptive key names related to {topic}."
         ),
-        "params": lambda: {
-            "n": random.randint(3, 6),
-            "vtype": random.choice(["string", "integer", "boolean"]),
-            "topic": random.choice(
+        "params": lambda rng: {
+            "n": rng.randint(3, 6),
+            "vtype": rng.choice(["string", "integer", "boolean"]),
+            "topic": rng.choice(
                 [
                     "weather",
                     "food",
@@ -119,8 +117,8 @@ SIMPLE: list[Template] = [
             "Generate a JSON object representing a simple {entity} "
             'with keys "{k1}" (string), "{k2}" ({t2}), and "{k3}" ({t3}).'
         ),
-        "params": lambda: {
-            "entity": random.choice(
+        "params": lambda rng: {
+            "entity": rng.choice(
                 [
                     "contact card",
                     "book entry",
@@ -133,14 +131,12 @@ SIMPLE: list[Template] = [
                     "preference",
                 ]
             ),
-            "k1": random.choice(
+            "k1": rng.choice(
                 ["name", "title", "description", "label"]
             ),
-            "k2": random.choice(
-                ["priority", "order", "level", "index"]
-            ),
-            "t2": random.choice(["integer", "number"]),
-            "k3": random.choice(
+            "k2": rng.choice(["priority", "order", "level", "index"]),
+            "t2": rng.choice(["integer", "number"]),
+            "k3": rng.choice(
                 ["done", "read", "starred", "archived", "pinned"]
             ),
             "t3": "boolean",
@@ -151,12 +147,12 @@ SIMPLE: list[Template] = [
             "Generate a JSON array of exactly {n} objects, each containing "
             'only a "{k1}" (string) and a "{k2}" (integer).'
         ),
-        "params": lambda: {
-            "n": random.randint(2, 5),
-            "k1": random.choice(
+        "params": lambda rng: {
+            "n": rng.randint(2, 5),
+            "k1": rng.choice(
                 ["name", "item", "label", "title", "city"]
             ),
-            "k2": random.choice(
+            "k2": rng.choice(
                 ["value", "count", "score", "amount", "population"]
             ),
         },
@@ -166,15 +162,15 @@ SIMPLE: list[Template] = [
             'Generate a JSON object with a "{k1}" key (string) and a "{k2}" key '
             "containing a flat array of {n} {elem_type}."
         ),
-        "params": lambda: {
-            "k1": random.choice(
+        "params": lambda rng: {
+            "k1": rng.choice(
                 ["category", "group", "type", "section"]
             ),
-            "k2": random.choice(
+            "k2": rng.choice(
                 ["items", "elements", "entries", "members"]
             ),
-            "n": random.randint(3, 7),
-            "elem_type": random.choice(
+            "n": rng.randint(3, 7),
+            "elem_type": rng.choice(
                 ["strings", "integers", "booleans"]
             ),
         },
@@ -184,9 +180,9 @@ SIMPLE: list[Template] = [
             "Generate a valid JSON object representing a key-value mapping "
             "of {n} {domain} abbreviations to their full names."
         ),
-        "params": lambda: {
-            "n": random.randint(3, 6),
-            "domain": random.choice(
+        "params": lambda rng: {
+            "n": rng.randint(3, 6),
+            "domain": rng.choice(
                 [
                     "country",
                     "US state",
@@ -212,15 +208,15 @@ MEDIUM: list[Template] = [
             '"{k1}" (string), "{k2}" (integer), and a nested object '
             '"{k3}" containing "{nk1}" (string) and "{nk2}" (string).'
         ),
-        "params": lambda: {
-            "n": random.randint(2, 4),
-            "k1": random.choice(
+        "params": lambda rng: {
+            "n": rng.randint(2, 4),
+            "k1": rng.choice(
                 ["name", "title", "username", "product", "label"]
             ),
-            "k2": random.choice(
+            "k2": rng.choice(
                 ["age", "id", "score", "quantity", "price"]
             ),
-            "k3": random.choice(
+            "k3": rng.choice(
                 [
                     "address",
                     "contact",
@@ -229,10 +225,10 @@ MEDIUM: list[Template] = [
                     "metadata",
                 ]
             ),
-            "nk1": random.choice(
+            "nk1": rng.choice(
                 ["street", "city", "email", "line1", "type"]
             ),
-            "nk2": random.choice(
+            "nk2": rng.choice(
                 ["zip", "country", "phone", "region", "code"]
             ),
         },
@@ -242,8 +238,8 @@ MEDIUM: list[Template] = [
             "Generate a JSON object representing a {entity} with at least {n} fields, "
             "including one nested object and one array field."
         ),
-        "params": lambda: {
-            "entity": random.choice(
+        "params": lambda rng: {
+            "entity": rng.choice(
                 [
                     "user profile",
                     "product listing",
@@ -257,7 +253,7 @@ MEDIUM: list[Template] = [
                     "recipe",
                 ]
             ),
-            "n": random.randint(5, 8),
+            "n": rng.randint(5, 8),
         },
     },
     {
@@ -265,8 +261,8 @@ MEDIUM: list[Template] = [
             "Generate a JSON object representing a configuration file for a {app_type} "
             "with keys for {k1}, {k2}, and a nested {k3} section."
         ),
-        "params": lambda: {
-            "app_type": random.choice(
+        "params": lambda rng: {
+            "app_type": rng.choice(
                 [
                     "web server",
                     "database",
@@ -277,8 +273,8 @@ MEDIUM: list[Template] = [
                     "monitoring agent",
                 ]
             ),
-            "k1": random.choice(["host", "port", "name", "endpoint"]),
-            "k2": random.choice(
+            "k1": rng.choice(["host", "port", "name", "endpoint"]),
+            "k2": rng.choice(
                 [
                     "timeout",
                     "retries",
@@ -286,7 +282,7 @@ MEDIUM: list[Template] = [
                     "buffer_size",
                 ]
             ),
-            "k3": random.choice(
+            "k3": rng.choice(
                 ["auth", "ssl", "logging", "metrics", "cors"]
             ),
         },
@@ -296,8 +292,8 @@ MEDIUM: list[Template] = [
             "Generate a JSON object representing a {entity} that includes "
             "a list of {n} {sub_entity}, each with at least 3 fields."
         ),
-        "params": lambda: {
-            "entity": random.choice(
+        "params": lambda rng: {
+            "entity": rng.choice(
                 [
                     "classroom",
                     "shopping cart",
@@ -309,8 +305,8 @@ MEDIUM: list[Template] = [
                     "inventory",
                 ]
             ),
-            "n": random.randint(2, 5),
-            "sub_entity": random.choice(
+            "n": rng.randint(2, 5),
+            "sub_entity": rng.choice(
                 [
                     "students",
                     "items",
@@ -330,8 +326,8 @@ MEDIUM: list[Template] = [
             'sections: "{s1}", "{s2}", and "{s3}". Each section should be a nested '
             "object with at least 2 fields."
         ),
-        "params": lambda: {
-            "doc_type": random.choice(
+        "params": lambda rng: {
+            "doc_type": rng.choice(
                 [
                     "report",
                     "invoice",
@@ -342,13 +338,13 @@ MEDIUM: list[Template] = [
                     "audit record",
                 ]
             ),
-            "s1": random.choice(
+            "s1": rng.choice(
                 ["header", "metadata", "summary", "info"]
             ),
-            "s2": random.choice(
+            "s2": rng.choice(
                 ["body", "content", "details", "payload"]
             ),
-            "s3": random.choice(
+            "s3": rng.choice(
                 ["footer", "signature", "status", "notes"]
             ),
         },
@@ -359,20 +355,18 @@ MEDIUM: list[Template] = [
             '(ISO 8601 date string), and a "{k3}" key containing an array of '
             'objects with "{nk1}" (string) and "{nk2}" (number) fields.'
         ),
-        "params": lambda: {
-            "k1": random.choice(
-                ["title", "name", "event", "project"]
-            ),
-            "k2": random.choice(
+        "params": lambda rng: {
+            "k1": rng.choice(["title", "name", "event", "project"]),
+            "k2": rng.choice(
                 ["created_at", "due_date", "start_date", "timestamp"]
             ),
-            "k3": random.choice(
+            "k3": rng.choice(
                 ["entries", "line_items", "records", "milestones"]
             ),
-            "nk1": random.choice(
+            "nk1": rng.choice(
                 ["description", "label", "name", "note"]
             ),
-            "nk2": random.choice(
+            "nk2": rng.choice(
                 ["amount", "hours", "progress", "value"]
             ),
         },
@@ -383,8 +377,8 @@ MEDIUM: list[Template] = [
             'Each field should have "label" (string), "type" (one of "text", "number", '
             '"email", "select"), and "required" (boolean).'
         ),
-        "params": lambda: {
-            "form_type": random.choice(
+        "params": lambda rng: {
+            "form_type": rng.choice(
                 [
                     "registration",
                     "contact",
@@ -395,7 +389,7 @@ MEDIUM: list[Template] = [
                     "support ticket",
                 ]
             ),
-            "n": random.randint(4, 7),
+            "n": rng.randint(4, 7),
         },
     },
     {
@@ -404,8 +398,8 @@ MEDIUM: list[Template] = [
             '"id" (integer), "name" (string), "tags" (array of strings), '
             'and a "metadata" nested object with at least 3 key-value pairs.'
         ),
-        "params": lambda: {
-            "entity": random.choice(
+        "params": lambda rng: {
+            "entity": rng.choice(
                 [
                     "document",
                     "asset",
@@ -432,8 +426,8 @@ HARD: list[Template] = [
             "a {entity}. The schema must include required fields, type constraints, "
             "a nested object property, and an array property with item validation."
         ),
-        "params": lambda: {
-            "entity": random.choice(
+        "params": lambda rng: {
+            "entity": rng.choice(
                 [
                     "REST API error response",
                     "e-commerce order",
@@ -454,8 +448,8 @@ HARD: list[Template] = [
             "total_pages) and a results array with {n} items, each having at "
             "least {f} fields including one nested object."
         ),
-        "params": lambda: {
-            "entity": random.choice(
+        "params": lambda rng: {
+            "entity": rng.choice(
                 [
                     "users",
                     "products",
@@ -466,8 +460,8 @@ HARD: list[Template] = [
                     "search results",
                 ]
             ),
-            "n": random.randint(2, 4),
-            "f": random.randint(4, 6),
+            "n": rng.randint(2, 4),
+            "f": rng.randint(4, 6),
         },
     },
     {
@@ -476,8 +470,8 @@ HARD: list[Template] = [
             "representing a {domain} hierarchy. Each level should have a "
             '"name" (string), "id" (integer), and "children" (array of sub-objects).'
         ),
-        "params": lambda: {
-            "domain": random.choice(
+        "params": lambda rng: {
+            "domain": rng.choice(
                 [
                     "company organizational chart",
                     "file system directory tree",
@@ -496,8 +490,8 @@ HARD: list[Template] = [
             "(with types and required flags), request body schema, and "
             "response schema with example values."
         ),
-        "params": lambda: {
-            "api_type": random.choice(
+        "params": lambda rng: {
+            "api_type": rng.choice(
                 [
                     "user management",
                     "payment processing",
@@ -516,8 +510,8 @@ HARD: list[Template] = [
             '"type" (one of "action", "condition", "loop"), "config" '
             '(nested object), and "next" (string or null).'
         ),
-        "params": lambda: {
-            "workflow": random.choice(
+        "params": lambda rng: {
+            "workflow": rng.choice(
                 [
                     "data pipeline",
                     "CI/CD build",
@@ -527,7 +521,7 @@ HARD: list[Template] = [
                     "ETL process",
                 ]
             ),
-            "n": random.randint(4, 6),
+            "n": rng.randint(4, 6),
         },
     },
     {
@@ -538,8 +532,8 @@ HARD: list[Template] = [
             '"data_source" object with "endpoint" (string), "params" (object), '
             'and "refresh_interval" (integer).'
         ),
-        "params": lambda: {
-            "n": random.randint(3, 6),
+        "params": lambda rng: {
+            "n": rng.randint(3, 6),
         },
     },
     {
@@ -549,8 +543,8 @@ HARD: list[Template] = [
             "id, source, type, subject, time, datacontenttype, and a nested data "
             "object with at least {n} domain-specific fields."
         ),
-        "params": lambda: {
-            "domain": random.choice(
+        "params": lambda rng: {
+            "domain": rng.choice(
                 [
                     "e-commerce purchase",
                     "IoT temperature alert",
@@ -560,7 +554,7 @@ HARD: list[Template] = [
                     "inventory low",
                 ]
             ),
-            "n": random.randint(4, 7),
+            "n": rng.randint(4, 7),
         },
     },
     {
@@ -571,8 +565,8 @@ HARD: list[Template] = [
             '"create_index", "add_constraint"), "table" (string), and '
             '"definition" (nested object describing the change in detail).'
         ),
-        "params": lambda: {
-            "n": random.randint(3, 6),
+        "params": lambda rng: {
+            "n": rng.randint(3, 6),
         },
     },
 ]

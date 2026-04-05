@@ -64,7 +64,7 @@ def generate_sample(
     pool = POOLS[pool_key]
     template = rng.choice(pool["templates"])  # type: ignore[arg-type]
 
-    params = template["params"]()  # type: ignore[operator]
+    params = template["params"](rng)  # type: ignore[operator]
     instruction = template["instruction"].format(**params)  # type: ignore[union-attr]
     system_prompt = _build_system_prompt(thinking)
 

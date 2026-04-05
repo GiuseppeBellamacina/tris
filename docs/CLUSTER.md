@@ -344,7 +344,7 @@ Il flag `--resume` trova l'ultimo checkpoint e riprende da lì.
 Per valutare i checkpoint senza riaddestrare:
 
 ```bash
-EXTRA_ARGS="--eval-only experiments/checkpoints/grpo"
+EXTRA_ARGS="--eval-only experiments/checkpoints/grpo/nothink"
 ```
 
 ---
@@ -443,5 +443,5 @@ quota -s
 # Pulisci cache HuggingFace:
 rm -rf ~/.cache/huggingface/hub/models--*/.no_exist*
 # Rimuovi checkpoint vecchi:
-ls -la experiments/checkpoints/grpo/
+ls -la experiments/checkpoints/grpo/nothink/
 ```

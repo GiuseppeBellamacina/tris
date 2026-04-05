@@ -30,6 +30,7 @@ cd "$HOME/GRPO-strict-generation"
 
 # ── Modelli validi (per validazione) ──────────────────────────────────────────
 VALID_MODELS=("smollm2-135m" "smollm2-360m" "qwen25-05b" "tinyllama-11b" "gemma2-2b")
+THINK_VARIANTS=("nothink" "think")
 
 # Mapping tag → HuggingFace short name (per baseline subfolder)
 baseline_hf_name() {
@@ -89,9 +90,11 @@ if [ -z "$MODEL" ]; then
     echo ""
     for m in "${VALID_MODELS[@]}"; do
         DIRS_FOUND=()
-        # GRPO
-        [ -d "experiments/checkpoints/grpo/$m" ] && DIRS_FOUND+=("checkpoints/grpo/$m")
-        [ -d "experiments/logs/grpo/$m" ] && DIRS_FOUND+=("logs/grpo/$m")
+        # GRPO (nothink + think)
+        for variant in "${THINK_VARIANTS[@]}"; do
+            [ -d "experiments/checkpoints/grpo/$variant/$m" ] && DIRS_FOUND+=("checkpoints/grpo/$variant/$m")
+            [ -d "experiments/logs/grpo/$variant/$m" ] && DIRS_FOUND+=("logs/grpo/$variant/$m")
+        done
         # Baseline
         HF=$(baseline_hf_name "$m")
         [ -n "$HF" ] && [ -d "experiments/logs/baseline/$HF" ] && DIRS_FOUND+=("logs/baseline/$HF")
@@ -135,25 +138,27 @@ CLEANED=0
 
 # ── GRPO ──────────────────────────────────────────────────────────────────────
 if [ $DO_GRPO -eq 1 ]; then
-    # Checkpoints: experiments/checkpoints/grpo/<model>/
-    DIR="experiments/checkpoints/grpo/$MODEL"
-    if [ -d "$DIR" ]; then
-        echo "[GRPO] Checkpoints: $DIR"
-        rm -rf "$DIR"
-        CLEANED=1
-    else
-        echo "[GRPO] Checkpoints: $DIR (non esiste — skip)"
-    fi
+    for variant in "${THINK_VARIANTS[@]}"; do
+        # Checkpoints: experiments/checkpoints/grpo/<variant>/<model>/
+        DIR="experiments/checkpoints/grpo/$variant/$MODEL"
+        if [ -d "$DIR" ]; then
+            echo "[GRPO/$variant] Checkpoints: $DIR"
+            rm -rf "$DIR"
+            CLEANED=1
+        else
+            echo "[GRPO/$variant] Checkpoints: $DIR (non esiste — skip)"
+        fi
 
-    # Logs + eval + wandb: experiments/logs/grpo/<model>/
-    DIR="experiments/logs/grpo/$MODEL"
-    if [ -d "$DIR" ]; then
-        echo "[GRPO] Logs/eval:   $DIR"
-        rm -rf "$DIR"
-        CLEANED=1
-    else
-        echo "[GRPO] Logs/eval:   $DIR (non esiste — skip)"
-    fi
+        # Logs + eval + wandb: experiments/logs/grpo/<variant>/<model>/
+        DIR="experiments/logs/grpo/$variant/$MODEL"
+        if [ -d "$DIR" ]; then
+            echo "[GRPO/$variant] Logs/eval:   $DIR"
+            rm -rf "$DIR"
+            CLEANED=1
+        else
+            echo "[GRPO/$variant] Logs/eval:   $DIR (non esiste — skip)"
+        fi
+    done
 fi
 
 # ── Baseline ──────────────────────────────────────────────────────────────────

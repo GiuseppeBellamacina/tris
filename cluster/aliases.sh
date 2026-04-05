@@ -115,40 +115,61 @@ alias quota='quota -s'
 # Vai alla directory del progetto
 alias proj='cd "$PROJ_DIR"'
 
-# Mostra i checkpoint disponibili
+# Mostra i checkpoint disponibili (uso: ckpts [nothink|think])
 ckpts() {
+    local variant="${1:-}"
     local base="$PROJ_DIR/experiments/checkpoints/grpo"
-    for model_dir in "$base"/*/; do
-        [ -d "$model_dir" ] || continue
-        local model=$(basename "$model_dir")
-        echo "=== $model ==="
-        # Checkpoint intermedi (per stage)
-        for d in "$model_dir"stage_*/; do
-            if [ -d "$d" ]; then
-                echo "  $(basename "$d"):"
-                ls -d "$d"checkpoint-* 2>/dev/null | while read -r c; do echo "    $(basename "$c")"; done
-            fi
-        done
-        # Modelli finali (stages/)
-        if [ -d "$model_dir/stages" ]; then
-            echo "  stages/:"
-            ls -d "$model_dir"stages/stage_*/ 2>/dev/null | while read -r s; do
-                echo "    $(basename "$s")"
+    local variants=()
+    if [ -n "$variant" ]; then
+        variants=("$variant")
+    else
+        variants=("nothink" "think")
+    fi
+    for v in "${variants[@]}"; do
+        [ -d "$base/$v" ] || continue
+        echo "──── $v ────"
+        for model_dir in "$base/$v"/*/; do
+            [ -d "$model_dir" ] || continue
+            local model=$(basename "$model_dir")
+            echo "=== $model ==="
+            # Checkpoint intermedi (per stage)
+            for d in "$model_dir"stage_*/; do
+                if [ -d "$d" ]; then
+                    echo "  $(basename "$d"):"
+                    ls -d "$d"checkpoint-* 2>/dev/null | while read -r c; do echo "    $(basename "$c")"; done
+                fi
             done
-        fi
-        echo ""
+            # Modelli finali (stages/)
+            if [ -d "$model_dir/stages" ]; then
+                echo "  stages/:"
+                ls -d "$model_dir"stages/stage_*/ 2>/dev/null | while read -r s; do
+                    echo "    $(basename "$s")"
+                done
+            fi
+            echo ""
+        done
     done
 }
 
-# Mostra tabella training log (uso: trainlog-table [PATH] [--tail N])
-# PATH default: ultimo checkpoint in experiments/checkpoints/grpo/
+# Mostra tabella training log (uso: trainlog-table [nothink|think] [--tail N])
+# Default: nothink. Accetta anche un path esplicito.
 trainlog-table() {
-    cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "${1:-experiments/checkpoints/grpo}" "${@:2}"
+    local target="$1"
+    case "$target" in
+        nothink|think) target="experiments/checkpoints/grpo/$target"; shift ;;
+        "")           target="experiments/checkpoints/grpo/nothink" ;;
+    esac
+    cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "$target" "$@"
 }
 
-# Genera grafici training con regressione polinomiale (uso: trainlog-plot [PATH] [--deg N])
+# Genera grafici training con regressione polinomiale (uso: trainlog-plot [nothink|think] [--deg N])
 trainlog-plot() {
-    cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "${1:-experiments/checkpoints/grpo}" --plot "${@:2}"
+    local target="$1"
+    case "$target" in
+        nothink|think) target="experiments/checkpoints/grpo/$target"; shift ;;
+        "")           target="experiments/checkpoints/grpo/nothink" ;;
+    esac
+    cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "$target" --plot "$@"
 }
 
 # Segui training live come tabella (uso: trainlog-live <JOB_ID>)
@@ -246,7 +267,7 @@ run-eval() {
 }
 
 # Lancia tutti i modelli (train + eval curriculum)
-# Uso: run-all [--eval-only] [--train-only] [--models=1t,2e,3]
+# Uso: run-all [--think] [--eval-only] [--train-only] [--models=1t,2e,3]
 run-all() {
     cd "$PROJ_DIR" && bash cluster/run_all.sh "$@"
 }
@@ -337,10 +358,11 @@ claudio() {
     echo "   gpu               — stato GPU"
     echo "   quota             — uso disco progetto"
     echo "   proj              — cd al progetto"
-    echo "   ckpts             — mostra checkpoint"
-    echo "   trainlog-table [PATH] [--tail N]"
+    echo "   ckpts [nothink|think]"
+    echo "                     — mostra checkpoint"
+    echo "   trainlog-table [nothink|think] [--tail N]"
     echo "                     — tabella metriche training"
-    echo "   trainlog-plot [PATH] [--deg N]"
+    echo "   trainlog-plot [nothink|think] [--deg N]"
     echo "                     — grafici training con regressione polinomiale"
     echo "   trainlog-live <ID> — training live come tabella"
     echo ""
@@ -348,7 +370,7 @@ claudio() {
     echo "                     — lancia training"
     echo "   run-eval --config PATH [--compare] [--curriculum] [--checkpoint PATH]"
     echo "                     — lancia evaluation"
-    echo "   run-all [--eval-only] [--train-only]"
+    echo "   run-all [--think] [--eval-only] [--train-only]"
     echo "                     — lancia train+eval per tutti i modelli"
     echo "   watcher-status    — controlla se il watcher è attivo"
     echo "   watcher-kill      — uccidi il watcher"

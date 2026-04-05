@@ -9,6 +9,7 @@
 #   bash cluster/run_all.sh                       # tutti i modelli, train+eval
 #   bash cluster/run_all.sh --eval-only            # solo evaluation (skip training)
 #   bash cluster/run_all.sh --train-only           # solo training (skip eval)
+#   bash cluster/run_all.sh --think                # usa config *_think.yaml
 #   bash cluster/run_all.sh --models=1,3,5         # solo modelli 1, 3 e 5
 #   bash cluster/run_all.sh --models=1t,2e,3       # 1=solo train, 2=solo eval, 3=entrambi
 #   bash cluster/run_all.sh --models=4t,5te        # 4=solo train, 5=train+eval
@@ -40,10 +41,12 @@ set -e
 GLOBAL_TRAIN=1
 GLOBAL_EVAL=1
 ONLY_MODELS=""
+USE_THINK=0
 for arg in "$@"; do
     case "$arg" in
         --eval-only)  GLOBAL_TRAIN=0 ;;
         --train-only) GLOBAL_EVAL=0 ;;
+        --think)      USE_THINK=1 ;;
         --models=*)   ONLY_MODELS="${arg#--models=}" ;;
         --help|-h)
             echo "Uso: bash cluster/run_all.sh [--eval-only] [--train-only] [--models=SPEC]"
@@ -51,6 +54,7 @@ for arg in "$@"; do
             echo "Opzioni globali:"
             echo "  --eval-only      Solo evaluation per tutti (skip training)"
             echo "  --train-only     Solo training per tutti (skip eval)"
+            echo "  --think          Usa config *_think.yaml (thinking/reasoning abilitato)"
             echo ""
             echo "Selezione modelli (--models=SPEC):"
             echo "  SPEC è una lista separata da virgole: INDICE[SUFFISSO],..."
@@ -67,6 +71,8 @@ for arg in "$@"; do
             echo "  3: qwen25-05b"
             echo "  4: tinyllama-11b"
             echo "  5: gemma2-2b"
+            echo ""
+            echo "Con --think vengono usate le config *_think.yaml corrispondenti."
             exit 0
             ;;
     esac
@@ -74,13 +80,23 @@ done
 
 # ── Modelli da lanciare ───────────────────────────────────────────────────────
 # Formato: "TAG:CONFIG_PATH"
-MODELS=(
-    "smollm2-135m:experiments/configs/grpo_smollm2_135m.yaml"
-    "smollm2-360m:experiments/configs/grpo_smollm2_360m.yaml"
-    "qwen25-05b:experiments/configs/grpo_qwen05.yaml"
-    "tinyllama-11b:experiments/configs/grpo_tinyllama.yaml"
-    "gemma2-2b:experiments/configs/grpo_gemma2.yaml"
-)
+if [ "$USE_THINK" -eq 1 ]; then
+    MODELS=(
+        "smollm2-135m:experiments/configs/grpo_smollm2_135m_think.yaml"
+        "smollm2-360m:experiments/configs/grpo_smollm2_360m_think.yaml"
+        "qwen25-05b:experiments/configs/grpo_qwen05_think.yaml"
+        "tinyllama-11b:experiments/configs/grpo_tinyllama_think.yaml"
+        "gemma2-2b:experiments/configs/grpo_gemma2_think.yaml"
+    )
+else
+    MODELS=(
+        "smollm2-135m:experiments/configs/grpo_smollm2_135m.yaml"
+        "smollm2-360m:experiments/configs/grpo_smollm2_360m.yaml"
+        "qwen25-05b:experiments/configs/grpo_qwen05.yaml"
+        "tinyllama-11b:experiments/configs/grpo_tinyllama.yaml"
+        "gemma2-2b:experiments/configs/grpo_gemma2.yaml"
+    )
+fi
 
 PROJ_DIR="$HOME/GRPO-strict-generation"
 CHAIN_FILE="$PROJ_DIR/.job_chain"
@@ -142,10 +158,14 @@ done
 
 TOTAL=$(wc -l < "$CHAIN_FILE")
 
+THINK_LABEL="off"
+[ "$USE_THINK" -eq 1 ] && THINK_LABEL="on"
+
 echo "============================================"
 echo "  Multi-model GRPO Pipeline (self-chaining)"
 echo "  Date:  $(date)"
 echo "  Models: $MODEL_COUNT"
+echo "  Think:  $THINK_LABEL"
 echo "  Total jobs: $TOTAL"
 echo "============================================"
 echo ""

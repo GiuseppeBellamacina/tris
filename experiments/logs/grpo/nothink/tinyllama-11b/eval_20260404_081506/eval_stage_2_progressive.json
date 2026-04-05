@@ -1,5 +1,5 @@
 {
-  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/tinyllama-11b/train_20260404_051851/stages/stage_2_progressive",
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/tinyllama-11b/train_20260404_051851/stages/stage_2_progressive",
   "label": "Stage 2: progressive",
   "metrics": {
     "overall_pass_rate": 0.9333333333333333,

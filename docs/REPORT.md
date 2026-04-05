@@ -172,121 +172,121 @@ Results are organised by model, from smallest to largest. Each model's evaluatio
 
 #### SmolLM2-135M-Instruct
 
-> **Eval directory**: [`experiments/logs/grpo/smollm2-135m/eval_20260403_213246/`](../experiments/logs/grpo/smollm2-135m/eval_20260403_213246/)
+> **Eval directory**: [`experiments/logs/grpo/nothink/smollm2-135m/eval_20260403_213246/`](../experiments/logs/grpo/nothink/smollm2-135m/eval_20260403_213246/)
 
 SmolLM2-135M is the smallest model in the study and starts with the weakest baseline (38.67%). The GRPO curriculum produces the **largest absolute improvement of any model** (+47.33 pp), taking it from unreliable to usable. The hard-prompt pass rate quadruples from 20% to 82%, while simple prompts reach 94%.
 
 **Curriculum progression** — The grouped bar chart shows steady improvement across all difficulty tiers, with the gap between simple and hard narrowing significantly by Stage 3:
 
-![Curriculum Progression](../experiments/logs/grpo/smollm2-135m/eval_20260403_213246/figures/curriculum_progression.png)
+![Curriculum Progression](../experiments/logs/grpo/nothink/smollm2-135m/eval_20260403_213246/figures/curriculum_progression.png)
 
 **Stage × Difficulty heatmap** — The heatmap highlights the transformation: hard prompts go from deep red (0.20) to solid green (0.82):
 
-![Heatmap](../experiments/logs/grpo/smollm2-135m/eval_20260403_213246/figures/stage_difficulty_heatmap.png)
+![Heatmap](../experiments/logs/grpo/nothink/smollm2-135m/eval_20260403_213246/figures/stage_difficulty_heatmap.png)
 
 **Error evolution** — The dominant error type shifts from `no_code_block` in the baseline to increasingly valid output, with `json_error` becoming the remaining failure mode:
 
-![Error Evolution](../experiments/logs/grpo/smollm2-135m/eval_20260403_213246/figures/error_evolution.png)
+![Error Evolution](../experiments/logs/grpo/nothink/smollm2-135m/eval_20260403_213246/figures/error_evolution.png)
 
 **Rescued vs Regressed** — The vast majority of prompt-level changes are rescues (baseline fail → GRPO pass), with very few regressions:
 
-![Rescued vs Regressed](../experiments/logs/grpo/smollm2-135m/eval_20260403_213246/figures/rescued_vs_regressed.png)
+![Rescued vs Regressed](../experiments/logs/grpo/nothink/smollm2-135m/eval_20260403_213246/figures/rescued_vs_regressed.png)
 
 ---
 
 #### SmolLM2-360M-Instruct
 
-> **Eval directory**: [`experiments/logs/grpo/smollm2-360m/eval_20260404_014114/`](../experiments/logs/grpo/smollm2-360m/eval_20260404_014114/)
+> **Eval directory**: [`experiments/logs/grpo/nothink/smollm2-360m/eval_20260404_014114/`](../experiments/logs/grpo/nothink/smollm2-360m/eval_20260404_014114/)
 
 With 2.7× more parameters, SmolLM2-360M starts at a much higher baseline (77.33%) and reaches 94.67% after training (+17.33 pp). The improvement concentrates on hard prompts (58% → 95%), while simple and medium prompts were already largely solved.
 
 **Curriculum progression**:
 
-![Curriculum Progression](../experiments/logs/grpo/smollm2-360m/eval_20260404_014114/figures/curriculum_progression.png)
+![Curriculum Progression](../experiments/logs/grpo/nothink/smollm2-360m/eval_20260404_014114/figures/curriculum_progression.png)
 
 **Stage × Difficulty heatmap**:
 
-![Heatmap](../experiments/logs/grpo/smollm2-360m/eval_20260404_014114/figures/stage_difficulty_heatmap.png)
+![Heatmap](../experiments/logs/grpo/nothink/smollm2-360m/eval_20260404_014114/figures/stage_difficulty_heatmap.png)
 
 **Error evolution**:
 
-![Error Evolution](../experiments/logs/grpo/smollm2-360m/eval_20260404_014114/figures/error_evolution.png)
+![Error Evolution](../experiments/logs/grpo/nothink/smollm2-360m/eval_20260404_014114/figures/error_evolution.png)
 
 **Rescued vs Regressed**:
 
-![Rescued vs Regressed](../experiments/logs/grpo/smollm2-360m/eval_20260404_014114/figures/rescued_vs_regressed.png)
+![Rescued vs Regressed](../experiments/logs/grpo/nothink/smollm2-360m/eval_20260404_014114/figures/rescued_vs_regressed.png)
 
 ---
 
 #### Qwen2.5-0.5B-Instruct
 
-> **Eval directory**: [`experiments/logs/grpo/qwen25-05b/eval_20260404_045440/`](../experiments/logs/grpo/qwen25-05b/eval_20260404_045440/)
+> **Eval directory**: [`experiments/logs/grpo/nothink/qwen25-05b/eval_20260404_045440/`](../experiments/logs/grpo/nothink/qwen25-05b/eval_20260404_045440/)
 
 Qwen2.5-0.5B is the most capable model per parameter in the baseline: at 0.5 B parameters it already achieves 93.00%, outperforming TinyLlama-1.1B (73.00%) which is 2× larger. Post-GRPO improvement is modest (+3.33 pp) but focuses exactly where needed — hard prompts improve from 88% to 96%. The slight dip in Stage 1 hard-prompt performance (88% → 84%) suggests that the easy-heavy Stage 1 distribution temporarily shifts the model's attention away from complex schemas, but Stages 2–3 recover and surpass the baseline.
 
 **Curriculum progression**:
 
-![Curriculum Progression](../experiments/logs/grpo/qwen25-05b/eval_20260404_045440/figures/curriculum_progression.png)
+![Curriculum Progression](../experiments/logs/grpo/nothink/qwen25-05b/eval_20260404_045440/figures/curriculum_progression.png)
 
 **Stage × Difficulty heatmap**:
 
-![Heatmap](../experiments/logs/grpo/qwen25-05b/eval_20260404_045440/figures/stage_difficulty_heatmap.png)
+![Heatmap](../experiments/logs/grpo/nothink/qwen25-05b/eval_20260404_045440/figures/stage_difficulty_heatmap.png)
 
 **Error evolution**:
 
-![Error Evolution](../experiments/logs/grpo/qwen25-05b/eval_20260404_045440/figures/error_evolution.png)
+![Error Evolution](../experiments/logs/grpo/nothink/qwen25-05b/eval_20260404_045440/figures/error_evolution.png)
 
 **Rescued vs Regressed**:
 
-![Rescued vs Regressed](../experiments/logs/grpo/qwen25-05b/eval_20260404_045440/figures/rescued_vs_regressed.png)
+![Rescued vs Regressed](../experiments/logs/grpo/nothink/qwen25-05b/eval_20260404_045440/figures/rescued_vs_regressed.png)
 
 ---
 
 #### TinyLlama-1.1B-Chat-v1.0
 
-> **Eval directory**: [`experiments/logs/grpo/tinyllama-11b/eval_20260404_081506/`](../experiments/logs/grpo/tinyllama-11b/eval_20260404_081506/)
+> **Eval directory**: [`experiments/logs/grpo/nothink/tinyllama-11b/eval_20260404_081506/`](../experiments/logs/grpo/nothink/tinyllama-11b/eval_20260404_081506/)
 
 TinyLlama-1.1B has the second-largest absolute improvement (+23.33 pp), rising from 73.00% to 96.33%. It achieves **100% on simple prompts** after Stage 1 and maintains that ceiling throughout. Hard prompts show the steepest climb (55% → 96%), nearly matching the 2 B Gemma-2. The strong responsiveness to GRPO suggests that TinyLlama's base model already has the capacity for structured output but needs the RL signal to activate it.
 
 **Curriculum progression**:
 
-![Curriculum Progression](../experiments/logs/grpo/tinyllama-11b/eval_20260404_081506/figures/curriculum_progression.png)
+![Curriculum Progression](../experiments/logs/grpo/nothink/tinyllama-11b/eval_20260404_081506/figures/curriculum_progression.png)
 
 **Stage × Difficulty heatmap**:
 
-![Heatmap](../experiments/logs/grpo/tinyllama-11b/eval_20260404_081506/figures/stage_difficulty_heatmap.png)
+![Heatmap](../experiments/logs/grpo/nothink/tinyllama-11b/eval_20260404_081506/figures/stage_difficulty_heatmap.png)
 
 **Error evolution**:
 
-![Error Evolution](../experiments/logs/grpo/tinyllama-11b/eval_20260404_081506/figures/error_evolution.png)
+![Error Evolution](../experiments/logs/grpo/nothink/tinyllama-11b/eval_20260404_081506/figures/error_evolution.png)
 
 **Rescued vs Regressed**:
 
-![Rescued vs Regressed](../experiments/logs/grpo/tinyllama-11b/eval_20260404_081506/figures/rescued_vs_regressed.png)
+![Rescued vs Regressed](../experiments/logs/grpo/nothink/tinyllama-11b/eval_20260404_081506/figures/rescued_vs_regressed.png)
 
 ---
 
 #### Gemma-2-2B-it
 
-> **Eval directory**: [`experiments/logs/grpo/gemma2-2b/eval_20260404_195549/`](../experiments/logs/grpo/gemma2-2b/eval_20260404_195549/)
+> **Eval directory**: [`experiments/logs/grpo/nothink/gemma2-2b/eval_20260404_195549/`](../experiments/logs/grpo/nothink/gemma2-2b/eval_20260404_195549/)
 
 Gemma-2-2B is the largest model and starts with the highest baseline (96.00%). Post-GRPO improvement is minimal (+1.33 pp), reaching 97.33%. Hard prompts improve from 91% to 95%, but medium prompts remain at 97% — there is essentially no room left for improvement on simple prompts (100% throughout). The Stage 2 overall dip (97.33% → 96.33%) is due to a temporary regression on hard prompts (93% → 89%), which recovers in Stage 3 to 95%.
 
 **Curriculum progression**:
 
-![Curriculum Progression](../experiments/logs/grpo/gemma2-2b/eval_20260404_195549/figures/curriculum_progression.png)
+![Curriculum Progression](../experiments/logs/grpo/nothink/gemma2-2b/eval_20260404_195549/figures/curriculum_progression.png)
 
 **Stage × Difficulty heatmap**:
 
-![Heatmap](../experiments/logs/grpo/gemma2-2b/eval_20260404_195549/figures/stage_difficulty_heatmap.png)
+![Heatmap](../experiments/logs/grpo/nothink/gemma2-2b/eval_20260404_195549/figures/stage_difficulty_heatmap.png)
 
 **Error evolution**:
 
-![Error Evolution](../experiments/logs/grpo/gemma2-2b/eval_20260404_195549/figures/error_evolution.png)
+![Error Evolution](../experiments/logs/grpo/nothink/gemma2-2b/eval_20260404_195549/figures/error_evolution.png)
 
 **Rescued vs Regressed**:
 
-![Rescued vs Regressed](../experiments/logs/grpo/gemma2-2b/eval_20260404_195549/figures/rescued_vs_regressed.png)
+![Rescued vs Regressed](../experiments/logs/grpo/nothink/gemma2-2b/eval_20260404_195549/figures/rescued_vs_regressed.png)
 
 ---
 

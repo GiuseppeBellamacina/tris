@@ -1,5 +1,5 @@
 {
-  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/tinyllama-11b/train_20260404_051851/stages/stage_3_full_difficulty",
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/tinyllama-11b/train_20260404_051851/stages/stage_3_full_difficulty",
   "label": "Stage 3: full_difficulty",
   "metrics": {
     "overall_pass_rate": 0.9633333333333334,

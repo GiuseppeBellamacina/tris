@@ -57,8 +57,8 @@ training:
   logging_steps: 5
   save_steps: 60
   save_total_limit: 3
-  output_dir: "experiments/checkpoints/grpo/tinyllama-11b"
-  log_dir: "experiments/logs/grpo/tinyllama-11b"
+  output_dir: "experiments/checkpoints/grpo/nothink/tinyllama-11b"
+  log_dir: "experiments/logs/grpo/nothink/tinyllama-11b"
 
 # --- Parametri GRPO ---
 grpo:
@@ -116,4 +116,4 @@ evaluation:
 wandb:
   project: "grpo-strict-generation"
   run_name: "grpo-tinyllama-11b-curriculum"
-  tags: ["grpo", "TinyLlama-1.1B", "json-only", "cluster-l40s", "curriculum"]
+  tags: ["grpo", "TinyLlama-1.1B", "json-only", "cluster-l40s", "curriculum", "nothink"]

@@ -1,5 +1,5 @@
 {
-  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/smollm2-360m/train_20260403_222900/stages/stage_1_format_basics",
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/smollm2-360m/train_20260403_222900/stages/stage_1_format_basics",
   "label": "Stage 1: format_basics",
   "metrics": {
     "overall_pass_rate": 0.8533333333333334,

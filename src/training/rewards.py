@@ -314,12 +314,29 @@ def schema_reward(completion: str, instruction: str) -> float:
 
 
 def reasoning_reward(completion: str) -> float:
-    """1.0 if <think>...</think> tags with ≥20 chars of content are present,
-    0.0 otherwise."""
+    """Graduated reward for chain-of-thought in <think>...</think> tags.
+
+    Scale (based on stripped content length):
+      0.0  — no <think>...</think> block, or content < 10 chars
+      linear ramp 10→200 chars, capped at 1.0
+
+    Examples:
+      50 chars  → 0.25
+      100 chars → 0.50
+      200+ chars → 1.0
+
+    A graduated signal is critical for GRPO: binary 0/1 creates no
+    variance within groups where all completions either have or lack
+    think tags, collapsing the advantage estimate.
+    """
     m = re.search(r"<think>(.*?)</think>", completion, re.DOTALL)
-    if m and len(m.group(1).strip()) >= 20:
-        return 1.0
-    return 0.0
+    if not m:
+        return 0.0
+    content = m.group(1).strip()
+    length = len(content)
+    if length < 10:
+        return 0.0
+    return min(length / 200, 1.0)
 
 
 def truncation_reward(completion: str) -> float:

@@ -1,23 +1,24 @@
 # ============================================================================
-# GRPO training config — Gemma-2-2B-it — Cluster DMI (L40S)
+# GRPO training config — Qwen2.5-0.5B-Instruct — THINK variant
 #
-# Gemma 2 2B 4-bit ≈ 2 GB. fast_inference (vLLM) disabilitato: la KV cache
-# pre-allocata sfora la shard SLURM da 22 GB. Unsloth resta attivo per i
-# kernel fused e il gradient checkpointing.
+# Identica a grpo_qwen05.yaml ma con:
+#   - dataset.thinking: true  → system prompt chiede <think>...</think>
+#   - weight_reasoning: 0.30  → forte incentivo al ragionamento
+#   - max_completion_length +512  → spazio extra per il blocco think
 #
 # Usato da:
-#   CONFIG=experiments/configs/grpo_gemma2.yaml sbatch cluster/train.sh
-#   CONFIG=experiments/configs/grpo_gemma2.yaml CURRICULUM=1 sbatch cluster/eval.sh
+#   CONFIG=experiments/configs/grpo_qwen05_think.yaml sbatch cluster/train.sh
+#   CONFIG=experiments/configs/grpo_qwen05_think.yaml CURRICULUM=1 sbatch cluster/eval.sh
 # ============================================================================
 
 # --- Modello ---
 model:
-  name: "google/gemma-2-2b-it"
+  name: "Qwen/Qwen2.5-0.5B-Instruct"
   num_gpus: 1
   quantization: "4bit"
   dtype: "bfloat16"
   use_unsloth: true
-  fast_inference: false
+  fast_inference: true
   max_seq_length: 2048
   gpu_memory_utilization: 0.45
 
@@ -42,7 +43,7 @@ dataset:
   path: "data/synthetic"
   split: "train"
   max_samples: null
-  thinking: false
+  thinking: true
 
 # --- Iperparametri di training ---
 training:
@@ -59,24 +60,24 @@ training:
   logging_steps: 5
   save_steps: 60
   save_total_limit: 3
-  output_dir: "experiments/checkpoints/grpo/nothink/gemma2-2b"
-  log_dir: "experiments/logs/grpo/nothink/gemma2-2b"
+  output_dir: "experiments/checkpoints/grpo/think/qwen25-05b"
+  log_dir: "experiments/logs/grpo/think/qwen25-05b"
 
 # --- Parametri GRPO ---
 grpo:
-  num_generations: 4
-  max_completion_length: 768
+  num_generations: 8
+  max_completion_length: 1536
   max_prompt_length: 512
   beta: 0.04
   temperature: 0.7
 
 # --- Pesi della reward function ---
 reward:
-  weight_format: 0.25
-  weight_validity: 0.30
-  weight_schema: 0.30
-  weight_truncation: 0.15
-  weight_reasoning: 0.0
+  weight_format: 0.15
+  weight_validity: 0.20
+  weight_schema: 0.25
+  weight_truncation: 0.10
+  weight_reasoning: 0.30
 
 # --- Curriculum Learning ---
 curriculum:
@@ -117,6 +118,13 @@ evaluation:
 # --- Weights & Biases ---
 wandb:
   project: "grpo-strict-generation"
-  run_name: "grpo-gemma2-2b-curriculum"
+  run_name: "grpo-qwen25-05b-think-curriculum"
   tags:
-    ["grpo", "Gemma-2-2B", "json-only", "cluster-l40s", "curriculum", "nothink"]
+    [
+      "grpo",
+      "Qwen2.5-0.5B",
+      "json-only",
+      "cluster-l40s",
+      "curriculum",
+      "thinking",
+    ]

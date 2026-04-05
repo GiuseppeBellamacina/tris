@@ -120,13 +120,21 @@ class TestSchemaReward:
 
 
 class TestReasoningReward:
-    def test_with_reasoning(self):
-        text = (
-            "<think>Let me think about this problem carefully"
-            " and plan the solution step by step.</think>\n"
-            "```json\n{}\n```"
+    def test_with_long_reasoning(self):
+        content = (
+            "Let me think about this problem carefully and plan the solution step by step. "
+            * 3
         )
+        text = f"<think>{content}</think>\n```json\n{{}}\n```"
         assert reasoning_reward(text) == 1.0
+
+    def test_with_medium_reasoning(self):
+        # ~100 chars → 0.5
+        content = "I need to create a JSON object with three keys: name, age, and active. Let me structure it properly."
+        text = f"<think>{content}</think>\n```json\n{{}}\n```"
+        assert reasoning_reward(text) == pytest.approx(
+            len(content.strip()) / 200, abs=0.01
+        )
 
     def test_without_reasoning(self):
         text = '```json\n{"key": "val"}\n```'
@@ -135,6 +143,17 @@ class TestReasoningReward:
     def test_short_reasoning(self):
         text = "<think>ok</think>\n```json\n{}\n```"
         assert reasoning_reward(text) == 0.0
+
+    def test_graduated_signal(self):
+        # 50 chars → 0.25
+        content = "A" * 50
+        text = f"<think>{content}</think>"
+        assert reasoning_reward(text) == pytest.approx(0.25)
+
+    def test_cap_at_one(self):
+        content = "A" * 500
+        text = f"<think>{content}</think>"
+        assert reasoning_reward(text) == 1.0
 
 
 class TestCombinedReward:
@@ -148,12 +167,19 @@ class TestCombinedReward:
         assert combined_reward("plain text") == 0.0
 
     def test_with_reasoning(self):
+        think_content = (
+            "I need to generate a valid JSON object with the required keys and types. "
+            "Let me plan: first I will create the outer object, then add each key with "
+            "the correct type as specified in the instruction. I should double-check the structure."
+        )
         text = (
-            "<think>I need to generate a valid JSON object"
-            " with the required keys and types.</think>\n"
+            f"<think>{think_content}</think>\n"
             '```json\n{"a": 1}\n```'
         )
-        assert combined_reward(text) == 0.10 + 0.30 + 0.50 + 0.10
+        # think_content is >200 chars → reasoning_reward=1.0
+        assert combined_reward(text) == pytest.approx(
+            0.20 + 0.35 + 0.35 + 0.10
+        )
 
     def test_custom_weights(self):
         text = '```json\n{"x": 1}\n```'

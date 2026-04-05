@@ -1,5 +1,5 @@
 {
-  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/smollm2-135m/train_20260403_182533/stages/stage_3_full_difficulty",
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/smollm2-135m/train_20260403_182533/stages/stage_3_full_difficulty",
   "label": "Stage 3: full_difficulty",
   "metrics": {
     "overall_pass_rate": 0.86,

@@ -1,5 +1,5 @@
 {
-  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/gemma2-2b/train_20260404_095349/stages/stage_1_format_basics",
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/gemma2-2b/train_20260404_095349/stages/stage_1_format_basics",
   "label": "Stage 1: format_basics",
   "metrics": {
     "overall_pass_rate": 0.9733333333333334,

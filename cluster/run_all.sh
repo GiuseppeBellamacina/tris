@@ -86,7 +86,7 @@ for arg in "$@"; do
             echo "  4: tinyllama-11b"
             echo "  5: gemma2-2b"
             echo ""
-            echo "Con --think vengono usate le config *_think.yaml corrispondenti."
+            echo "Con --think vengono usate le config *_think.yaml e i tag hanno suffisso -think."
             exit 0
             ;;
     esac
@@ -94,13 +94,14 @@ done
 
 # ── Modelli da lanciare ───────────────────────────────────────────────────────
 # Formato: "TAG:CONFIG_PATH"
+# Con --think i tag hanno suffisso "-think" per distinguerli nella pipeline
 if [ "$USE_THINK" -eq 1 ]; then
     MODELS=(
-        "smollm2-135m:experiments/configs/grpo_smollm2_135m_think.yaml"
-        "smollm2-360m:experiments/configs/grpo_smollm2_360m_think.yaml"
-        "qwen25-05b:experiments/configs/grpo_qwen05_think.yaml"
-        "tinyllama-11b:experiments/configs/grpo_tinyllama_think.yaml"
-        "gemma2-2b:experiments/configs/grpo_gemma2_think.yaml"
+        "smollm2-135m-think:experiments/configs/grpo_smollm2_135m_think.yaml"
+        "smollm2-360m-think:experiments/configs/grpo_smollm2_360m_think.yaml"
+        "qwen25-05b-think:experiments/configs/grpo_qwen05_think.yaml"
+        "tinyllama-11b-think:experiments/configs/grpo_tinyllama_think.yaml"
+        "gemma2-2b-think:experiments/configs/grpo_gemma2_think.yaml"
     )
 else
     MODELS=(
@@ -267,6 +268,21 @@ if [ "$REMOVE" -eq 1 ]; then
     echo ""
     echo "✅ Rimossi $REMOVED job. Rimanenti: $REMAINING"
     [ -f "$CHAIN_FILE" ] && echo "" && echo "Catena aggiornata:" && cat -n "$CHAIN_FILE"
+
+    # Update monitor cache: remove jobs from pipeline_jobs
+    for tag in "${REMOVE_TAGS[@]}"; do
+        python3 -c "
+import json, pathlib
+cache_path = pathlib.Path('$PROJ_DIR/.monitor_cache')
+if cache_path.exists():
+    cache = json.loads(cache_path.read_text())
+    pj = cache.get('pipeline_jobs', [])
+    cache['pipeline_jobs'] = [j for j in pj if not j.endswith('-$tag') and j not in ('train-$tag', 'eval-$tag')]
+    cache['jobs'] = {k: v for k, v in cache.get('jobs', {}).items() if not k.endswith('-$tag') and k not in ('train-$tag', 'eval-$tag')}
+    cache_path.write_text(json.dumps(cache, indent=2))
+" 2>/dev/null
+    done
+
     exit 0
 fi
 
@@ -312,6 +328,7 @@ fi
 # In append mode, il file esiste già e ci aggiungiamo in coda
 
 NEW_JOBS=0
+NEW_KEYS=()
 for sel in "${SELECTED[@]}"; do
     # sel = "TAG:CONFIG:do_train:do_eval"
     TAG=$(echo "$sel" | cut -d: -f1)
@@ -322,13 +339,37 @@ for sel in "${SELECTED[@]}"; do
     if [ "$DO_TRAIN" -eq 1 ]; then
         echo "train:${CFG}:${TAG}" >> "$CHAIN_FILE"
         NEW_JOBS=$((NEW_JOBS + 1))
+        NEW_KEYS+=("train-${TAG}")
     fi
     if [ "$DO_EVAL" -eq 1 ]; then
         echo "eval:${CFG}:${TAG}" >> "$CHAIN_FILE"
         NEW_JOBS=$((NEW_JOBS + 1))
+        NEW_KEYS+=("eval-${TAG}")
     fi
     MODEL_COUNT=$((MODEL_COUNT + 1))
 done
+
+# Update monitor cache with new pipeline jobs
+if [ ${#NEW_KEYS[@]} -gt 0 ]; then
+    KEYS_JSON=$(printf '"%s",' "${NEW_KEYS[@]}")
+    KEYS_JSON="[${KEYS_JSON%,}]"
+    CLEAR_OLD=0
+    [ "$APPEND" -eq 0 ] && CLEAR_OLD=1
+    python3 -c "
+import json, pathlib
+cache_path = pathlib.Path('$PROJ_DIR/.monitor_cache')
+cache = json.loads(cache_path.read_text()) if cache_path.exists() else {'jobs': {}, 'pipeline_jobs': []}
+cache.setdefault('pipeline_jobs', [])
+if $CLEAR_OLD:
+    cache['pipeline_jobs'] = []
+    cache['jobs'] = {}
+new_keys = $KEYS_JSON
+for k in new_keys:
+    if k not in cache['pipeline_jobs']:
+        cache['pipeline_jobs'].append(k)
+cache_path.write_text(json.dumps(cache, indent=2))
+" 2>/dev/null
+fi
 
 TOTAL=$(wc -l < "$CHAIN_FILE")
 

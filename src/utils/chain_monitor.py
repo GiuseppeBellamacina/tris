@@ -107,18 +107,25 @@ def _run(cmd: str) -> str:
 # Persistent JSON file that stores job results so the monitor can display
 # them even when sacct data ages out or logs are cleaned up.
 #
-# Structure: {"jobs": {"train-smollm2-135m": {...}, "eval-smollm2-135m": {...}}}
-# Each job entry: {state, slurm_id, eval_pass, stage, exit_code, updated_at}
+# Structure:
+#   {
+#     "jobs": {"train-smollm2-135m": {state, slurm_id, eval_pass, ...}, ...},
+#     "pipeline_jobs": ["train-smollm2-135m", "eval-smollm2-135m", ...]
+#   }
+# "pipeline_jobs" is the ordered list of all jobs ever seen in the pipeline,
+# kept in sync by append/remove operations and _build_pipeline.
 
 
 def _load_cache() -> dict:
     """Load the monitor cache from disk."""
     if not CACHE_FILE.exists():
-        return {"jobs": {}}
+        return {"jobs": {}, "pipeline_jobs": []}
     try:
-        return json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        cache = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        cache.setdefault("pipeline_jobs", [])
+        return cache
     except (ValueError, OSError):
-        return {"jobs": {}}
+        return {"jobs": {}, "pipeline_jobs": []}
 
 
 def _save_cache(cache: dict) -> None:
@@ -133,36 +140,36 @@ def _save_cache(cache: dict) -> None:
 
 
 def _cache_update_job(job: "JobInfo") -> None:
-    """Update the cache with the latest info from a job.
-
-    Only writes if the job has meaningful state (not PENDING).
-    """
-    if job.state == "PENDING":
-        return
+    """Update the cache with the latest info from a job."""
     cache = _load_cache()
     key = f"{job.job_type}-{job.tag}"
-    entry = cache["jobs"].get(key, {})
 
-    # Always update state and slurm_id
-    entry["state"] = job.state
-    if job.slurm_id:
-        entry["slurm_id"] = job.slurm_id
-    if job.exit_code:
-        entry["exit_code"] = job.exit_code
+    # Always track the job in the pipeline list
+    if key not in cache["pipeline_jobs"]:
+        cache["pipeline_jobs"].append(key)
 
-    # Training-specific
-    if job.job_type == "train":
-        if job.stage > 0:
-            entry["stage"] = job.stage
-        if job.stage_name:
-            entry["stage_name"] = job.stage_name
+    # For non-PENDING jobs, store detailed state
+    if job.state != "PENDING":
+        entry = cache["jobs"].get(key, {})
 
-    # Eval-specific — only update pass@1 if non-empty
-    if job.job_type == "eval" and job.eval_pass:
-        entry["eval_pass"] = job.eval_pass
+        entry["state"] = job.state
+        if job.slurm_id:
+            entry["slurm_id"] = job.slurm_id
+        if job.exit_code:
+            entry["exit_code"] = job.exit_code
 
-    entry["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    cache["jobs"][key] = entry
+        if job.job_type == "train":
+            if job.stage > 0:
+                entry["stage"] = job.stage
+            if job.stage_name:
+                entry["stage_name"] = job.stage_name
+
+        if job.job_type == "eval" and job.eval_pass:
+            entry["eval_pass"] = job.eval_pass
+
+        entry["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        cache["jobs"][key] = entry
+
     _save_cache(cache)
 
 
@@ -256,7 +263,7 @@ def _read_pending_chain() -> list[tuple[str, str, str]]:
     entries = []
     for line in CHAIN_FILE.read_text().strip().splitlines():
         parts = line.strip().split(":")
-        if len(parts) == 3:
+        if len(parts) >= 3:
             entries.append((parts[0], parts[1], parts[2]))
     return entries
 
@@ -861,6 +868,42 @@ def _build_pipeline() -> list[JobInfo]:
         _cache_enrich_job(job)
     for job in jobs:
         _cache_update_job(job)
+
+    # Recover jobs tracked in cache but missing from live sources
+    cache = _load_cache()
+    seen_keys = {f"{j.job_type}-{j.tag}" for j in jobs}
+    for key in cache.get("pipeline_jobs", []):
+        if key in seen_keys:
+            continue
+        entry = cache["jobs"].get(key, {})
+        parts = key.split("-", 1)
+        if len(parts) != 2:
+            continue
+        job_type, tag = parts[0], parts[1]
+        job = JobInfo(
+            job_type=job_type,
+            config="",
+            tag=tag,
+            state=entry.get("state", "COMPLETED"),
+            eval_pass=entry.get("eval_pass", ""),
+            slurm_id=entry.get("slurm_id"),
+            exit_code=entry.get("exit_code", ""),
+        )
+        if entry.get("stage"):
+            job.stage = entry["stage"]
+        if entry.get("stage_name"):
+            job.stage_name = entry["stage_name"]
+        jobs.append(job)
+
+    # Sort jobs by pipeline_jobs order from cache for consistent display
+    pipeline_order = cache.get("pipeline_jobs", [])
+    if pipeline_order:
+        order_map = {k: i for i, k in enumerate(pipeline_order)}
+        jobs.sort(
+            key=lambda j: order_map.get(
+                f"{j.job_type}-{j.tag}", len(pipeline_order)
+            )
+        )
 
     return jobs
 

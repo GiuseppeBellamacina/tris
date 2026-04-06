@@ -77,6 +77,9 @@ class JobInfo:
     stage_total: int = 0  # total steps for current stage
     eval_label: str = ""  # current eval label
     eval_pass: str = ""  # last eval pass@1
+    eval_stages: dict[str, str] = field(
+        default_factory=dict
+    )  # per-stage pass@1
     eval_step_total: int = 0  # total generation batches for eval
     exit_code: str = ""
     elapsed: str = ""  # elapsed time from squeue (e.g. "12:34")
@@ -168,6 +171,8 @@ def _cache_update_job(job: "JobInfo") -> None:
 
         if job.job_type == "eval" and job.eval_pass:
             entry["eval_pass"] = job.eval_pass
+        if job.job_type == "eval" and job.eval_stages:
+            entry["eval_stages"] = job.eval_stages
 
         if job.last_reward:
             entry["last_reward"] = job.last_reward
@@ -200,6 +205,8 @@ def _cache_enrich_job(job: "JobInfo") -> None:
         job.slurm_id = entry["slurm_id"]
     if not job.eval_pass and entry.get("eval_pass"):
         job.eval_pass = entry["eval_pass"]
+    if not job.eval_stages and entry.get("eval_stages"):
+        job.eval_stages = entry["eval_stages"]
     if job.stage == 0 and entry.get("stage"):
         job.stage = entry["stage"]
     if not job.stage_name and entry.get("stage_name"):
@@ -595,6 +602,15 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
         if m:
             job.eval_label = m.group(1)
             job.eval_pass = m.group(2)
+            # Classify into eval_stages
+            label = m.group(1).strip()
+            sm2 = _EVAL_STAGE_NUM.search(label)
+            if sm2:
+                job.eval_stages[f"stage_{sm2.group(1)}"] = m.group(2)
+            elif "baseline" in label.lower():
+                job.eval_stages["baseline"] = m.group(2)
+            elif "grpo" in label.lower():
+                job.eval_stages["grpo"] = m.group(2)
             if "baseline" in job.eval_label.lower():
                 is_baseline = True
                 job.stage = 0
@@ -906,6 +922,8 @@ def _build_pipeline() -> list[JobInfo]:
             job.stage_name = entry["stage_name"]
         if entry.get("last_reward"):
             job.last_reward = entry["last_reward"]
+        if entry.get("eval_stages"):
+            job.eval_stages = entry["eval_stages"]
         jobs.append(job)
 
     # Sort jobs by pipeline_jobs order from cache for consistent display
@@ -1122,7 +1140,17 @@ def _format_status(job: JobInfo) -> str:
         elif job.stage > 0:
             detail = f" {_GREEN}completed at stage {job.stage}{_RST}"
     elif job.state == "COMPLETED" and job.job_type == "eval":
-        if job.eval_pass:
+        if job.eval_stages:
+            parts_list = []
+            bl = job.eval_stages.get("baseline")
+            if bl:
+                parts_list.append(f"BL={bl}")
+            for i in range(1, 10):
+                sv = job.eval_stages.get(f"stage_{i}")
+                if sv:
+                    parts_list.append(f"S{i}={sv}")
+            detail = f" {_GREEN}{' '.join(parts_list)}{_RST}"
+        elif job.eval_pass:
             detail = f" {_GREEN}pass@1={job.eval_pass}{_RST}"
     elif job.state == "FAILED":
         detail = (
@@ -1325,34 +1353,76 @@ def _display(
                     seen_tags.add(tag)
                     model_tags.append(tag)
 
+        # Discover all stage columns across models
+        all_stage_keys: list[str] = (
+            []
+        )  # ordered: baseline, stage_1, ...
+        stage_set: set[str] = set()
+        for tag in model_tags:
+            eval_entry = cache["jobs"].get(f"eval-{tag}", {})
+            for sk in eval_entry.get("eval_stages", {}):
+                if sk not in stage_set and sk != "grpo":
+                    stage_set.add(sk)
+                    all_stage_keys.append(sk)
+        # Sort: baseline first, then stage_1, stage_2, ...
+        all_stage_keys.sort(
+            key=lambda k: (
+                -1
+                if k == "baseline"
+                else int(k.split("_")[1]) if "_" in k else 99
+            )
+        )
+
+        # Short labels for columns
+        def _col_label(k: str) -> str:
+            if k == "baseline":
+                return "Baseline"
+            if k.startswith("stage_"):
+                return f"Stage {k.split('_')[1]}"
+            return k
+
         # Only show models that have cached data
-        rows: list[tuple[str, str, str]] = []
+        rows: list[tuple[str, str, dict[str, str]]] = []
         for tag in model_tags:
             train_entry = cache["jobs"].get(f"train-{tag}", {})
             eval_entry = cache["jobs"].get(f"eval-{tag}", {})
             train_rw = train_entry.get("last_reward", "")
-            eval_p1 = eval_entry.get("eval_pass", "")
-            if train_rw or eval_p1:
-                rows.append((tag, train_rw, eval_p1))
+            stages = eval_entry.get("eval_stages", {})
+            if train_rw or stages:
+                rows.append((tag, train_rw, stages))
 
         if rows:
+            # Build header
+            col_w = 10  # width per stage column
+            stage_hdr = "".join(
+                f"{_col_label(k):<{col_w}s}" for k in all_stage_keys
+            )
             print()
             print(
-                f"  {_BOLD}{'Model':<28s} {'Train Reward':<16s} {'Eval Pass@1'}{_RST}"
+                f"  {_BOLD}{'Model':<24s} {'Reward':<10s} {stage_hdr}{_RST}"
             )
-            print(f"  {'─' * 58}")
-            for tag, rw, p1 in rows:
+            print(
+                f"  {'─' * (24 + 10 + col_w * len(all_stage_keys))}"
+            )
+            for tag, rw, stages in rows:
                 # Train reward: cyan
                 rw_str = (
                     f"{_CYAN}{rw}{_RST}" if rw else f"{_DIM}-{_RST}"
                 )
-                # Eval pass@1: green
-                p1_str = (
-                    f"{_GREEN}{_BOLD}{p1}{_RST}"
-                    if p1
-                    else f"{_DIM}-{_RST}"
-                )
-                print(f"  {tag:<28s} {rw_str:<27s} {p1_str}")
+                # Per-stage pass@1 values
+                stage_strs = []
+                for sk in all_stage_keys:
+                    val = stages.get(sk, "")
+                    if val:
+                        stage_strs.append(
+                            f"{_GREEN}{val:<{col_w}s}{_RST}"
+                        )
+                    else:
+                        stage_strs.append(
+                            f"{_DIM}{'-':<{col_w}s}{_RST}"
+                        )
+                stage_cells = "".join(stage_strs)
+                print(f"  {tag:<24s} {rw_str:<21s} {stage_cells}")
 
     print()
 

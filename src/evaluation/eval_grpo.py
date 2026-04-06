@@ -532,6 +532,83 @@ def main() -> None:
     all_completions_data: dict[str, list[dict]] = {}
     all_raw_completions: dict[str, list[str]] = {}
 
+    # ── Baseline evaluation (before stages) ───────────────────────────
+    baseline_metrics = None
+
+    if args.compare:
+        baseline_path = Path(args.baseline_results)
+        if baseline_path.exists():
+            print(
+                f"\nLoading baseline results from {baseline_path}..."
+            )
+            baseline_data = json.loads(
+                baseline_path.read_text(encoding="utf-8")
+            )
+            baseline_metrics = baseline_data["detailed_metrics"]
+            print(
+                f"  Baseline Pass@1: {baseline_metrics['overall_pass_rate']:.4f}"
+            )
+        else:
+            # Run baseline evaluation
+            print(f"\n{'='*50}")
+            print("Running baseline evaluation...")
+            print(f"{'='*50}")
+            baseline_metrics, baseline_completions = _evaluate_model(
+                config,
+                config["model"]["name"],
+                prompts,
+                difficulties,
+                gen_config,
+            )
+            print(
+                f"\nBaseline Pass@1: {baseline_metrics['overall_pass_rate']:.4f}"
+            )
+            print("Per-category:")
+            for cat, stats in baseline_metrics[
+                "per_category"
+            ].items():
+                print(
+                    f"  {cat}: {stats['pass_rate']:.4f} "
+                    f"({stats['valid']}/{stats['total']})"
+                )
+            # Save baseline results next to eval results
+            bl_results = {
+                "model": config["model"]["name"],
+                "detailed_metrics": baseline_metrics,
+            }
+            bl_path = Path(args.baseline_results)
+            bl_path.write_text(
+                json.dumps(bl_results, indent=2, default=str),
+                encoding="utf-8",
+            )
+            print(f"Baseline results saved to {bl_path}")
+
+            # Save baseline completions with validation results
+            bl_compl_data = []
+            for p, d, c in zip(
+                prompts, difficulties, baseline_completions
+            ):
+                valid, error = check_syntax(c)
+                entry = {
+                    "prompt": p,
+                    "difficulty": d,
+                    "completion": c,
+                    "valid": valid,
+                }
+                if not valid:
+                    entry["error"] = error
+                bl_compl_data.append(entry)
+            bl_compl_path = eval_output / "completions_baseline.json"
+            bl_compl_path.write_text(
+                json.dumps(
+                    bl_compl_data, indent=2, ensure_ascii=False
+                ),
+                encoding="utf-8",
+            )
+            print(f"Baseline completions saved to {bl_compl_path}")
+            all_completions_data["Baseline"] = bl_compl_data
+            all_raw_completions["Baseline"] = baseline_completions
+
     for label, model_path, is_ckpt in eval_targets:
         print(f"\n{'='*50}")
         print(f"Evaluating: {label}")
@@ -638,69 +715,7 @@ def main() -> None:
     # Use the last evaluated model as "grpo_metrics" for backward compat
     grpo_metrics = all_eval_results[-1]["metrics"]
 
-    # ── Baseline comparison ───────────────────────────────────────────────
-    baseline_metrics = None
-
-    if args.compare:
-        baseline_path = Path(args.baseline_results)
-        if baseline_path.exists():
-            print(
-                f"\nLoading baseline results from {baseline_path}..."
-            )
-            baseline_data = json.loads(
-                baseline_path.read_text(encoding="utf-8")
-            )
-            baseline_metrics = baseline_data["detailed_metrics"]
-        else:
-            # Run baseline evaluation
-            print(f"\n{'='*50}")
-            print("Running baseline evaluation...")
-            print(f"{'='*50}")
-            baseline_metrics, baseline_completions = _evaluate_model(
-                config,
-                config["model"]["name"],
-                prompts,
-                difficulties,
-                gen_config,
-            )
-            # Save baseline results next to eval results
-            bl_results = {
-                "model": config["model"]["name"],
-                "detailed_metrics": baseline_metrics,
-            }
-            bl_path = Path(args.baseline_results)
-            bl_path.write_text(
-                json.dumps(bl_results, indent=2, default=str),
-                encoding="utf-8",
-            )
-            print(f"Baseline results saved to {bl_path}")
-
-            # Save baseline completions with validation results
-            bl_compl_data = []
-            for p, d, c in zip(
-                prompts, difficulties, baseline_completions
-            ):
-                valid, error = check_syntax(c)
-                entry = {
-                    "prompt": p,
-                    "difficulty": d,
-                    "completion": c,
-                    "valid": valid,
-                }
-                if not valid:
-                    entry["error"] = error
-                bl_compl_data.append(entry)
-            bl_compl_path = eval_output / "completions_baseline.json"
-            bl_compl_path.write_text(
-                json.dumps(
-                    bl_compl_data, indent=2, ensure_ascii=False
-                ),
-                encoding="utf-8",
-            )
-            print(f"Baseline completions saved to {bl_compl_path}")
-            all_completions_data["Baseline"] = bl_compl_data
-            all_raw_completions["Baseline"] = baseline_completions
-
+    # ── Baseline vs GRPO comparison ─────────────────────────────────────
     if baseline_metrics:
         model_name = config["model"]["name"].split("/")[-1]
 

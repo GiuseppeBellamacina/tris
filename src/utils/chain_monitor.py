@@ -314,32 +314,37 @@ def _extract_completion_samples(
 
     # Rewards line (per-value coloring: green +, gray 0, red -)
     # Split across 2 lines: 4/3 with reasoning, 3/3 without
+    # Each entry is padded to a fixed width for table-like alignment.
     if rewards_line:
         # Parse "REWARDS: format=+1.00  validity=+0.00  schema=-0.50 ..."
         parts = re.findall(r"(\w+)=([+-]?\d+\.\d+)", rewards_line)
         if parts:
+            # Fixed column width: longest name is "truncation" (10) + "=" + "+1.00" (5) = 16
+            col_w = 17
             colored_parts: list[str] = []
             for name, val_str in parts:
                 v = float(val_str)
+                raw = f"{name}={val_str}"
+                pad = " " * max(0, col_w - len(raw))
                 if v > 0:
                     colored_parts.append(
-                        f"{_GREEN}{name}={val_str}{_RST}"
+                        f"{_GREEN}{raw}{_RST}{pad}"
                     )
                 elif v < 0:
                     colored_parts.append(
-                        f"{_RED}{name}={val_str}{_RST}"
+                        f"{_RED}{raw}{_RST}{pad}"
                     )
                 else:
                     colored_parts.append(
-                        f"{_GRAY}{name}={val_str}{_RST}"
+                        f"{_GRAY}{raw}{_RST}{pad}"
                     )
             has_reasoning = any(n == "reasoning" for n, _ in parts)
             split = 4 if has_reasoning else 3
             row1 = colored_parts[:split]
             row2 = colored_parts[split:]
-            result.append(f"  REWARDS: {'  '.join(row1)}")
+            result.append(f"  REWARDS: {''.join(row1)}")
             if row2:
-                result.append(f"           {'  '.join(row2)}")
+                result.append(f"           {''.join(row2)}")
         else:
             result.append(f"  {_CYAN}{rewards_line}{_RST}")
 

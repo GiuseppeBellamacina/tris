@@ -1245,23 +1245,10 @@ def _display(
     print(f"  {_DIM}{time.strftime('%Y-%m-%d %H:%M:%S')}{_RST}")
     print(f"{_CYAN}{'═' * 65}{_RST}")
 
-    if show_table:
-        print()
-        current_model = ""
-        for job in jobs:
-            # Group separator by model
-            if job.tag != current_model:
-                current_model = job.tag
-                print(f"  {_BOLD}{_YELLOW}▸ {current_model}{_RST}")
-
-            print(_format_status(job))
-
-        print()
-        print(f"{_DIM}{'─' * 65}{_RST}")
-
-    print()
+    # ── Active job bar (always shown, right under header) ─────────────
     remaining = sum(1 for j in jobs if j.state == "PENDING")
     running = [j for j in jobs if j.state in ("RUNNING", "STARTING")]
+    print()
     if running:
         j = running[0]
         tc = _TYPE_COLORS.get(j.job_type, "")
@@ -1344,44 +1331,29 @@ def _display(
     else:
         print(f"  {_GREEN}{_BOLD}✓ Pipeline finished!{_RST}")
 
-    # Show completion samples from the active training job
-    if show_samples and running and running[0].completion_samples:
+    # ── Job table (--tab) ─────────────────────────────────────────────
+    if show_table:
         print()
-        for sl in running[0].completion_samples:
-            print(f"  {sl}")
+        current_model = ""
+        for job in jobs:
+            # Group separator by model
+            if job.tag != current_model:
+                current_model = job.tag
+                print(f"  {_BOLD}{_YELLOW}▸ {current_model}{_RST}")
 
-    # Show metrics table (--metrics): train reward + eval pass@1
-    # Combines live job data with cached data for completed jobs.
+            print(_format_status(job))
+
+        print()
+        print(f"{_DIM}{'─' * 65}{_RST}")
+
+    # ── Metrics table (--metrics): train reward + eval pass@1 ─────────
+    # Builds from live job data first, then supplements from cache.
     if show_metrics:
-        cache = _load_cache()
-
-        # Build a merged view: live jobs override cache
         # {tag: {train_rw, eval_stages}}
         metrics_data: dict[str, dict[str, Any]] = {}
         tag_order: list[str] = []
 
-        # 1. Seed from cache pipeline_jobs (preserves order)
-        for key in cache.get("pipeline_jobs", []):
-            parts = key.split("-", 1)
-            if len(parts) == 2:
-                tag = parts[1]
-                if tag not in metrics_data:
-                    metrics_data[tag] = {
-                        "train_rw": "",
-                        "eval_stages": {},
-                    }
-                    tag_order.append(tag)
-                entry = cache["jobs"].get(key, {})
-                if parts[0] == "train" and entry.get("last_reward"):
-                    metrics_data[tag]["train_rw"] = entry[
-                        "last_reward"
-                    ]
-                if parts[0] == "eval" and entry.get("eval_stages"):
-                    metrics_data[tag]["eval_stages"] = entry[
-                        "eval_stages"
-                    ]
-
-        # 2. Override / add from live jobs
+        # 1. Build from live jobs (always available, even with empty cache)
         for j in jobs:
             if not j.tag:
                 continue
@@ -1395,6 +1367,36 @@ def _display(
                 metrics_data[j.tag]["train_rw"] = j.last_reward
             if j.job_type == "eval" and j.eval_stages:
                 metrics_data[j.tag]["eval_stages"] = j.eval_stages
+
+        # 2. Supplement from cache (fills in completed jobs no longer live)
+        cache = _load_cache()
+        for key in cache.get("pipeline_jobs", []):
+            parts = key.split("-", 1)
+            if len(parts) != 2:
+                continue
+            tag = parts[1]
+            if tag not in metrics_data:
+                metrics_data[tag] = {
+                    "train_rw": "",
+                    "eval_stages": {},
+                }
+                tag_order.append(tag)
+            entry = cache["jobs"].get(key, {})
+            # Only fill if live data didn't already provide it
+            if (
+                parts[0] == "train"
+                and entry.get("last_reward")
+                and not metrics_data[tag]["train_rw"]
+            ):
+                metrics_data[tag]["train_rw"] = entry["last_reward"]
+            if (
+                parts[0] == "eval"
+                and entry.get("eval_stages")
+                and not metrics_data[tag]["eval_stages"]
+            ):
+                metrics_data[tag]["eval_stages"] = entry[
+                    "eval_stages"
+                ]
 
         # Discover all stage columns across models
         all_stage_keys: list[str] = []
@@ -1462,6 +1464,12 @@ def _display(
                         )
                 stage_cells = "".join(stage_strs)
                 print(f"  {tag:<24s} {rw_str:<21s} {stage_cells}")
+
+    # Show completion samples from the active training job
+    if show_samples and running and running[0].completion_samples:
+        print()
+        for sl in running[0].completion_samples:
+            print(f"  {sl}")
 
     print()
 

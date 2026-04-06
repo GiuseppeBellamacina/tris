@@ -204,6 +204,20 @@ if [ "$APPEND" -eq 0 ] && [ "$REMOVE" -eq 0 ] && _watcher_is_alive; then
     APPEND=1
 fi
 
+# ── Append richiede --models ──────────────────────────────────────────────────
+if [ "$APPEND" -eq 1 ] && [ -z "$ONLY_MODELS" ]; then
+    echo "❌ --append (o chain-add) richiede --models=SPEC per specificare quali job aggiungere."
+    echo "   Esempio: chain-add --models=1,3,5"
+    echo "            chain-add --models=2e,4t"
+    echo ""
+    echo "   Modelli disponibili:"
+    for i in "${!MODELS[@]}"; do
+        tag=$(echo "${MODELS[$i]}" | cut -d: -f1)
+        echo "     $((i+1)): $tag"
+    done
+    exit 1
+fi
+
 # ── Remove mode ───────────────────────────────────────────────────────────────
 if [ "$REMOVE" -eq 1 ]; then
     if [ ! -f "$CHAIN_FILE" ] || [ ! -s "$CHAIN_FILE" ]; then
@@ -327,8 +341,15 @@ if [ "$APPEND" -eq 0 ]; then
 fi
 # In append mode, il file esiste già e ci aggiungiamo in coda
 
+# Load existing chain entries for dedup in append mode
+EXISTING_ENTRIES=""
+if [ "$APPEND" -eq 1 ] && [ -f "$CHAIN_FILE" ]; then
+    EXISTING_ENTRIES=$(cat "$CHAIN_FILE")
+fi
+
 NEW_JOBS=0
 NEW_KEYS=()
+SKIPPED=0
 for sel in "${SELECTED[@]}"; do
     # sel = "TAG:CONFIG:do_train:do_eval"
     TAG=$(echo "$sel" | cut -d: -f1)
@@ -337,14 +358,25 @@ for sel in "${SELECTED[@]}"; do
     DO_EVAL=$(echo "$sel" | cut -d: -f4)
 
     if [ "$DO_TRAIN" -eq 1 ]; then
-        echo "train:${CFG}:${TAG}" >> "$CHAIN_FILE"
-        NEW_JOBS=$((NEW_JOBS + 1))
-        NEW_KEYS+=("train-${TAG}")
+        ENTRY="train:${CFG}:${TAG}"
+        # Skip if already in chain (append mode dedup)
+        if [ "$APPEND" -eq 1 ] && echo "$EXISTING_ENTRIES" | grep -qF "$ENTRY"; then
+            SKIPPED=$((SKIPPED + 1))
+        else
+            echo "$ENTRY" >> "$CHAIN_FILE"
+            NEW_JOBS=$((NEW_JOBS + 1))
+            NEW_KEYS+=("train-${TAG}")
+        fi
     fi
     if [ "$DO_EVAL" -eq 1 ]; then
-        echo "eval:${CFG}:${TAG}" >> "$CHAIN_FILE"
-        NEW_JOBS=$((NEW_JOBS + 1))
-        NEW_KEYS+=("eval-${TAG}")
+        ENTRY="eval:${CFG}:${TAG}"
+        if [ "$APPEND" -eq 1 ] && echo "$EXISTING_ENTRIES" | grep -qF "$ENTRY"; then
+            SKIPPED=$((SKIPPED + 1))
+        else
+            echo "$ENTRY" >> "$CHAIN_FILE"
+            NEW_JOBS=$((NEW_JOBS + 1))
+            NEW_KEYS+=("eval-${TAG}")
+        fi
     fi
     MODEL_COUNT=$((MODEL_COUNT + 1))
 done
@@ -377,10 +409,18 @@ THINK_LABEL="off"
 [ "$USE_THINK" -eq 1 ] && THINK_LABEL="on"
 
 if [ "$APPEND" -eq 1 ]; then
+    if [ "$NEW_JOBS" -eq 0 ]; then
+        echo "⚠️  Nessun nuovo job da aggiungere (tutti già in coda)."
+        echo "   Skippati: $SKIPPED duplicati"
+        exit 0
+    fi
+    SKIP_MSG=""
+    [ "$SKIPPED" -gt 0 ] && SKIP_MSG="  Skippati: $SKIPPED (già in coda)"
     echo "============================================"
     echo "  Jobs aggiunti alla pipeline attiva"
     echo "  Date:  $(date)"
     echo "  Nuovi: $NEW_JOBS job ($MODEL_COUNT modelli)"
+    [ -n "$SKIP_MSG" ] && echo "$SKIP_MSG"
     echo "  Think: $THINK_LABEL"
     echo "  Totale in coda: $TOTAL"
     echo "============================================"

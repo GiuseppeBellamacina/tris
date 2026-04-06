@@ -253,7 +253,7 @@ def _extract_completion_samples(
             continue
         if line.startswith("REWARDS:"):
             rewards_line = line
-            section = ""
+            section = "rewards"
             continue
         if line.startswith("TOTAL:"):
             total_line = line
@@ -263,6 +263,12 @@ def _extract_completion_samples(
             schema_line = line
             section = ""
             continue
+        if section == "rewards":
+            # Continuation line: contains reward values but no keyword
+            if re.search(r"\w+=[\+\-]?\d+\.\d+", line):
+                rewards_line += "  " + line
+                continue
+            section = ""
         if section == "think":
             think_lines.append(line)
         elif section == "output":

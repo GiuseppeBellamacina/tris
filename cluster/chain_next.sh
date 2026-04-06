@@ -104,6 +104,15 @@ while true; do
     TAG=$(echo "$NEXT" | cut -d: -f3)
     EXTRA=$(echo "$NEXT" | cut -d: -f4-)
 
+    # Guard: config vuoto → pipeline fallita
+    if [ -z "$CFG" ]; then
+        echo "[chain] ❌ Config vuoto per $TYPE $TAG — catena corrotta"
+        echo "${NEXT}" > "$FAILED_FILE"
+        echo "[chain] Pipeline interrotta. Per riprendere: bash cluster/run_all.sh --resume"
+        rm -f "$PROJ_DIR/.chain_pid"
+        exit 1
+    fi
+
     REMAINING=$([ -f "$CHAIN_FILE" ] && wc -l < "$CHAIN_FILE" || echo 0)
     echo "[chain] Sottometto: $TYPE $TAG ($CFG) extra='$EXTRA' — $REMAINING rimanenti — $(date)"
 

@@ -467,6 +467,27 @@ chain-start() {
     local stopped_stage=$(echo "$stopped_info" | cut -d: -f4)
     local stopped_slurm=$(echo "$stopped_info" | cut -d: -f5)
 
+    # Se il config è vuoto, prova a derivarlo dal tag
+    if [ -z "$stopped_cfg" ] && [ "$stopped_type" != "none" ]; then
+        local base_tag="${stopped_tag%-think}"
+        local think_suffix=""
+        [[ "$stopped_tag" == *-think ]] && think_suffix="_think"
+        case "$base_tag" in
+            smollm2-135m) stopped_cfg="experiments/configs/grpo_smollm2_135m${think_suffix}.yaml" ;;
+            smollm2-360m) stopped_cfg="experiments/configs/grpo_smollm2_360m${think_suffix}.yaml" ;;
+            qwen25-05b)   stopped_cfg="experiments/configs/grpo_qwen05${think_suffix}.yaml" ;;
+            tinyllama-11b) stopped_cfg="experiments/configs/grpo_tinyllama${think_suffix}.yaml" ;;
+            gemma2-2b)    stopped_cfg="experiments/configs/grpo_gemma2${think_suffix}.yaml" ;;
+        esac
+    fi
+
+    # Guard: non procedere senza config
+    if [ -z "$stopped_cfg" ] && [ "$stopped_type" != "none" ]; then
+        echo "❌ Config non trovato per $stopped_type $stopped_tag."
+        echo "   File .chain_stopped corrotto. Cancella e riparti: rm .chain_stopped && run-all"
+        return 1
+    fi
+
     echo "============================================"
     echo "  CHAIN START — Ripresa pipeline"
     echo "  Date:      $(date)"

@@ -76,9 +76,12 @@ if [ -d "notebooks" ]; then
 fi
 
 # ── File watcher / pipeline ──────────────────────────────────────────────
-echo "[9/9] .job_chain, .chain_pid"
+echo "[9/9] .job_chain, .chain_pid, .chain_failed, .chain_stopped, .monitor_cache"
 [ -f ".job_chain" ] && $CMD .job_chain
 [ -f ".chain_pid" ] && $CMD .chain_pid
+[ -f ".chain_failed" ] && $CMD .chain_failed
+[ -f ".chain_stopped" ] && $CMD .chain_stopped
+[ -f ".monitor_cache" ] && $CMD .monitor_cache
 
 echo ""
 if [ "$FORCE" = "0" ]; then

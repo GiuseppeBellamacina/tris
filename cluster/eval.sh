@@ -3,9 +3,9 @@
 # SLURM batch script — Evaluation sul cluster DMI
 #
 # Uso:
-#   CONFIG=experiments/configs/grpo_smollm2_360m.yaml sbatch cluster/eval.sh
-#   CONFIG=experiments/configs/grpo_smollm2_360m.yaml CURRICULUM=1 sbatch cluster/eval.sh
-#   CONFIG=experiments/configs/grpo_qwen05.yaml COMPARE=1 sbatch cluster/eval.sh
+#   CONFIG=experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml sbatch cluster/eval.sh
+#   CONFIG=experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml CURRICULUM=1 sbatch cluster/eval.sh
+#   CONFIG=experiments/configs/nothink/standard/grpo_qwen05.yaml COMPARE=1 sbatch cluster/eval.sh
 #   CONFIG=experiments/configs/baseline.yaml sbatch cluster/eval.sh
 #   CHECKPOINT="path/to/ckpt" CONFIG=... sbatch cluster/eval.sh
 #
@@ -41,10 +41,10 @@ fi
 
 if [ -z "$CONFIG" ]; then
     echo "❌ CONFIG non impostato. Uso:"
-    echo "  CONFIG=experiments/configs/grpo_smollm2_360m.yaml sbatch cluster/eval.sh"
+    echo "  CONFIG=experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml sbatch cluster/eval.sh"
     echo ""
     echo "Config disponibili:"
-    ls -1 experiments/configs/grpo_*.yaml experiments/configs/baseline.yaml 2>/dev/null | sed 's/^/  /'
+    find experiments/configs -name 'grpo_*.yaml' -o -name 'baseline.yaml' 2>/dev/null | sort | sed 's/^/  /'
     exit 1
 fi
 

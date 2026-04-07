@@ -74,11 +74,16 @@ def resolve_latest_run(base_dir: str) -> Path:
         return latest.resolve()
 
     if base.exists():
+        import re
+
+        _RUN_RE = re.compile(r"^\w+_\d{8}_\d{6}$")
         subdirs = sorted(
             [
                 d
                 for d in base.iterdir()
-                if d.is_dir() and d.name != "latest"
+                if d.is_dir()
+                and d.name != "latest"
+                and _RUN_RE.match(d.name)
             ],
             key=lambda d: d.name,
         )

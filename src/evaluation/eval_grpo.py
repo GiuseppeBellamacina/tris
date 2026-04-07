@@ -2,13 +2,13 @@
 
 Usage:
     # Evaluate GRPO model only
-    python -m src.evaluation --config experiments/configs/grpo_smollm2_360m.yaml
+    python -m src.evaluation --config experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml
 
     # Evaluate GRPO model + compare with baseline results
-    python -m src.evaluation --config experiments/configs/grpo_smollm2_360m.yaml --compare
+    python -m src.evaluation --config experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml --compare
 
     # Evaluate a specific checkpoint
-    python -m src.evaluation --config experiments/configs/grpo_smollm2_360m.yaml \
+    python -m src.evaluation --config experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml \
         --checkpoint experiments/checkpoints/grpo/checkpoint-480
 """
 
@@ -371,17 +371,19 @@ def main() -> None:
         if stage_dirs:
             ckpt_path = str(stage_dirs[-1])
         else:
-            # stages/ not yet saved — fall back to intermediate checkpoints
-            # inside stage_X_name/checkpoint-* dirs
-            stage_ckpts = sorted(
-                Path(output_dir).glob("stage_*/checkpoint-*")
+            # stages/ not yet saved — fall back to stage_X_* dirs
+            # that contain adapter/model files directly
+            stage_tops = sorted(
+                d
+                for d in Path(output_dir).glob("stage_*")
+                if d.is_dir()
             )
-            if stage_ckpts:
-                ckpt_path = str(stage_ckpts[-1])
+            if stage_tops:
+                ckpt_path = str(stage_tops[-1])
             else:
                 print(
                     f"No checkpoint found in {output_dir}/stages/ "
-                    f"or {output_dir}/stage_*/checkpoint-*"
+                    f"or {output_dir}/stage_*/"
                 )
                 return
     else:

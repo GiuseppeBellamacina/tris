@@ -43,31 +43,50 @@ set -e
 GLOBAL_TRAIN=1
 GLOBAL_EVAL=1
 ONLY_MODELS=""
-USE_THINK=0
+FLAG_THINK=0
+FLAG_NOTHINK=0
+FLAG_CURRICULUM=0
+FLAG_STANDARD=0
+FLAG_ALL=0
 RESUME=0
 APPEND=0
 REMOVE=0
 for arg in "$@"; do
     case "$arg" in
-        --eval-only)  GLOBAL_TRAIN=0 ;;
-        --train-only) GLOBAL_EVAL=0 ;;
-        --think)      USE_THINK=1 ;;
-        --append)     APPEND=1 ;;
-        --remove)     REMOVE=1 ;;
-        --resume)     RESUME=1 ;;
-        --models=*)   ONLY_MODELS="${arg#--models=}" ;;
+        --eval-only)   GLOBAL_TRAIN=0 ;;
+        --train-only)  GLOBAL_EVAL=0 ;;
+        --think)       FLAG_THINK=1 ;;
+        --nothink)     FLAG_NOTHINK=1 ;;
+        --curriculum)  FLAG_CURRICULUM=1 ;;
+        --standard)    FLAG_STANDARD=1 ;;
+        --all)         FLAG_ALL=1 ;;
+        --append)      APPEND=1 ;;
+        --remove)      REMOVE=1 ;;
+        --resume)      RESUME=1 ;;
+        --models=*)    ONLY_MODELS="${arg#--models=}" ;;
         --help|-h)
-            echo "Uso: bash cluster/run_all.sh [--eval-only] [--train-only] [--models=SPEC] [--resume] [--append] [--remove]"
+            echo "Uso: bash cluster/run_all.sh <THINK_FLAG> <CURRIC_FLAG> [opzioni]"
+            echo ""
+            echo "Selezione variante (obbligatoria):"
+            echo "  --think / --nothink        Modalità thinking"
+            echo "  --curriculum / --standard   Tipo di training"
+            echo "  --all                       Wildcard per la dimensione mancante"
+            echo ""
+            echo "  Servono esattamente 2 flag (1 per dimensione), oppure --all"
+            echo "  per coprire la dimensione non specificata."
+            echo ""
+            echo "  Esempi:"
+            echo "    --think --curriculum       solo think + curriculum"
+            echo "    --nothink --standard       solo nothink + standard"
+            echo "    --think --all              tutti i think (curriculum + standard)"
+            echo "    --curriculum --all          tutti i curriculum (think + nothink)"
+            echo "    --all                      tutto (20 config)"
             echo ""
             echo "Opzioni globali:"
             echo "  --eval-only      Solo evaluation per tutti (skip training)"
             echo "  --train-only     Solo training per tutti (skip eval)"
-            echo "  --think          Usa config *_think.yaml (thinking/reasoning abilitato)"
             echo "  --resume         Riprendi pipeline da dove si era fermata"
-            echo "                   Se l'ultimo job era un train, viene rilanciato con --resume"
-            echo "                   per riprendere dall'ultimo checkpoint salvato."
             echo "  --append         Aggiungi job alla pipeline attiva senza riavviare il watcher"
-            echo "                   (auto-detect se c'è un watcher attivo)"
             echo "  --remove         Rimuovi job dalla pipeline attiva (richiede --models=SPEC)"
             echo ""
             echo "Selezione modelli (--models=SPEC):"
@@ -85,33 +104,91 @@ for arg in "$@"; do
             echo "  3: qwen25-05b"
             echo "  4: tinyllama-11b"
             echo "  5: gemma2-2b"
-            echo ""
-            echo "Con --think vengono usate le config *_think.yaml e i tag hanno suffisso -think."
             exit 0
             ;;
     esac
 done
 
+# ── Validazione flag variante ─────────────────────────────────────────────────
+# Conflitti
+if [ "$FLAG_THINK" -eq 1 ] && [ "$FLAG_NOTHINK" -eq 1 ]; then
+    echo "❌ --think e --nothink sono mutualmente esclusivi."
+    exit 1
+fi
+if [ "$FLAG_CURRICULUM" -eq 1 ] && [ "$FLAG_STANDARD" -eq 1 ]; then
+    echo "❌ --curriculum e --standard sono mutualmente esclusivi."
+    exit 1
+fi
+
+# Determina dimensioni da iterare
+THINK_SET=()
+CURRIC_SET=()
+
+if [ "$FLAG_ALL" -eq 1 ]; then
+    # --all riempie le dimensioni non specificate
+    if [ "$FLAG_THINK" -eq 1 ]; then
+        THINK_SET=("think")
+    elif [ "$FLAG_NOTHINK" -eq 1 ]; then
+        THINK_SET=("nothink")
+    else
+        THINK_SET=("nothink" "think")
+    fi
+    if [ "$FLAG_CURRICULUM" -eq 1 ]; then
+        CURRIC_SET=("curriculum")
+    elif [ "$FLAG_STANDARD" -eq 1 ]; then
+        CURRIC_SET=("standard")
+    else
+        CURRIC_SET=("curriculum" "standard")
+    fi
+elif [ "$RESUME" -eq 1 ]; then
+    # --resume non ha bisogno di variante (legge da .chain_failed)
+    :
+else
+    # Senza --all servono esattamente 2 flag (1 per dimensione)
+    HAS_THINK=$((FLAG_THINK + FLAG_NOTHINK))
+    HAS_CURRIC=$((FLAG_CURRICULUM + FLAG_STANDARD))
+    if [ "$HAS_THINK" -eq 0 ] || [ "$HAS_CURRIC" -eq 0 ]; then
+        echo "❌ Servono 2 flag: uno tra --think/--nothink e uno tra --curriculum/--standard."
+        echo "   Oppure usa --all per coprire la dimensione mancante."
+        echo ""
+        echo "   Esempi:"
+        echo "     --think --curriculum       una combinazione specifica"
+        echo "     --think --all              tutti i think"
+        echo "     --all                      tutto"
+        exit 1
+    fi
+    [ "$FLAG_THINK" -eq 1 ]      && THINK_SET=("think")
+    [ "$FLAG_NOTHINK" -eq 1 ]    && THINK_SET=("nothink")
+    [ "$FLAG_CURRICULUM" -eq 1 ] && CURRIC_SET=("curriculum")
+    [ "$FLAG_STANDARD" -eq 1 ]   && CURRIC_SET=("standard")
+fi
+
 # ── Modelli da lanciare ───────────────────────────────────────────────────────
 # Formato: "TAG:CONFIG_PATH"
-# Con --think i tag hanno suffisso "-think" per distinguerli nella pipeline
-if [ "$USE_THINK" -eq 1 ]; then
-    MODELS=(
-        "smollm2-135m-think:experiments/configs/grpo_smollm2_135m_think.yaml"
-        "smollm2-360m-think:experiments/configs/grpo_smollm2_360m_think.yaml"
-        "qwen25-05b-think:experiments/configs/grpo_qwen05_think.yaml"
-        "tinyllama-11b-think:experiments/configs/grpo_tinyllama_think.yaml"
-        "gemma2-2b-think:experiments/configs/grpo_gemma2_think.yaml"
-    )
-else
-    MODELS=(
-        "smollm2-135m:experiments/configs/grpo_smollm2_135m.yaml"
-        "smollm2-360m:experiments/configs/grpo_smollm2_360m.yaml"
-        "qwen25-05b:experiments/configs/grpo_qwen05.yaml"
-        "tinyllama-11b:experiments/configs/grpo_tinyllama.yaml"
-        "gemma2-2b:experiments/configs/grpo_gemma2.yaml"
-    )
-fi
+# La struttura dei config è: experiments/configs/{think|nothink}/{curriculum|standard}/grpo_*.yaml
+# Itera su tutte le combinazioni THINK_SET × CURRIC_SET
+
+BASE_MODELS=("smollm2-135m:grpo_smollm2_135m.yaml"
+             "smollm2-360m:grpo_smollm2_360m.yaml"
+             "qwen25-05b:grpo_qwen05.yaml"
+             "tinyllama-11b:grpo_tinyllama.yaml"
+             "gemma2-2b:grpo_gemma2.yaml")
+
+MODELS=()
+for think_dir in "${THINK_SET[@]}"; do
+    for curric_dir in "${CURRIC_SET[@]}"; do
+        CFG_BASE="experiments/configs/${think_dir}/${curric_dir}"
+        # Suffisso tag per distinguere varianti nella pipeline
+        TAG_SUFFIX=""
+        [ "$think_dir" = "think" ]    && TAG_SUFFIX="${TAG_SUFFIX}-think"
+        [ "$curric_dir" = "standard" ] && TAG_SUFFIX="${TAG_SUFFIX}-std"
+        for bm in "${BASE_MODELS[@]}"; do
+            base_tag=$(echo "$bm" | cut -d: -f1)
+            cfg_file=$(echo "$bm" | cut -d: -f2)
+            MODELS+=("${base_tag}${TAG_SUFFIX}:${CFG_BASE}/${cfg_file}")
+        done
+    done
+done
 
 PROJ_DIR="$HOME/GRPO-strict-generation"
 CHAIN_FILE="$PROJ_DIR/.job_chain"
@@ -405,8 +482,7 @@ fi
 
 TOTAL=$(wc -l < "$CHAIN_FILE")
 
-THINK_LABEL="off"
-[ "$USE_THINK" -eq 1 ] && THINK_LABEL="on"
+VARIANT_LABEL="${THINK_SET[*]}+${CURRIC_SET[*]}"
 
 if [ "$APPEND" -eq 1 ]; then
     if [ "$NEW_JOBS" -eq 0 ]; then
@@ -421,7 +497,7 @@ if [ "$APPEND" -eq 1 ]; then
     echo "  Date:  $(date)"
     echo "  Nuovi: $NEW_JOBS job ($MODEL_COUNT modelli)"
     [ -n "$SKIP_MSG" ] && echo "$SKIP_MSG"
-    echo "  Think: $THINK_LABEL"
+    echo "  Variante: $VARIANT_LABEL"
     echo "  Totale in coda: $TOTAL"
     echo "============================================"
     echo ""
@@ -436,7 +512,7 @@ echo "============================================"
 echo "  Multi-model GRPO Pipeline (self-chaining)"
 echo "  Date:  $(date)"
 echo "  Models: $MODEL_COUNT"
-echo "  Think:  $THINK_LABEL"
+echo "  Variante: $VARIANT_LABEL"
 echo "  Total jobs: $TOTAL"
 echo "============================================"
 echo ""

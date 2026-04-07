@@ -815,7 +815,7 @@ def main() -> None:
 
     # ── Curriculum mode ───────────────────────────────────────────────────
     curriculum = config.get("curriculum")
-    if curriculum and curriculum.get("enabled", True):
+    if curriculum and curriculum.get("enabled", False):
         _run_curriculum_training(
             config, model, tokenizer, resume=args.resume
         )
@@ -891,24 +891,34 @@ def main() -> None:
         )
     )
 
-    # When resuming, restore the previous wandb run id so metrics continue on
-    # the same run in the W&B UI.  We try (in order):
-    #   1. A persisted .wandb_run_id file written by SaveWandbRunIdCallback
-    #   2. Parsing the most recent offline-run-* directory name (fallback)
+    # When resuming, we look for the previous wandb run ID to continue
+    # logging to the same run.  The actual wandb.init() is done below,
+    # after creating the GRPOConfig.
     wandb_run_id_file = Path(log_dir) / ".wandb_run_id"
+
+    if is_main_process():
+        print(
+            f"[wandb] project={wandb_project} run={grpo_config.run_name}"
+        )
+
+    # Initialize wandb explicitly (since we replace the default WandbCallback
+    # with GlobalStepWandbCallback to control the step counter).
+    wandb_init_kwargs: dict[str, Any] = dict(
+        project=wandb_project,
+        name=grpo_config.run_name,
+        config=config,
+        tags=wandb_cfg.get(
+            "tags", ["grpo", config["model"]["name"].split("/")[-1]]
+        ),
+        dir=log_dir,
+    )
     if args.resume:
-        run_id_found: str | None = None
-        # 1) Try the persisted file first (most reliable)
+        run_id_found_val: str | None = None
         if wandb_run_id_file.exists():
-            run_id_found = (
+            run_id_found_val = (
                 wandb_run_id_file.read_text().strip() or None
             )
-            if run_id_found and is_main_process():
-                print(
-                    f"[wandb] Resuming run id: {run_id_found} (from file)"
-                )
-        # 2) Fall back to directory name parsing
-        if not run_id_found:
+        if not run_id_found_val:
             wandb_dir = Path(log_dir) / "wandb"
             if wandb_dir.exists():
                 run_dirs = sorted(
@@ -918,25 +928,13 @@ def main() -> None:
                 if run_dirs:
                     parts = run_dirs[-1].name.split("-")
                     if len(parts) >= 4:
-                        run_id_found = parts[-1]
-                        if is_main_process():
-                            print(
-                                f"[wandb] Resuming run id: {run_id_found} (from dir)"
-                            )
-        if run_id_found:
-            os.environ["WANDB_RUN_ID"] = run_id_found
-            os.environ["WANDB_RESUME"] = "must"
-        else:
-            os.environ["WANDB_RESUME"] = "allow"
-            if is_main_process():
-                print(
-                    "[wandb] No previous run found, starting new run"
-                )
+                        run_id_found_val = parts[-1]
+        if run_id_found_val:
+            wandb_init_kwargs["id"] = run_id_found_val
+            wandb_init_kwargs["resume"] = "must"
 
     if is_main_process():
-        print(
-            f"[wandb] project={wandb_project} run={grpo_config.run_name}"
-        )
+        wandb.init(**wandb_init_kwargs)
 
     # Initialize trainer
     if is_main_process():
@@ -950,11 +948,13 @@ def main() -> None:
         callbacks=[
             HighPrecisionLogCallback(),
             WandbAlertCallback(),
+            GlobalStepWandbCallback(),
             SaveWandbRunIdCallback(wandb_run_id_file),
             CompletionSampleCallback(sample_logger),
         ],
     )
     trainer.remove_callback(ProgressCallback)
+    trainer.remove_callback(WandbCallback)
     trainer.add_callback(TqdmOnlyProgressCallback)
 
     # Train

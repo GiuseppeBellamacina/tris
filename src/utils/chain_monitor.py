@@ -645,7 +645,7 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
             elif "baseline" in label.lower():
                 job.eval_stages["baseline"] = m.group(2)
             elif "grpo" in label.lower():
-                job.eval_stages["grpo"] = m.group(2)
+                job.eval_stages["stage_1"] = m.group(2)
             if "baseline" in job.eval_label.lower():
                 is_baseline = True
                 job.stage = 0
@@ -666,7 +666,7 @@ def _parse_eval_log(log_path: Path, job: JobInfo) -> None:
             elif "baseline" in label.lower():
                 job.eval_stages["baseline"] = mp.group(2)
             elif "grpo" in label.lower():
-                job.eval_stages["grpo"] = mp.group(2)
+                job.eval_stages["stage_1"] = mp.group(2)
 
     # Count total stages from curriculum log marker
     stage_count_lines = _grep_lines(
@@ -1496,8 +1496,6 @@ def _display(
         def _col_label(k: str) -> str:
             if k == "baseline":
                 return "Baseline"
-            if k == "grpo":
-                return "GRPO"
             if k.startswith("stage_"):
                 return f"Stage {k.split('_')[1]}"
             return k

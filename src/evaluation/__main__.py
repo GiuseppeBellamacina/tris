@@ -2,7 +2,7 @@
 
 Usage:
     python -m src.evaluation --config experiments/configs/baseline.yaml
-    python -m src.evaluation --config experiments/configs/grpo_smollm2_360m.yaml [--compare]
+    python -m src.evaluation --config experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml [--compare]
 
 The evaluation mode is auto-detected from the config:
   - ``grpo:`` section present → GRPO post-training evaluation

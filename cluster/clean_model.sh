@@ -3,32 +3,32 @@
 # Pulizia selettiva — rimuove checkpoints e logs di un modello specifico.
 #
 # Uso:
-#   bash cluster/clean_model.sh                           # dry-run (mostra cosa c'è)
-#   bash cluster/clean_model.sh <MODEL_TAG>              # cancella GRPO (default)
-#   bash cluster/clean_model.sh <MODEL_TAG> --all         # cancella tutto
-#   bash cluster/clean_model.sh <MODEL_TAG> --baseline    # cancella solo baseline
-#   bash cluster/clean_model.sh <MODEL_TAG> --think       # cancella solo variante think
-#   bash cluster/clean_model.sh <MODEL_TAG> --nothink     # cancella solo variante nothink
+#   bash cluster/clean_model.sh                                          # dry-run (mostra cosa c'è)
+#   bash cluster/clean_model.sh <MODEL_TAG> --think --curriculum          # cancella GRPO think/curriculum
+#   bash cluster/clean_model.sh <MODEL_TAG> --nothink --standard          # cancella GRPO nothink/standard
+#   bash cluster/clean_model.sh <MODEL_TAG> --think --all                 # cancella tutto think
+#   bash cluster/clean_model.sh <MODEL_TAG> --all                         # cancella tutto
 #
 # MODEL_TAG è il nome usato nei path (es. smollm2-135m, tinyllama-11b, ...).
 # Senza MODEL_TAG: mostra un riepilogo di cosa esiste per ogni modello (dry-run).
 #
-# Opzioni:
+# Selezione variante (obbligatoria, come run_all.sh):
+#   --think / --nothink          Modalità thinking
+#   --curriculum / --standard    Tipo di training
+#   --all                        Wildcard per dimensione mancante (o entrambe)
+#
+# Selezione dati:
 #   --grpo       Solo dati GRPO (default se nessun flag specifico)
 #   --baseline   Solo dati baseline
 #   --sft        Solo dati SFT
-#   --all        GRPO + baseline + SFT
-#   --think      Solo variante think (GRPO)
-#   --nothink    Solo variante nothink (GRPO)
+#   --data-all   GRPO + baseline + SFT
 #
 # Esempi:
-#   bash cluster/clean_model.sh                            # dry-run
-#   bash cluster/clean_model.sh tinyllama-11b              # cancella GRPO
-#   bash cluster/clean_model.sh tinyllama-11b --all         # cancella tutto
-#   bash cluster/clean_model.sh tinyllama-11b --baseline    # cancella solo baseline
-#   bash cluster/clean_model.sh gemma2-2b --grpo --sft     # cancella GRPO + SFT
-#   bash cluster/clean_model.sh gemma2-2b --think           # cancella solo variante think
-#   bash cluster/clean_model.sh smollm2-135m --nothink      # cancella solo variante nothink
+#   bash cluster/clean_model.sh                                           # dry-run
+#   bash cluster/clean_model.sh tinyllama-11b --nothink --curriculum       # GRPO nothink/curriculum
+#   bash cluster/clean_model.sh tinyllama-11b --all --data-all             # tutto di ogni variante
+#   bash cluster/clean_model.sh gemma2-2b --think --all                   # GRPO think (curric+standard)
+#   bash cluster/clean_model.sh smollm2-135m --nothink --curriculum --baseline  # solo baseline nothink/curriculum
 # ============================================================================
 
 set -e
@@ -55,16 +55,23 @@ MODEL=""
 DO_GRPO=0
 DO_BASELINE=0
 DO_SFT=0
-FILTER_VARIANT=""  # empty = both, "think" or "nothink"
+FLAG_THINK=0
+FLAG_NOTHINK=0
+FLAG_CURRICULUM=0
+FLAG_STANDARD=0
+FLAG_ALL=0
 
 for arg in "$@"; do
     case "$arg" in
-        --grpo)     DO_GRPO=1 ;;
-        --baseline) DO_BASELINE=1 ;;
-        --sft)      DO_SFT=1 ;;
-        --all)      DO_GRPO=1; DO_BASELINE=1; DO_SFT=1 ;;
-        --think)    FILTER_VARIANT="think" ;;
-        --nothink)  FILTER_VARIANT="nothink" ;;
+        --grpo)       DO_GRPO=1 ;;
+        --baseline)   DO_BASELINE=1 ;;
+        --sft)        DO_SFT=1 ;;
+        --data-all)   DO_GRPO=1; DO_BASELINE=1; DO_SFT=1 ;;
+        --think)      FLAG_THINK=1 ;;
+        --nothink)    FLAG_NOTHINK=1 ;;
+        --curriculum) FLAG_CURRICULUM=1 ;;
+        --standard)   FLAG_STANDARD=1 ;;
+        --all)        FLAG_ALL=1 ;;
         --help|-h)
             sed -n '2,/^# ====.*===$/p' "$0" | head -n -1 | sed 's/^# \?//'
             echo ""
@@ -74,7 +81,7 @@ for arg in "$@"; do
             ;;
         -*)
             echo "❌ Opzione sconosciuta: $arg"
-            echo "Uso: bash cluster/clean_model.sh <MODEL_TAG> [--grpo|--baseline|--sft|--all] [--think|--nothink]"
+            echo "Uso: bash cluster/clean_model.sh <MODEL_TAG> <VARIANTE> [--grpo|--baseline|--sft|--data-all]"
             exit 1
             ;;
         *)
@@ -91,6 +98,54 @@ done
 # Default: solo GRPO se nessun flag specifico
 if [ $DO_GRPO -eq 0 ] && [ $DO_BASELINE -eq 0 ] && [ $DO_SFT -eq 0 ]; then
     DO_GRPO=1
+fi
+
+# ── Validazione flag variante (come run_all.sh) ──────────────────────────────
+if [ "$FLAG_THINK" -eq 1 ] && [ "$FLAG_NOTHINK" -eq 1 ]; then
+    echo "❌ --think e --nothink sono mutualmente esclusivi."
+    exit 1
+fi
+if [ "$FLAG_CURRICULUM" -eq 1 ] && [ "$FLAG_STANDARD" -eq 1 ]; then
+    echo "❌ --curriculum e --standard sono mutualmente esclusivi."
+    exit 1
+fi
+
+THINK_VARIANTS_FILTER=()
+CURRIC_VARIANTS_FILTER=()
+
+if [ "$FLAG_ALL" -eq 1 ]; then
+    if [ "$FLAG_THINK" -eq 1 ]; then
+        THINK_VARIANTS_FILTER=("think")
+    elif [ "$FLAG_NOTHINK" -eq 1 ]; then
+        THINK_VARIANTS_FILTER=("nothink")
+    else
+        THINK_VARIANTS_FILTER=("nothink" "think")
+    fi
+    if [ "$FLAG_CURRICULUM" -eq 1 ]; then
+        CURRIC_VARIANTS_FILTER=("curriculum")
+    elif [ "$FLAG_STANDARD" -eq 1 ]; then
+        CURRIC_VARIANTS_FILTER=("standard")
+    else
+        CURRIC_VARIANTS_FILTER=("curriculum" "standard")
+    fi
+elif [ -n "$MODEL" ]; then
+    # Varianti obbligatorie quando si cancella (non nel dry-run)
+    HAS_THINK=$((FLAG_THINK + FLAG_NOTHINK))
+    HAS_CURRIC=$((FLAG_CURRICULUM + FLAG_STANDARD))
+    if [ "$HAS_THINK" -eq 0 ] || [ "$HAS_CURRIC" -eq 0 ]; then
+        echo "❌ Servono 2 flag: uno tra --think/--nothink e uno tra --curriculum/--standard."
+        echo "   Oppure usa --all per coprire la dimensione mancante."
+        echo ""
+        echo "   Esempi:"
+        echo "     --think --curriculum       una combinazione specifica"
+        echo "     --nothink --all            tutto nothink"
+        echo "     --all                      tutto"
+        exit 1
+    fi
+    [ "$FLAG_THINK" -eq 1 ]      && THINK_VARIANTS_FILTER=("think")
+    [ "$FLAG_NOTHINK" -eq 1 ]    && THINK_VARIANTS_FILTER=("nothink")
+    [ "$FLAG_CURRICULUM" -eq 1 ] && CURRIC_VARIANTS_FILTER=("curriculum")
+    [ "$FLAG_STANDARD" -eq 1 ]   && CURRIC_VARIANTS_FILTER=("standard")
 fi
 
 # ── Dry-run (nessun modello specificato) ──────────────────────────────────────
@@ -122,7 +177,7 @@ if [ -z "$MODEL" ]; then
         fi
     done
     echo ""
-    echo "Per cancellare: bash cluster/clean_model.sh <MODEL_TAG> [--grpo|--baseline|--sft|--all]"
+    echo "Per cancellare: bash cluster/clean_model.sh <MODEL_TAG> <VARIANTE> [--grpo|--baseline|--sft|--data-all]"
     exit 0
 fi
 
@@ -140,20 +195,14 @@ if [ $FOUND -eq 0 ]; then
 fi
 
 echo "Pulizia modello: $MODEL"
-echo "Scope: $([ $DO_GRPO -eq 1 ] && echo 'GRPO ')$([ $DO_BASELINE -eq 1 ] && echo 'BASELINE ')$([ $DO_SFT -eq 1 ] && echo 'SFT ')$([ -n "$FILTER_VARIANT" ] && echo "[variant=$FILTER_VARIANT] ")"
+echo "Scope: $([ $DO_GRPO -eq 1 ] && echo 'GRPO ')$([ $DO_BASELINE -eq 1 ] && echo 'BASELINE ')$([ $DO_SFT -eq 1 ] && echo 'SFT ')[${THINK_VARIANTS_FILTER[*]}×${CURRIC_VARIANTS_FILTER[*]}]"
 echo ""
 
 CLEANED=0
 
 # ── GRPO ──────────────────────────────────────────────────────────────────────
 if [ $DO_GRPO -eq 1 ]; then
-    # Determine which variants to clean
-    if [ -n "$FILTER_VARIANT" ]; then
-        CLEAN_VARIANTS=("$FILTER_VARIANT")
-    else
-        CLEAN_VARIANTS=("${THINK_VARIANTS[@]}")
-    fi
-    for variant in "${CLEAN_VARIANTS[@]}"; do
+    for variant in "${THINK_VARIANTS_FILTER[@]}"; do
         # Checkpoints: experiments/checkpoints/grpo/<variant>/<model>/
         DIR="experiments/checkpoints/grpo/$variant/$MODEL"
         if [ -d "$DIR" ]; then

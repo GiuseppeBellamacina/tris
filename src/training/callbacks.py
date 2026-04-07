@@ -91,6 +91,8 @@ class WandbAlertCallback(TrainerCallback):
     ) -> None:
         if not state.is_local_process_zero:
             return
+        if wandb.run is None:
+            return
         wandb.alert(
             title=self._title("Training started"),
             text=f"max_steps={args.max_steps}, lr={args.learning_rate}",
@@ -106,6 +108,8 @@ class WandbAlertCallback(TrainerCallback):
         **kwargs: Any,
     ) -> None:
         if not state.is_local_process_zero or not args.max_steps:
+            return
+        if wandb.run is None:
             return
         pct = int(state.global_step / args.max_steps * 100)
         for milestone in (25, 50, 75):
@@ -126,6 +130,8 @@ class WandbAlertCallback(TrainerCallback):
         **kwargs: Any,
     ) -> None:
         if not state.is_local_process_zero:
+            return
+        if wandb.run is None:
             return
         wandb.alert(
             title=self._title("Training completed"),
@@ -172,7 +178,7 @@ class GlobalStepWandbCallback(TrainerCallback):
     def __init__(
         self,
         step_offset: int = 0,
-        stage_idx: int = 0,
+        stage_idx: int | None = None,
         stage_name: str = "",
         difficulty_weights: dict[str, float] | None = None,
     ) -> None:
@@ -190,7 +196,7 @@ class GlobalStepWandbCallback(TrainerCallback):
     ) -> None:
         if not state.is_local_process_zero:
             return
-        if wandb.run is not None:
+        if wandb.run is not None and self._stage_idx is not None:
             wandb.config.update(
                 {
                     "curriculum_stage": self._stage_idx + 1,
@@ -223,8 +229,9 @@ class GlobalStepWandbCallback(TrainerCallback):
         rewritten["train/global_step"] = (
             state.global_step + self._offset
         )
-        rewritten["curriculum/stage"] = self._stage_idx + 1
-        wandb.log(rewritten)
+        if self._stage_idx is not None:
+            rewritten["curriculum/stage"] = self._stage_idx + 1
+        wandb.log(rewritten, step=state.global_step + self._offset)
 
 
 # ---------------------------------------------------------------------------

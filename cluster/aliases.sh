@@ -120,17 +120,50 @@ alias quota='quota -s'
 # Vai alla directory del progetto
 alias proj='cd "$PROJ_DIR"'
 
-# Mostra i checkpoint disponibili (uso: ckpts [nothink|think])
+# Mostra i checkpoint disponibili
+# Uso: ckpts --think --curriculum
+#       ckpts --nothink --all
+#       ckpts --all
 ckpts() {
-    local variant="${1:-}"
-    local base="$PROJ_DIR/experiments/checkpoints/grpo"
-    local variants=()
-    if [ -n "$variant" ]; then
-        variants=("$variant")
-    else
-        variants=("nothink" "think")
+    local flag_think=0 flag_nothink=0 flag_curriculum=0 flag_standard=0 flag_all=0
+    for arg in "$@"; do
+        case "$arg" in
+            --think)      flag_think=1 ;;
+            --nothink)    flag_nothink=1 ;;
+            --curriculum) flag_curriculum=1 ;;
+            --standard)   flag_standard=1 ;;
+            --all)        flag_all=1 ;;
+            --help|-h)
+                echo "Uso: ckpts <VARIANTE>"
+                echo "  --think/--nothink + --curriculum/--standard, oppure --all"
+                return 0 ;;
+            *) echo "❌ Argomento sconosciuto: $arg"; return 1 ;;
+        esac
+    done
+    # Validazione
+    if [ "$flag_think" -eq 1 ] && [ "$flag_nothink" -eq 1 ]; then
+        echo "❌ --think e --nothink sono mutualmente esclusivi."; return 1
     fi
-    for v in "${variants[@]}"; do
+    if [ "$flag_curriculum" -eq 1 ] && [ "$flag_standard" -eq 1 ]; then
+        echo "❌ --curriculum e --standard sono mutualmente esclusivi."; return 1
+    fi
+    local think_set=() curric_set=()
+    if [ "$flag_all" -eq 1 ]; then
+        [ "$flag_think" -eq 1 ] && think_set=("think") || { [ "$flag_nothink" -eq 1 ] && think_set=("nothink") || think_set=("nothink" "think"); }
+        [ "$flag_curriculum" -eq 1 ] && curric_set=("curriculum") || { [ "$flag_standard" -eq 1 ] && curric_set=("standard") || curric_set=("curriculum" "standard"); }
+    else
+        local has_t=$((flag_think + flag_nothink)) has_c=$((flag_curriculum + flag_standard))
+        if [ "$has_t" -eq 0 ] || [ "$has_c" -eq 0 ]; then
+            echo "❌ Servono --think/--nothink + --curriculum/--standard, oppure --all."
+            return 1
+        fi
+        [ "$flag_think" -eq 1 ]      && think_set=("think")
+        [ "$flag_nothink" -eq 1 ]    && think_set=("nothink")
+        [ "$flag_curriculum" -eq 1 ] && curric_set=("curriculum")
+        [ "$flag_standard" -eq 1 ]   && curric_set=("standard")
+    fi
+    local base="$PROJ_DIR/experiments/checkpoints/grpo"
+    for v in "${think_set[@]}"; do
         [ -d "$base/$v" ] || continue
         echo "──── $v ────"
         for model_dir in "$base/$v"/*/; do
@@ -156,25 +189,83 @@ ckpts() {
     done
 }
 
-# Mostra tabella training log (uso: trainlog-table [nothink|think] [--tail N])
-# Default: nothink. Accetta anche un path esplicito.
+# Mostra tabella training log
+# Uso: trainlog-table --think --curriculum [--tail N]
+#       trainlog-table --nothink --all
+#       trainlog-table --all
 trainlog-table() {
-    local target="$1"
-    case "$target" in
-        nothink|think) target="experiments/checkpoints/grpo/$target"; shift ;;
-        "")           target="experiments/checkpoints/grpo/nothink" ;;
-    esac
-    cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "$target" "$@"
+    local flag_think=0 flag_nothink=0 flag_curriculum=0 flag_standard=0 flag_all=0
+    local extra_args=()
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --think)      flag_think=1; shift ;;
+            --nothink)    flag_nothink=1; shift ;;
+            --curriculum) flag_curriculum=1; shift ;;
+            --standard)   flag_standard=1; shift ;;
+            --all)        flag_all=1; shift ;;
+            *)            extra_args+=("$1"); shift ;;
+        esac
+    done
+    if [ "$flag_think" -eq 1 ] && [ "$flag_nothink" -eq 1 ]; then
+        echo "❌ --think e --nothink sono mutualmente esclusivi."; return 1
+    fi
+    if [ "$flag_curriculum" -eq 1 ] && [ "$flag_standard" -eq 1 ]; then
+        echo "❌ --curriculum e --standard sono mutualmente esclusivi."; return 1
+    fi
+    local think_set=()
+    if [ "$flag_all" -eq 1 ]; then
+        [ "$flag_think" -eq 1 ] && think_set=("think") || { [ "$flag_nothink" -eq 1 ] && think_set=("nothink") || think_set=("nothink" "think"); }
+    else
+        local has_t=$((flag_think + flag_nothink)) has_c=$((flag_curriculum + flag_standard))
+        if [ "$has_t" -eq 0 ] || [ "$has_c" -eq 0 ]; then
+            echo "❌ Servono --think/--nothink + --curriculum/--standard, oppure --all."
+            return 1
+        fi
+        [ "$flag_think" -eq 1 ]   && think_set=("think")
+        [ "$flag_nothink" -eq 1 ] && think_set=("nothink")
+    fi
+    for v in "${think_set[@]}"; do
+        cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "experiments/checkpoints/grpo/$v" "${extra_args[@]}"
+    done
 }
 
-# Genera grafici training con regressione polinomiale (uso: trainlog-plot [nothink|think] [--deg N])
+# Genera grafici training con regressione polinomiale
+# Uso: trainlog-plot --think --curriculum [--deg N]
+#       trainlog-plot --all
 trainlog-plot() {
-    local target="$1"
-    case "$target" in
-        nothink|think) target="experiments/checkpoints/grpo/$target"; shift ;;
-        "")           target="experiments/checkpoints/grpo/nothink" ;;
-    esac
-    cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "$target" --plot "$@"
+    local flag_think=0 flag_nothink=0 flag_curriculum=0 flag_standard=0 flag_all=0
+    local extra_args=()
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --think)      flag_think=1; shift ;;
+            --nothink)    flag_nothink=1; shift ;;
+            --curriculum) flag_curriculum=1; shift ;;
+            --standard)   flag_standard=1; shift ;;
+            --all)        flag_all=1; shift ;;
+            *)            extra_args+=("$1"); shift ;;
+        esac
+    done
+    if [ "$flag_think" -eq 1 ] && [ "$flag_nothink" -eq 1 ]; then
+        echo "❌ --think e --nothink sono mutualmente esclusivi."; return 1
+    fi
+    if [ "$flag_curriculum" -eq 1 ] && [ "$flag_standard" -eq 1 ]; then
+        echo "❌ --curriculum e --standard sono mutualmente esclusivi."; return 1
+    fi
+    local think_set=()
+    if [ "$flag_all" -eq 1 ]; then
+        [ "$flag_think" -eq 1 ] && think_set=("think") || { [ "$flag_nothink" -eq 1 ] && think_set=("nothink") || think_set=("nothink" "think"); }
+    else
+        local has_t=$((flag_think + flag_nothink)) has_c=$((flag_curriculum + flag_standard))
+        if [ "$has_t" -eq 0 ] || [ "$has_c" -eq 0 ]; then
+            echo "❌ Servono --think/--nothink + --curriculum/--standard, oppure --all."
+            return 1
+        fi
+        [ "$flag_think" -eq 1 ]   && think_set=("think")
+        [ "$flag_nothink" -eq 1 ] && think_set=("nothink")
+    fi
+    for v in "${think_set[@]}"; do
+        cd "$PROJ_DIR" && python3 -m src.utils.show_training_log "experiments/checkpoints/grpo/$v" --plot "${extra_args[@]}"
+    done
 }
 
 # Segui training live come tabella (uso: trainlog-live <JOB_ID>)
@@ -205,7 +296,7 @@ train() {
         echo "Uso: train --config PATH [extra args...]"
         echo ""
         echo "Config disponibili:"
-        ls -1 "$PROJ_DIR"/experiments/configs/grpo_*.yaml 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /'
+        find "$PROJ_DIR"/experiments/configs -name 'grpo_*.yaml' -type f 2>/dev/null | sed "s|$PROJ_DIR/||" | sort | sed 's/^/  /'
         return 1
     fi
     cd "$PROJ_DIR" && CONFIG="$config" EXTRA_ARGS="$extra_args" sbatch cluster/train.sh
@@ -241,8 +332,8 @@ run-eval() {
                 echo "  --curriculum        Valuta tutti gli stage del curriculum (implica --compare)"
                 echo "  --checkpoint PATH   Usa un checkpoint specifico (default: auto-detect ultimo)"
                 echo ""
-                echo "Config disponibili (basta il nome, senza path):"
-                ls -1 "$PROJ_DIR"/experiments/configs/grpo_*.yaml "$PROJ_DIR"/experiments/configs/baseline.yaml 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /'
+                echo "Config disponibili (path relativo al progetto):"
+                find "$PROJ_DIR"/experiments/configs -name 'grpo_*.yaml' -o -name 'baseline.yaml' 2>/dev/null | sed "s|$PROJ_DIR/||" | sort | sed 's/^/  /'
                 return 0
                 ;;
             *) echo "❌ Argomento sconosciuto: $1"; echo "Usa: run-eval --help"; return 1 ;;
@@ -253,26 +344,37 @@ run-eval() {
         echo ""
         echo "Uso: run-eval --config CONFIG [--compare] [--curriculum] [--checkpoint PATH]"
         echo ""
-        echo "Config disponibili (basta il nome, senza path):"
-        ls -1 "$PROJ_DIR"/experiments/configs/grpo_*.yaml "$PROJ_DIR"/experiments/configs/baseline.yaml 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /'
+        echo "Config disponibili (path relativo al progetto):"
+        find "$PROJ_DIR"/experiments/configs -name 'grpo_*.yaml' -o -name 'baseline.yaml' 2>/dev/null | sed "s|$PROJ_DIR/||" | sort | sed 's/^/  /'
         return 1
     fi
-    # Se è solo un nome file, anteponi il path
+    # Se è un path relativo con sottocartelle, usalo direttamente
     if [[ "$config" != */* ]]; then
-        config="experiments/configs/$config"
+        # Cerca il file in tutte le sottocartelle di experiments/configs
+        local found
+        found=$(find "$PROJ_DIR/experiments/configs" -name "$config" -type f 2>/dev/null | head -1)
+        if [ -n "$found" ]; then
+            config=$(echo "$found" | sed "s|$PROJ_DIR/||")
+        else
+            echo "❌ Config non trovato: $config"
+            echo ""
+            echo "Config disponibili:"
+            find "$PROJ_DIR"/experiments/configs -name 'grpo_*.yaml' -o -name 'baseline.yaml' 2>/dev/null | sed "s|$PROJ_DIR/||" | sort | sed 's/^/  /'
+            return 1
+        fi
     fi
     if [ ! -f "$PROJ_DIR/$config" ]; then
         echo "❌ Config non trovato: $config"
         echo ""
         echo "Config disponibili:"
-        ls -1 "$PROJ_DIR"/experiments/configs/grpo_*.yaml "$PROJ_DIR"/experiments/configs/baseline.yaml 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /'
+        find "$PROJ_DIR"/experiments/configs -name 'grpo_*.yaml' -o -name 'baseline.yaml' 2>/dev/null | sed "s|$PROJ_DIR/||" | sort | sed 's/^/  /'
         return 1
     fi
     cd "$PROJ_DIR" && CONFIG="$config" COMPARE="$compare" CURRICULUM="$curriculum" CHECKPOINT="$checkpoint" sbatch cluster/eval.sh
 }
 
-# Lancia tutti i modelli (train + eval curriculum)
-# Uso: run-all [--think] [--eval-only] [--train-only] [--models=1t,2e,3] [--resume]
+# Lancia tutti i modelli (train + eval)
+# Uso: run-all [--think] [--standard] [--eval-only] [--train-only] [--models=1t,2e,3] [--resume]
 run-all() {
     cd "$PROJ_DIR" && bash cluster/run_all.sh "$@"
 }
@@ -413,16 +515,22 @@ chain-stop() {
             stopped_cfg=$(grep "Sottometto: ${stopped_type} ${stopped_tag} " logs/chain_watcher.log 2>/dev/null | tail -1 | sed -n 's/.*(\([^)]*\)).*/\1/p' || true)
 
             # 2. Fallback: derive from tag name (deterministic mapping)
+            #    Tag format: base[-think][-std] → path: {think|nothink}/{curriculum|standard}/grpo_*.yaml
             if [ -z "$stopped_cfg" ]; then
-                local base_tag="${stopped_tag%-think}"  # strip -think suffix
-                local think_suffix=""
-                [[ "$stopped_tag" == *-think ]] && think_suffix="_think"
+                local base_tag="$stopped_tag"
+                local think_dir="nothink"
+                local curric_dir="curriculum"
+                # Strip suffixes to get base model name
+                base_tag="${base_tag%-std}"
+                [[ "$stopped_tag" == *-std* ]] && curric_dir="standard"
+                base_tag="${base_tag%-think}"
+                [[ "$stopped_tag" == *-think* ]] && think_dir="think"
                 case "$base_tag" in
-                    smollm2-135m) stopped_cfg="experiments/configs/grpo_smollm2_135m${think_suffix}.yaml" ;;
-                    smollm2-360m) stopped_cfg="experiments/configs/grpo_smollm2_360m${think_suffix}.yaml" ;;
-                    qwen25-05b)   stopped_cfg="experiments/configs/grpo_qwen05${think_suffix}.yaml" ;;
-                    tinyllama-11b) stopped_cfg="experiments/configs/grpo_tinyllama${think_suffix}.yaml" ;;
-                    gemma2-2b)    stopped_cfg="experiments/configs/grpo_gemma2${think_suffix}.yaml" ;;
+                    smollm2-135m) stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_smollm2_135m.yaml" ;;
+                    smollm2-360m) stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_smollm2_360m.yaml" ;;
+                    qwen25-05b)   stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_qwen05.yaml" ;;
+                    tinyllama-11b) stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_tinyllama.yaml" ;;
+                    gemma2-2b)    stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_gemma2.yaml" ;;
                 esac
             fi
 
@@ -474,15 +582,19 @@ chain-start() {
 
     # Se il config è vuoto, prova a derivarlo dal tag
     if [ -z "$stopped_cfg" ] && [ "$stopped_type" != "none" ]; then
-        local base_tag="${stopped_tag%-think}"
-        local think_suffix=""
-        [[ "$stopped_tag" == *-think ]] && think_suffix="_think"
+        local base_tag="$stopped_tag"
+        local think_dir="nothink"
+        local curric_dir="curriculum"
+        base_tag="${base_tag%-std}"
+        [[ "$stopped_tag" == *-std* ]] && curric_dir="standard"
+        base_tag="${base_tag%-think}"
+        [[ "$stopped_tag" == *-think* ]] && think_dir="think"
         case "$base_tag" in
-            smollm2-135m) stopped_cfg="experiments/configs/grpo_smollm2_135m${think_suffix}.yaml" ;;
-            smollm2-360m) stopped_cfg="experiments/configs/grpo_smollm2_360m${think_suffix}.yaml" ;;
-            qwen25-05b)   stopped_cfg="experiments/configs/grpo_qwen05${think_suffix}.yaml" ;;
-            tinyllama-11b) stopped_cfg="experiments/configs/grpo_tinyllama${think_suffix}.yaml" ;;
-            gemma2-2b)    stopped_cfg="experiments/configs/grpo_gemma2${think_suffix}.yaml" ;;
+            smollm2-135m) stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_smollm2_135m.yaml" ;;
+            smollm2-360m) stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_smollm2_360m.yaml" ;;
+            qwen25-05b)   stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_qwen05.yaml" ;;
+            tinyllama-11b) stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_tinyllama.yaml" ;;
+            gemma2-2b)    stopped_cfg="experiments/configs/${think_dir}/${curric_dir}/grpo_gemma2.yaml" ;;
         esac
     fi
 
@@ -649,12 +761,13 @@ claudio() {
     echo "                     — lancia training singolo"
     echo "   run-eval --config PATH [--compare] [--curriculum] [--checkpoint PATH]"
     echo "                     — lancia evaluation singola"
-    echo "   run-all [--think] [--eval-only] [--train-only] [--models=SPEC] [--resume]"
+    echo "   run-all <VARIANTE> [--eval-only] [--train-only] [--models=SPEC] [--resume]"
     echo "                     — lancia pipeline multi-modello"
+    echo "                       VARIANTE: --think/--nothink + --curriculum/--standard, o --all"
     echo ""
     echo "── Pipeline (chain) ──"
     echo "   chain-show        — mostra stato pipeline + job in coda"
-    echo "   chain-add [--think] [--models=1,3] [--eval-only]"
+    echo "   chain-add <VARIANTE> [--models=1,3] [--eval-only]"
     echo "                     — aggiungi job alla pipeline attiva"
     echo "   chain-remove --models=1,3"
     echo "                     — rimuovi job dalla coda"
@@ -671,11 +784,11 @@ claudio() {
     echo "                       --all [N] = --tab --metrics --samples [N]"
     echo ""
     echo "── Analisi ──"
-    echo "   ckpts [nothink|think]"
-    echo "                     — mostra checkpoint"
-    echo "   trainlog-table [nothink|think] [--tail N]"
+    echo "   ckpts <VARIANTE>  — mostra checkpoint"
+    echo "                       VARIANTE: --think/--nothink + --curriculum/--standard, o --all"
+    echo "   trainlog-table <VARIANTE> [--tail N]"
     echo "                     — tabella metriche training"
-    echo "   trainlog-plot [nothink|think] [--deg N]"
+    echo "   trainlog-plot <VARIANTE> [--deg N]"
     echo "                     — grafici training con regressione polinomiale"
     echo "   trainlog-live <ID> — training live come tabella"
     echo ""
@@ -686,7 +799,7 @@ claudio() {
     echo "   gpu               — stato GPU"
     echo "   quota             — uso disco progetto"
     echo "   clean             — pulizia workspace (dry-run, usa --force per cancellare)"
-    echo "   clean-model <TAG> [--grpo|--baseline|--sft|--all] [--think|--nothink]"
+    echo "   clean-model <TAG> <VARIANTE> [--grpo|--baseline|--sft|--data-all]"
     echo "                     — pulisci checkpoints/logs di un modello"
     echo ""
     echo "── Pip / Environment ──"

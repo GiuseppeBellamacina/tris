@@ -1,7 +1,7 @@
 """Bootstrap entry point for training scripts.
 
 Usage:
-    python -m src.training --config experiments/configs/grpo_smollm2_360m.yaml [--resume] [--eval-only DIR]
+    python -m src.training --config experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml [--resume] [--eval-only DIR]
     python -m src.training --config experiments/configs/sft.yaml
 
 This module reads the config YAML *before* importing heavy libraries so that

@@ -3,8 +3,8 @@
 # SLURM batch script — Training sul cluster DMI
 #
 # Uso:
-#   CONFIG=experiments/configs/grpo_smollm2_360m.yaml sbatch cluster/train.sh
-#   CONFIG=experiments/configs/grpo_qwen05.yaml EXTRA_ARGS="--resume" sbatch cluster/train.sh
+#   CONFIG=experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml sbatch cluster/train.sh
+#   CONFIG=experiments/configs/nothink/standard/grpo_qwen05.yaml EXTRA_ARGS="--resume" sbatch cluster/train.sh
 #
 # Per il primo avvio eseguire prima:  bash cluster/setup.sh
 # (dentro una sessione interattiva Apptainer)
@@ -29,10 +29,10 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 if [ -z "$CONFIG" ]; then
     echo "❌ CONFIG non impostato. Uso:"
-    echo "  CONFIG=experiments/configs/grpo_smollm2_360m.yaml sbatch cluster/train.sh"
+    echo "  CONFIG=experiments/configs/nothink/curriculum/grpo_smollm2_360m.yaml sbatch cluster/train.sh"
     echo ""
     echo "Config disponibili:"
-    ls -1 experiments/configs/grpo_*.yaml 2>/dev/null | sed 's/^/  /'
+    find experiments/configs -name 'grpo_*.yaml' -type f 2>/dev/null | sort | sed 's/^/  /'
     exit 1
 fi
 
@@ -68,7 +68,7 @@ CURRICULUM_ENABLED=$(python3 -c "
 import yaml, sys
 cfg = yaml.safe_load(open('${CONFIG}'))
 c = cfg.get('curriculum', {})
-print('1' if c and c.get('enabled', True) else '0')
+print('1' if c and c.get('enabled', False) else '0')
 " 2>/dev/null || echo "0")
 
 if [ "$CURRICULUM_ENABLED" = "0" ] && [ ! -d "data/synthetic/train" ]; then

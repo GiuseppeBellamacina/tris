@@ -384,14 +384,50 @@ def _run_curriculum_training(
     # Initialize a single wandb run that spans all stages.
     # GRPOTrainer detects the existing run and reuses it.
     run_name = wandb_cfg.get("run_name", "grpo-curriculum")
+
+    # On resume, try to continue the same wandb run
+    wandb_init_kwargs: dict[str, Any] = dict(
+        project=wandb_project,
+        name=run_name,
+        config=config,
+        tags=wandb_cfg.get("tags", ["grpo", "curriculum"]),
+        dir=log_dir,
+    )
+    if resume:
+        prev_run_id: str | None = None
+        # 1. Try .wandb_run_id files (most recent stage first)
+        for i in range(len(stages), 0, -1):
+            rid_file = Path(log_dir) / f".wandb_run_id_stage_{i}"
+            if rid_file.exists():
+                prev_run_id = rid_file.read_text().strip() or None
+                break
+        # 2. Fallback: scan offline-run-* dirs
+        if not prev_run_id:
+            wandb_dir = Path(log_dir) / "wandb"
+            if wandb_dir.exists():
+                run_dirs = sorted(
+                    wandb_dir.glob("offline-run-*"),
+                    key=lambda p: p.name,
+                )
+                if run_dirs:
+                    parts = run_dirs[-1].name.split("-")
+                    if len(parts) >= 4:
+                        prev_run_id = parts[-1]
+        if prev_run_id:
+            wandb_init_kwargs["id"] = prev_run_id
+            wandb_init_kwargs["resume"] = "must"
+            if is_main_process():
+                print(
+                    f"[wandb] Resuming run: {prev_run_id}"
+                )
+        else:
+            if is_main_process():
+                print(
+                    "[wandb] No previous run found, starting new"
+                )
+
     if is_main_process():
-        wandb.init(
-            project=wandb_project,
-            name=run_name,
-            config=config,
-            tags=wandb_cfg.get("tags", ["grpo", "curriculum"]),
-            dir=log_dir,
-        )
+        wandb.init(**wandb_init_kwargs)
 
     if is_main_process():
         print(f"\n{'=' * 60}")

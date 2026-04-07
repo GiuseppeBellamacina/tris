@@ -676,6 +676,8 @@ def _build_pipeline() -> list[JobInfo]:
 
     jobs: list[JobInfo] = []
     seen_names: set[str] = set()
+    # Chain log SLURM IDs — used as last-resort fallback after cache
+    chain_log_ids: dict[str, str] = {}
 
     # 1. Already submitted jobs (from chain log)
     for name, chain_slurm_id in submitted_names:
@@ -689,9 +691,9 @@ def _build_pipeline() -> list[JobInfo]:
 
         job = JobInfo(job_type=job_type, config="", tag=tag)
 
-        # Use chain log SLURM ID as fallback
+        # Save chain log ID for later fallback (after cache enrichment)
         if chain_slurm_id:
-            job.slurm_id = chain_slurm_id
+            chain_log_ids[name] = chain_slurm_id
 
         # Match to SLURM
         if name in slurm_jobs:
@@ -752,9 +754,12 @@ def _build_pipeline() -> list[JobInfo]:
     for i, job in enumerate(jobs):
         if job.state == "PENDING" and i < last_active_idx:
             job.state = "COMPLETED"
-            # Parse log if we have a SLURM ID (from chain log or cache)
-            if job.slurm_id:
-                log_file = _find_log_file(job.job_type, job.slurm_id)
+            # Parse log if we have a SLURM ID (from sacct or chain log)
+            slurm_id = job.slurm_id or chain_log_ids.get(
+                f"{job.job_type}-{job.tag}"
+            )
+            if slurm_id:
+                log_file = _find_log_file(job.job_type, slurm_id)
                 if log_file:
                     if job.job_type == "train":
                         _parse_training_log(log_file, job)
@@ -918,6 +923,14 @@ def _build_pipeline() -> list[JobInfo]:
     # Enrich jobs that have no live data with cached info, then update cache
     for job in jobs:
         _cache_enrich_job(job)
+
+    # Apply chain log SLURM IDs as last-resort fallback
+    # (only if neither sacct nor cache provided an ID)
+    for job in jobs:
+        key = f"{job.job_type}-{job.tag}"
+        if not job.slurm_id and key in chain_log_ids:
+            job.slurm_id = chain_log_ids[key]
+
     for job in jobs:
         _cache_update_job(job)
 

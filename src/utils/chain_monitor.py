@@ -42,6 +42,8 @@ _SAMPLE_MAX_LINES: int = 0  # 0 = no limit
 # Regex patterns for training log parsing
 _KV_STEP = re.compile(r"^\s+step=(\d+)\s+loss=")
 _KV_REWARD = re.compile(r"reward=([+-]?\d+\.\d+)")
+# TRL dict-style log: 'reward': 0.5025833547115326
+_DICT_REWARD = re.compile(r"'reward':\s*([+-]?\d+\.\d+)")
 _STAGE_START = re.compile(r"\[stage (\d+)\] steps=(\d+)")
 _STAGE_DONE = re.compile(r"\[stage (\d+)\] (\S+) completed")
 # tqdm progress bar: " 47%|████▋     | 420/900 [29:23<25:49"
@@ -581,6 +583,22 @@ def _parse_training_log(log_path: Path, job: JobInfo) -> None:
                 job.tqdm_elapsed = mt.group(1)
                 job.tqdm_eta = mt.group(2)
             break
+
+    # 4. Extract reward separately (may be on a different line than step)
+    if not job.last_reward:
+        for line in reversed(tail):
+            # Dict format: "'reward': 0.5025..." (TRL default logging)
+            mr = _DICT_REWARD.search(line)
+            if mr:
+                job.last_reward = mr.group(1)
+                break
+            # KV format from HighPrecisionLogCallback: "reward=0.502..."
+            # Only match lines that look like step logs (contain "step=")
+            if "step=" in line:
+                mr = _KV_REWARD.search(line)
+                if mr:
+                    job.last_reward = mr.group(1)
+                    break
 
 
 def _parse_eval_log(log_path: Path, job: JobInfo) -> None:

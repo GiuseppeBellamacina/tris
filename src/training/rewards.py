@@ -649,6 +649,7 @@ def reasoning_reward(completion: str) -> float:
 
     Scale (based on stripped content length):
       -0.5 — no <think>...</think> block at all (penalise skipping)
+      -0.5 — content is a copy/near-copy of the system prompt placeholder
       -0.2 — <think> present but content < 10 chars (lazy/empty think)
        0.0 — 10 chars (minimum useful reasoning)
        linear ramp 10→80 chars toward 1.0
@@ -659,21 +660,43 @@ def reasoning_reward(completion: str) -> float:
     of planning, which is sufficient signal.
 
     Examples:
-      no think   → -0.50
-      empty think → -0.20
-      30 chars  →  0.29
-      50 chars  →  0.57
-      80+ chars →  1.00
+      no think           → -0.50
+      placeholder copy   → -0.50
+      empty think        → -0.20
+      30 chars           →  0.29
+      50 chars           →  0.57
+      80+ chars          →  1.00
     """
     m = re.search(r"<think>(.*?)</think>", completion, re.DOTALL)
     if not m:
         return -0.5
     content = m.group(1).strip()
+    # Detect parroting of the system prompt example placeholder.
+    # Small models copy "Your reasoning here." verbatim to game the reward.
+    if _is_placeholder_reasoning(content):
+        return -0.5
     length = len(content)
     if length < 10:
         return -0.2
     # Linear ramp: 10→80 maps to 0.0→1.0
     return min((length - 10) / 70, 1.0)
+
+
+# Vocabulary of the system prompt placeholder "Your reasoning here."
+# If the think content uses ONLY these words, it's parroting the example.
+_PLACEHOLDER_WORDS = frozenset({"your", "reasoning", "here"})
+
+
+def _is_placeholder_reasoning(content: str) -> bool:
+    """Return True if the think content is a copy of the system prompt example.
+
+    Uses word-set containment: if every word in the content belongs to the
+    placeholder vocabulary ``{your, reasoning, here}`` and at least 2 distinct
+    words are present, it's parroting — regardless of repetition, reordering,
+    punctuation, or casing.
+    """
+    words = set(re.findall(r"\w+", content.lower()))
+    return len(words) >= 2 and words <= _PLACEHOLDER_WORDS
 
 
 def truncation_reward(completion: str) -> float:

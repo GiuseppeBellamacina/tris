@@ -15,6 +15,23 @@ from transformers import (
     TrainerState,
     TrainingArguments,
 )
+from transformers.trainer_callback import ProgressCallback
+
+
+class TqdmOnlyProgressCallback(ProgressCallback):
+    """ProgressCallback that keeps the tqdm bar but suppresses the
+    duplicate dict-style log line printed by the default ``on_log``.
+    """
+
+    def on_log(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        logs: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        pass
 
 
 class HighPrecisionLogCallback(TrainerCallback):
@@ -36,6 +53,7 @@ class HighPrecisionLogCallback(TrainerCallback):
     ) -> None:
         if not state.is_local_process_zero or not logs:
             return
+        logs.pop("total_flos", None)
         parts = [f"step={state.global_step}"]
         for k, v in logs.items():
             parts.append(

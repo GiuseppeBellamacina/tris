@@ -918,7 +918,7 @@ def main() -> None:
 
     # ── Reward component breakdown chart ──────────────────────────────────
     # Build breakdown for every evaluated model (and baseline if available).
-    reward_weights_cfg = config.get("grpo", {}).get("reward", {})
+    reward_weights_cfg = config.get("reward", {})
     rw_map = {
         "format": reward_weights_cfg.get("weight_format", 0.20),
         "validity": reward_weights_cfg.get("weight_validity", 0.35),

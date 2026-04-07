@@ -295,6 +295,24 @@ class TestReasoningReward:
         text = f"<think>{content}</think>"
         assert reasoning_reward(text) == 1.0
 
+    def test_placeholder_exact(self):
+        text = "<think>Your reasoning here.</think>\n```json\n{}\n```"
+        assert reasoning_reward(text) == -0.5
+
+    def test_placeholder_no_period(self):
+        text = "<think>Your reasoning here</think>\n```json\n{}\n```"
+        assert reasoning_reward(text) == -0.5
+
+    def test_placeholder_case_insensitive(self):
+        text = "<think>  your REASONING here.  </think>\n```json\n{}\n```"
+        assert reasoning_reward(text) == -0.5
+
+    def test_placeholder_repeated(self):
+        text = (
+            "<think>Your reasoning here. Your reasoning here.</think>"
+        )
+        assert reasoning_reward(text) == -0.5
+
 
 import pytest  # noqa: E402  (import after class defs to keep test grouping)
 

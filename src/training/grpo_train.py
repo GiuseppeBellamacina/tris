@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import torch
 import wandb
 from dotenv import load_dotenv
+from transformers.trainer_callback import ProgressCallback
 from trl import GRPOConfig, GRPOTrainer
 
 from datasets import Dataset
@@ -41,6 +42,7 @@ from src.training.callbacks import (
     CurriculumStageCallback,
     HighPrecisionLogCallback,
     SaveWandbRunIdCallback,
+    TqdmOnlyProgressCallback,
     WandbAlertCallback,
 )
 from src.training.rewards import (
@@ -500,6 +502,8 @@ def _run_curriculum_training(
                 CompletionSampleCallback(sample_logger),
             ],
         )
+        trainer.remove_callback(ProgressCallback)
+        trainer.add_callback(TqdmOnlyProgressCallback)
 
         trainer.train()
 
@@ -797,6 +801,8 @@ def main() -> None:
             CompletionSampleCallback(sample_logger),
         ],
     )
+    trainer.remove_callback(ProgressCallback)
+    trainer.add_callback(TqdmOnlyProgressCallback)
 
     # Train
     if is_main_process():

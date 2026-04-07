@@ -1309,7 +1309,7 @@ def _display(
         # Build description line
         if j.job_type == "train" and j.stage > 0:
             desc = f"stage {_WHITE}{j.stage}/3{_RST}, step {_WHITE}{j.step}{_RST}/{j.stage_total}"
-        elif j.job_type == "eval" and j.eval_label:
+        elif j.job_type == "eval":
             if j.stage > 0:
                 stg = f"stage {j.stage}"
                 if j.stage_total > 0:
@@ -1317,8 +1317,10 @@ def _display(
                 desc = f"{stg}"
             elif j.stage_name == "baseline":
                 desc = "baseline"
-            else:
+            elif j.eval_label:
                 desc = j.eval_label
+            else:
+                desc = ""
             if j.step > 0 and j.eval_step_total > 0:
                 desc += f", batch {_WHITE}{j.step}{_RST}/{j.eval_step_total}"
         else:

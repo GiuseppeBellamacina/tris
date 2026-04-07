@@ -1282,7 +1282,22 @@ def _display(
     print(f"  {_DIM}{time.strftime('%Y-%m-%d %H:%M:%S')}{_RST}")
     print(f"{_CYAN}{'═' * 65}{_RST}")
 
-    # ── Active job bar (always shown, right under header) ─────────────
+    # ── Job table (--tab) ─────────────────────────────────────────────
+    if show_table:
+        print()
+        current_model = ""
+        for job in jobs:
+            # Group separator by model
+            if job.tag != current_model:
+                current_model = job.tag
+                print(f"  {_BOLD}{_YELLOW}▸ {current_model}{_RST}")
+
+            print(_format_status(job))
+
+        print()
+        print(f"{_DIM}{'─' * 65}{_RST}")
+
+    # ── Active job bar (shown after table) ────────────────────────────
     remaining = sum(1 for j in jobs if j.state == "PENDING")
     running = [j for j in jobs if j.state in ("RUNNING", "STARTING")]
     print()
@@ -1367,21 +1382,6 @@ def _display(
         print(f"  {_DIM}No jobs found.{_RST}")
     else:
         print(f"  {_GREEN}{_BOLD}✓ Pipeline finished!{_RST}")
-
-    # ── Job table (--tab) ─────────────────────────────────────────────
-    if show_table:
-        print()
-        current_model = ""
-        for job in jobs:
-            # Group separator by model
-            if job.tag != current_model:
-                current_model = job.tag
-                print(f"  {_BOLD}{_YELLOW}▸ {current_model}{_RST}")
-
-            print(_format_status(job))
-
-        print()
-        print(f"{_DIM}{'─' * 65}{_RST}")
 
     # ── Metrics table (--metrics): train reward + eval pass@1 ─────────
     # Builds from live job data first, then supplements from cache.
@@ -1549,7 +1549,23 @@ def main() -> None:
         action="store_true",
         help="Show metrics table with train reward and eval pass@1 from cache",
     )
+    parser.add_argument(
+        "--all",
+        nargs="?",
+        const=0,
+        type=int,
+        default=None,
+        dest="all_mode",
+        help="Show everything: table + metrics + samples. Optional: max sample output lines",
+    )
     args = parser.parse_args()
+
+    # --all implies --tab --metrics --samples
+    if args.all_mode is not None:
+        args.tab = True
+        args.metrics = True
+        if args.samples is None:
+            args.samples = args.all_mode
 
     show_samples = args.samples is not None
     max_sample_lines = args.samples if args.samples else 0

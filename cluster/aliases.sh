@@ -150,7 +150,7 @@ ckpts() {
     local think_set=() curric_set=()
     if [ "$flag_all" -eq 1 ]; then
         [ "$flag_think" -eq 1 ] && think_set=("think") || { [ "$flag_nothink" -eq 1 ] && think_set=("nothink") || think_set=("nothink" "think"); }
-        [ "$flag_curriculum" -eq 1 ] && curric_set=("curriculum") || { [ "$flag_standard" -eq 1 ] && curric_set=("standard") || curric_set=("curriculum" "standard"); }
+        [ "$flag_curriculum" -eq 1 ] && curric_set=("curriculum") || { [ "$flag_standard" -eq 1 ] && curric_set=("standard") || curric_set=("standard" "curriculum"); }
     else
         local has_t=$((flag_think + flag_nothink)) has_c=$((flag_curriculum + flag_standard))
         if [ "$has_t" -eq 0 ] || [ "$has_c" -eq 0 ]; then
@@ -217,7 +217,7 @@ trainlog-table() {
     local think_set=() curric_set=()
     if [ "$flag_all" -eq 1 ]; then
         [ "$flag_think" -eq 1 ] && think_set=("think") || { [ "$flag_nothink" -eq 1 ] && think_set=("nothink") || think_set=("nothink" "think"); }
-        [ "$flag_curriculum" -eq 1 ] && curric_set=("curriculum") || { [ "$flag_standard" -eq 1 ] && curric_set=("standard") || curric_set=("curriculum" "standard"); }
+        [ "$flag_curriculum" -eq 1 ] && curric_set=("curriculum") || { [ "$flag_standard" -eq 1 ] && curric_set=("standard") || curric_set=("standard" "curriculum"); }
     else
         local has_t=$((flag_think + flag_nothink)) has_c=$((flag_curriculum + flag_standard))
         if [ "$has_t" -eq 0 ] || [ "$has_c" -eq 0 ]; then
@@ -261,7 +261,7 @@ trainlog-plot() {
     local think_set=() curric_set=()
     if [ "$flag_all" -eq 1 ]; then
         [ "$flag_think" -eq 1 ] && think_set=("think") || { [ "$flag_nothink" -eq 1 ] && think_set=("nothink") || think_set=("nothink" "think"); }
-        [ "$flag_curriculum" -eq 1 ] && curric_set=("curriculum") || { [ "$flag_standard" -eq 1 ] && curric_set=("standard") || curric_set=("curriculum" "standard"); }
+        [ "$flag_curriculum" -eq 1 ] && curric_set=("curriculum") || { [ "$flag_standard" -eq 1 ] && curric_set=("standard") || curric_set=("standard" "curriculum"); }
     else
         local has_t=$((flag_think + flag_nothink)) has_c=$((flag_curriculum + flag_standard))
         if [ "$has_t" -eq 0 ] || [ "$has_c" -eq 0 ]; then

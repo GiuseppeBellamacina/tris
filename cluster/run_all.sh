@@ -138,7 +138,7 @@ if [ "$FLAG_ALL" -eq 1 ]; then
     elif [ "$FLAG_STANDARD" -eq 1 ]; then
         CURRIC_SET=("standard")
     else
-        CURRIC_SET=("curriculum" "standard")
+        CURRIC_SET=("standard" "curriculum")
     fi
 elif [ "$RESUME" -eq 1 ]; then
     # --resume non ha bisogno di variante (legge da .chain_failed)

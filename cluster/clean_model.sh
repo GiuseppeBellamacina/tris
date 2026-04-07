@@ -126,7 +126,7 @@ if [ "$FLAG_ALL" -eq 1 ]; then
     elif [ "$FLAG_STANDARD" -eq 1 ]; then
         CURRIC_VARIANTS_FILTER=("standard")
     else
-        CURRIC_VARIANTS_FILTER=("curriculum" "standard")
+        CURRIC_VARIANTS_FILTER=("standard" "curriculum")
     fi
 elif [ -n "$MODEL" ]; then
     # Varianti obbligatorie quando si cancella (non nel dry-run)

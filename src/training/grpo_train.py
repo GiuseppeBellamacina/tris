@@ -425,6 +425,17 @@ def _run_curriculum_training(
 
     if is_main_process():
         wandb.init(**wandb_init_kwargs)
+        # Tell wandb to use our custom step metric on all charts.
+        # Without this, TRL's internal wandb.log() calls auto-increment
+        # the step counter, conflicting with our GlobalStepWandbCallback.
+        wandb.define_metric("train/global_step")
+        wandb.define_metric(
+            "train/*", step_metric="train/global_step"
+        )
+        wandb.define_metric(
+            "curriculum/*", step_metric="train/global_step"
+        )
+        wandb.define_metric("eval/*", step_metric="train/global_step")
 
     if is_main_process():
         print(f"\n{'=' * 60}")
@@ -930,6 +941,11 @@ def main() -> None:
 
     if is_main_process():
         wandb.init(**wandb_init_kwargs)
+        wandb.define_metric("train/global_step")
+        wandb.define_metric(
+            "train/*", step_metric="train/global_step"
+        )
+        wandb.define_metric("eval/*", step_metric="train/global_step")
 
     # Initialize trainer
     if is_main_process():

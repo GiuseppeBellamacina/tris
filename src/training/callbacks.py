@@ -231,7 +231,10 @@ class GlobalStepWandbCallback(TrainerCallback):
         )
         if self._stage_idx is not None:
             rewritten["curriculum/stage"] = self._stage_idx + 1
-        wandb.log(rewritten, step=state.global_step + self._offset)
+        # No explicit step= — wandb.define_metric handles the x-axis
+        # via train/global_step. Using step= conflicts with TRL's
+        # internal wandb.log() calls that auto-increment the step counter.
+        wandb.log(rewritten)
 
 
 # ---------------------------------------------------------------------------

@@ -24,8 +24,64 @@ CHAIN_FILE="$PROJ_DIR/.job_chain"
 FAILED_FILE="$PROJ_DIR/.chain_failed"
 POLL_INTERVAL=60  # secondi tra un check e l'altro
 MAX_TIMEOUT_RETRIES=2  # max auto-resume per TIMEOUT sullo stesso job
+MAX_OOM_RETRIES=2      # max auto-resume per OOM sullo stesso job
+GPU_UTIL_DECREMENT="0.05"  # quanto ridurre gpu_memory_utilization ad ogni OOM
 
 cd "$PROJ_DIR"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+# Rileva OOM dal log SLURM di un job di training
+# Controlla: exit code 137 (SIGKILL), stato OUT_OF_MEMORY, o messaggi OOM nel log
+is_oom_failure() {
+    local job_id="$1" exit_code="$2" state="$3" tag="$4"
+    [ "$state" = "OUT_OF_MEMORY" ] && return 0
+    [ "$exit_code" = "137" ] && return 0
+    # Cerca nel log messaggi OOM (CUDA OOM, vLLM OOM, Linux OOM killer)
+    local logfile="$PROJ_DIR/logs/slurm-train-${job_id}.log"
+    if [ -f "$logfile" ]; then
+        if tail -200 "$logfile" | grep -qiE 'out.of.memory|OutOfMemoryError|CUDA out of memory|oom-kill|OOM|torch.cuda.OutOfMemoryError|std::bad_alloc'; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Riduce gpu_memory_utilization nel YAML di $GPU_UTIL_DECREMENT
+# Ritorna 0 se la modifica è stata fatta, 1 se il valore è già troppo basso
+reduce_gpu_memory_util() {
+    local cfg="$1"
+    local cfg_path="$PROJ_DIR/$cfg"
+    [ -f "$cfg_path" ] || return 1
+
+    local current
+    current=$(python3 -c "
+import yaml, sys
+cfg = yaml.safe_load(open('${cfg_path}'))
+v = cfg.get('model', {}).get('gpu_memory_utilization', 0.9)
+print(f'{v:.4f}')
+" 2>/dev/null)
+    [ -z "$current" ] && return 1
+
+    local new_val
+    new_val=$(python3 -c "
+v = $current - $GPU_UTIL_DECREMENT
+if v < 0.10:
+    print('TOO_LOW')
+else:
+    print(f'{v:.2f}')
+" 2>/dev/null)
+
+    if [ "$new_val" = "TOO_LOW" ] || [ -z "$new_val" ]; then
+        echo "[chain] ⚠️  gpu_memory_utilization=$current già troppo basso, non riduco"
+        return 1
+    fi
+
+    # Modifica in-place con sed (formato YAML: "  gpu_memory_utilization: 0.40")
+    sed -i "s/gpu_memory_utilization: *[0-9.]\+/gpu_memory_utilization: $new_val/" "$cfg_path"
+    echo "[chain] 🔧 gpu_memory_utilization: $current → $new_val in $cfg"
+    return 0
+}
 
 # Registra il PID così kill $(cat .chain_pid) funziona anche al riavvio manuale
 echo $$ > "$PROJ_DIR/.chain_pid"
@@ -37,6 +93,8 @@ LAST_JOB_ID=""
 LAST_JOB_DESC=""
 TIMEOUT_RETRIES=0  # contatore retry per il job corrente
 LAST_RETRY_TAG=""  # tag del job in retry (reset quando cambia job)
+OOM_RETRIES=0      # contatore retry OOM per il job corrente
+LAST_OOM_TAG=""    # tag del job in retry OOM
 
 while true; do
     # Se non c'è più il file catena, abbiamo finito
@@ -73,6 +131,25 @@ while true; do
                         LAST_JOB_ID=""
                         sleep 5
                         continue
+                    fi
+
+                elif is_oom_failure "$LAST_JOB_ID" "$EXIT_CODE" "$STATE" "$FINAL_TAG" && [ "$FINAL_TYPE" = "train" ]; then
+                    if [ "$FINAL_TAG" = "$LAST_OOM_TAG" ]; then
+                        OOM_RETRIES=$((OOM_RETRIES + 1))
+                    else
+                        OOM_RETRIES=1
+                        LAST_OOM_TAG="$FINAL_TAG"
+                    fi
+                    if [ "$OOM_RETRIES" -le "$MAX_OOM_RETRIES" ]; then
+                        echo "[chain] 💥 Ultimo job $LAST_JOB_ID ($FINAL_TAG) OOM — retry ($OOM_RETRIES/$MAX_OOM_RETRIES) — $(date)"
+                        if reduce_gpu_memory_util "$FINAL_CFG"; then
+                            echo "train:${FINAL_CFG}:${FINAL_TAG}:--resume" > "$CHAIN_FILE"
+                            LAST_JOB_ID=""
+                            sleep 5
+                            continue
+                        else
+                            echo "[chain] ❌ gpu_memory_utilization non riducibile — stop"
+                        fi
                     fi
                 fi
 
@@ -143,6 +220,33 @@ while true; do
                 else
                     echo "[chain] ❌ Job $LAST_JOB_ID ($FAILED_TAG) TIMEOUT — max retry ($MAX_TIMEOUT_RETRIES) raggiunto — $(date)"
                 fi
+
+            # ── OOM su un train: riduci gpu_memory_utilization e riprova ──
+            elif is_oom_failure "$LAST_JOB_ID" "$EXIT_CODE" "$STATE" "$FAILED_TAG" && [ "$FAILED_TYPE" = "train" ]; then
+                if [ "$FAILED_TAG" = "$LAST_OOM_TAG" ]; then
+                    OOM_RETRIES=$((OOM_RETRIES + 1))
+                else
+                    OOM_RETRIES=1
+                    LAST_OOM_TAG="$FAILED_TAG"
+                fi
+
+                if [ "$OOM_RETRIES" -le "$MAX_OOM_RETRIES" ]; then
+                    echo "[chain] 💥 Job $LAST_JOB_ID ($FAILED_TAG) OOM — retry ($OOM_RETRIES/$MAX_OOM_RETRIES) — $(date)"
+                    if reduce_gpu_memory_util "$FAILED_CFG"; then
+                        RESUME_CHAIN=$(mktemp)
+                        echo "train:${FAILED_CFG}:${FAILED_TAG}:--resume" > "$RESUME_CHAIN"
+                        [ -f "$CHAIN_FILE" ] && [ -s "$CHAIN_FILE" ] && cat "$CHAIN_FILE" >> "$RESUME_CHAIN"
+                        mv "$RESUME_CHAIN" "$CHAIN_FILE"
+
+                        LAST_JOB_ID=""
+                        sleep 5
+                        continue
+                    else
+                        echo "[chain] ❌ gpu_memory_utilization non riducibile — stop"
+                    fi
+                else
+                    echo "[chain] ❌ Job $LAST_JOB_ID ($FAILED_TAG) OOM — max retry ($MAX_OOM_RETRIES) raggiunto — $(date)"
+                fi
             else
                 echo "[chain] ❌ Job $LAST_JOB_ID ($LAST_JOB_DESC) FALLITO — state=$STATE exit=$EXIT_CODE — $(date)"
             fi
@@ -171,6 +275,8 @@ while true; do
         # Reset contatore retry quando un job completa con successo
         TIMEOUT_RETRIES=0
         LAST_RETRY_TAG=""
+        OOM_RETRIES=0
+        LAST_OOM_TAG=""
     fi
 
     # ── Sottometti il prossimo job ────────────────────────────────────────

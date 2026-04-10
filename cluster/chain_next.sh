@@ -34,15 +34,16 @@ cd "$PROJ_DIR"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 # Rileva OOM dal log SLURM di un job di training
-# Controlla: exit code 137 (SIGKILL), stato OUT_OF_MEMORY, o messaggi OOM nel log
+# Controlla: exit code 137 (SIGKILL), stato OUT_OF_MEMORY, messaggi OOM nel log,
+# o cancellazione SLURM per superamento shard GPU RAM
 is_oom_failure() {
     local job_id="$1" exit_code="$2" state="$3" tag="$4"
     [ "$state" = "OUT_OF_MEMORY" ] && return 0
     [ "$exit_code" = "137" ] && return 0
-    # Cerca nel log messaggi OOM (CUDA OOM, vLLM OOM, Linux OOM killer)
+    # Cerca nel log messaggi OOM (CUDA OOM, vLLM OOM, Linux OOM killer, SLURM shard)
     local logfile="$PROJ_DIR/logs/slurm-train-${job_id}.log"
     if [ -f "$logfile" ]; then
-        if tail -200 "$logfile" | grep -qiE 'out.of.memory|OutOfMemoryError|CUDA out of memory|oom-kill|OOM|torch.cuda.OutOfMemoryError|std::bad_alloc'; then
+        if tail -200 "$logfile" | grep -qiE 'out.of.memory|OutOfMemoryError|CUDA out of memory|oom-kill|OOM|torch.cuda.OutOfMemoryError|std::bad_alloc|excessive GPU RAM|GPU RAM usage'; then
             return 0
         fi
     fi
@@ -106,6 +107,47 @@ with open('${ERRORS_FILE}', 'a') as f:
     echo "[chain] 📝 Errore registrato in .chain_errors (${error_type}, ${tag}, job ${job_id})"
 }
 
+# Query sacct con retry — attende che lo stato sia disponibile e non vuoto.
+# Setta le variabili globali _SACCT_STATE e _SACCT_EXIT_CODE.
+# Ritorna 0 se OK, 1 se fallito dopo tutti i tentativi.
+query_sacct_with_retry() {
+    local job_id="$1"
+    local max_attempts=6
+    local wait_secs=5
+    _SACCT_STATE=""
+    _SACCT_EXIT_CODE=""
+
+    for attempt in $(seq 1 $max_attempts); do
+        _SACCT_EXIT_CODE=$(sacct -j "$job_id" --format=ExitCode --noheader --parsable2 2>/dev/null | head -1 | cut -d: -f1)
+        _SACCT_STATE=$(sacct -j "$job_id" --format=State --noheader --parsable2 2>/dev/null | head -1)
+        # Rimuovi whitespace
+        _SACCT_STATE=$(echo "$_SACCT_STATE" | tr -d '[:space:]')
+        _SACCT_EXIT_CODE=$(echo "$_SACCT_EXIT_CODE" | tr -d '[:space:]')
+
+        # Se abbiamo uno stato terminale, siamo a posto
+        case "$_SACCT_STATE" in
+            COMPLETED|FAILED|CANCELLED|CANCELLED+|TIMEOUT|OUT_OF_MEMORY|NODE_FAIL)
+                return 0
+                ;;
+        esac
+
+        # Se lo stato è ancora RUNNING/PENDING o vuoto, ritenta
+        if [ "$attempt" -lt "$max_attempts" ]; then
+            echo "[chain] ⏳ sacct per job $job_id: stato='$_SACCT_STATE' — attendo ${wait_secs}s (tentativo $attempt/$max_attempts)"
+            sleep "$wait_secs"
+        fi
+    done
+
+    # Se non ha mai ottenuto uno stato terminale, segnaliamo fallimento
+    # (meglio fermarsi che assumere successo)
+    if [ -z "$_SACCT_STATE" ]; then
+        echo "[chain] ⚠️  sacct non ha restituito stato per job $job_id dopo $max_attempts tentativi"
+        _SACCT_STATE="UNKNOWN"
+        return 1
+    fi
+    return 0
+}
+
 # Riduce gpu_memory_utilization nel YAML di $GPU_UTIL_DECREMENT
 # Ritorna 0 se la modifica è stata fatta, 1 se il valore è già troppo basso
 reduce_gpu_memory_util() {
@@ -162,12 +204,12 @@ while true; do
     if [ ! -f "$CHAIN_FILE" ] || [ ! -s "$CHAIN_FILE" ]; then
         # Ma controlla che l'ultimo job non sia fallito
         if [ -n "$LAST_JOB_ID" ]; then
-            sleep 5  # attendi che sacct aggiorni lo stato
-            EXIT_CODE=$(sacct -j "$LAST_JOB_ID" --format=ExitCode --noheader --parsable2 2>/dev/null | head -1 | cut -d: -f1)
-            STATE=$(sacct -j "$LAST_JOB_ID" --format=State --noheader --parsable2 2>/dev/null | head -1)
+            query_sacct_with_retry "$LAST_JOB_ID"
+            EXIT_CODE="$_SACCT_EXIT_CODE"
+            STATE="$_SACCT_STATE"
 
             FINAL_FAILED=0
-            if [ "$STATE" = "TIMEOUT" ] || [ "$STATE" = "CANCELLED" ] || [ "$STATE" = "CANCELLED+" ]; then
+            if [ "$STATE" = "TIMEOUT" ] || [ "$STATE" = "CANCELLED" ] || [ "$STATE" = "CANCELLED+" ] || [ "$STATE" = "UNKNOWN" ]; then
                 FINAL_FAILED=1
             elif [ -n "$EXIT_CODE" ] && [ "$EXIT_CODE" != "0" ]; then
                 FINAL_FAILED=1
@@ -262,9 +304,9 @@ while true; do
 
     # ── Coda vuota: controlla se l'ultimo job è fallito ───────────────────
     if [ -n "$LAST_JOB_ID" ]; then
-        sleep 5  # attendi aggiornamento sacct
-        EXIT_CODE=$(sacct -j "$LAST_JOB_ID" --format=ExitCode --noheader --parsable2 2>/dev/null | head -1 | cut -d: -f1)
-        STATE=$(sacct -j "$LAST_JOB_ID" --format=State --noheader --parsable2 2>/dev/null | head -1)
+        query_sacct_with_retry "$LAST_JOB_ID"
+        EXIT_CODE="$_SACCT_EXIT_CODE"
+        STATE="$_SACCT_STATE"
 
         # Determina se il job è fallito: exit code != 0 OPPURE stato anomalo
         JOB_FAILED=0
@@ -272,7 +314,7 @@ while true; do
         if [ "$STATE" = "TIMEOUT" ]; then
             JOB_FAILED=1
             IS_TIMEOUT=1
-        elif [ "$STATE" = "CANCELLED" ] || [ "$STATE" = "CANCELLED+" ]; then
+        elif [ "$STATE" = "CANCELLED" ] || [ "$STATE" = "CANCELLED+" ] || [ "$STATE" = "UNKNOWN" ]; then
             JOB_FAILED=1
         elif [ -n "$EXIT_CODE" ] && [ "$EXIT_CODE" != "0" ]; then
             JOB_FAILED=1

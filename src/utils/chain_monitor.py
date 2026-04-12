@@ -143,11 +143,19 @@ def _load_cache() -> dict:
 
 def _save_cache(cache: dict) -> None:
     """Write the monitor cache to disk."""
+    # File locking atomico: scrivi su file temporaneo, poi mv atomico
+    import tempfile
+
     try:
-        CACHE_FILE.write_text(
-            json.dumps(cache, indent=2, ensure_ascii=False),
+        with tempfile.NamedTemporaryFile(
+            "w",
             encoding="utf-8",
-        )
+            delete=False,
+            dir=str(CACHE_FILE.parent),
+        ) as f:
+            f.write(json.dumps(cache, indent=2, ensure_ascii=False))
+            tempname = f.name
+        os.replace(tempname, CACHE_FILE)
     except OSError:
         pass
 

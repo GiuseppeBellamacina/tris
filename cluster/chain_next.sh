@@ -5,6 +5,19 @@
 # Gira sul login node (NON dentro un job SLURM). Controlla ogni 60s
 # se la coda è vuota e sottomette il prossimo job.
 #
+# PID guard: esci se esiste già un watcher attivo
+PROJ_DIR="$HOME/GRPO-strict-generation"
+CHAIN_PID_FILE="$PROJ_DIR/.chain_pid"
+if [ -f "$CHAIN_PID_FILE" ]; then
+    OLD_PID=$(cat "$CHAIN_PID_FILE")
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+        echo "[chain] ❌ Watcher già attivo con PID $OLD_PID — esco."
+        exit 1
+    fi
+    # Se il PID non è attivo, sovrascrivi
+fi
+
+#
 # Se un job SLURM fallisce (exit code != 0, CANCELLED), il watcher si
 # blocca, scrive .chain_failed con le info del job, e NON sottomette
 # altri job. Usare run_all.sh --resume per riprendere.
@@ -198,6 +211,9 @@ OOM_RETRIES=0      # contatore retry OOM per il job corrente
 LAST_OOM_TAG=""    # tag del job in retry OOM
 CUDA_RETRIES=0     # contatore retry CUDA transient errors
 LAST_CUDA_TAG=""   # tag del job in retry CUDA
+SBATCH_RETRIES=0   # contatore retry per sbatch failure (socket timeout, ecc.)
+MAX_SBATCH_RETRIES=5
+SBATCH_RETRY_WAIT=60  # secondi tra un retry sbatch e l'altro
 
 while true; do
     # Se non c'è più il file catena, abbiamo finito
@@ -478,7 +494,7 @@ while true; do
 
     case "$TYPE" in
         train)
-            LAST_JOB_ID=$(CONFIG="$CFG" EXTRA_ARGS="$EXTRA" sbatch --job-name="train-${TAG}" --parsable cluster/train.sh)
+            LAST_JOB_ID=$(CONFIG="$CFG" EXTRA_ARGS="$EXTRA" sbatch --job-name="train-${TAG}" --parsable cluster/train.sh 2>&1 | grep -oP '^\d+$')
             ;;
         eval)
             # EXTRA can contain --skip-stages=N for resume
@@ -493,7 +509,7 @@ cfg = yaml.safe_load(open('${CFG}'))
 c = cfg.get('curriculum', {})
 print('1' if c and c.get('enabled', False) else '0')
 " 2>/dev/null || echo "0")
-            LAST_JOB_ID=$(CONFIG="$CFG" COMPARE=1 CURRICULUM="$IS_CURRICULUM" SKIP_STAGES="$SKIP_N" sbatch --job-name="eval-${TAG}" --parsable cluster/eval.sh)
+            LAST_JOB_ID=$(CONFIG="$CFG" COMPARE=1 CURRICULUM="$IS_CURRICULUM" SKIP_STAGES="$SKIP_N" sbatch --job-name="eval-${TAG}" --parsable cluster/eval.sh 2>&1 | grep -oP '^\d+$')
             ;;
         *)
             echo "[chain] ❌ Tipo sconosciuto: $TYPE — skip"
@@ -501,6 +517,36 @@ print('1' if c and c.get('enabled', False) else '0')
             continue
             ;;
     esac
+
+    # ── Guard: sbatch failure (socket timeout, ecc.) ──────────────────
+    # Se sbatch non ha restituito un job ID numerico, reinserisci l'entry
+    # in testa alla catena e riprova dopo un po'.
+    if [ -z "$LAST_JOB_ID" ]; then
+        SBATCH_RETRIES=$((SBATCH_RETRIES + 1))
+        echo "[chain] ⚠️  sbatch non ha restituito un job ID per $TYPE $TAG — retry $SBATCH_RETRIES/$MAX_SBATCH_RETRIES — $(date)"
+
+        if [ "$SBATCH_RETRIES" -gt "$MAX_SBATCH_RETRIES" ]; then
+            echo "[chain] ❌ sbatch fallito $MAX_SBATCH_RETRIES volte consecutive — pipeline interrotta"
+            echo "${NEXT}" > "$FAILED_FILE"
+            echo "[chain] Per riprendere: bash cluster/run_all.sh --resume"
+            rm -f "$PROJ_DIR/.chain_pid"
+            exit 1
+        fi
+
+        # Reinserisci l'entry in testa alla catena
+        REINSERTION=$(mktemp)
+        echo "$NEXT" > "$REINSERTION"
+        [ -f "$CHAIN_FILE" ] && [ -s "$CHAIN_FILE" ] && cat "$CHAIN_FILE" >> "$REINSERTION"
+        mv "$REINSERTION" "$CHAIN_FILE"
+
+        LAST_JOB_ID=""
+        echo "[chain] ⏳ Entry reinserita in catena, riprovo tra ${SBATCH_RETRY_WAIT}s"
+        sleep "$SBATCH_RETRY_WAIT"
+        continue
+    fi
+
+    # sbatch OK: reset contatore retry
+    SBATCH_RETRIES=0
 
     echo "[chain] Job ID: $LAST_JOB_ID"
 

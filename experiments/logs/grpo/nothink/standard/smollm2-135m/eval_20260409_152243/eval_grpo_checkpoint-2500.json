@@ -1,0 +1,34 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/standard/smollm2-135m/train_20260409_124833/checkpoint-2500",
+  "label": "GRPO (checkpoint-2500)",
+  "metrics": {
+    "overall_pass_rate": 0.8766666666666667,
+    "total_samples": 300,
+    "valid_samples": 263,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 87,
+        "pass_rate": 0.87
+      },
+      "medium": {
+        "total": 100,
+        "valid": 89,
+        "pass_rate": 0.89
+      },
+      "simple": {
+        "total": 100,
+        "valid": 87,
+        "pass_rate": 0.87
+      }
+    },
+    "error_distribution": {
+      "no_code_block": 22,
+      "json_error: Expecting ',' delimiter": 7,
+      "json_error: Expecting property name enclosed in double quotes": 5,
+      "json_error: Expecting ':' delimiter": 1,
+      "json_error: Expecting value": 1,
+      "json_error: Extra data": 1
+    }
+  }
+}

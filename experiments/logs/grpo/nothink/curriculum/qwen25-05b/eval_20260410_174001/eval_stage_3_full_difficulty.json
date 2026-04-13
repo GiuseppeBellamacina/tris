@@ -1,0 +1,32 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/curriculum/qwen25-05b/train_20260410_153846/stages/stage_3_full_difficulty",
+  "label": "Stage 3: full_difficulty",
+  "metrics": {
+    "overall_pass_rate": 0.9733333333333334,
+    "total_samples": 300,
+    "valid_samples": 292,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 97,
+        "pass_rate": 0.97
+      },
+      "medium": {
+        "total": 100,
+        "valid": 95,
+        "pass_rate": 0.95
+      },
+      "simple": {
+        "total": 100,
+        "valid": 100,
+        "pass_rate": 1.0
+      }
+    },
+    "error_distribution": {
+      "json_error: Expecting property name enclosed in double quotes": 3,
+      "json_error: Expecting ',' delimiter": 3,
+      "json_error: Invalid \\escape": 1,
+      "json_error: Expecting value": 1
+    }
+  }
+}

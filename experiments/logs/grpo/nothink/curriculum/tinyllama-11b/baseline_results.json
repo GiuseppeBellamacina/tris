@@ -1,0 +1,34 @@
+{
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "detailed_metrics": {
+    "overall_pass_rate": 0.7933333333333333,
+    "total_samples": 300,
+    "valid_samples": 238,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 66,
+        "pass_rate": 0.66
+      },
+      "medium": {
+        "total": 100,
+        "valid": 83,
+        "pass_rate": 0.83
+      },
+      "simple": {
+        "total": 100,
+        "valid": 89,
+        "pass_rate": 0.89
+      }
+    },
+    "error_distribution": {
+      "json_error: Extra data": 29,
+      "no_code_block": 24,
+      "json_error: Expecting property name enclosed in double quotes": 4,
+      "json_error: Expecting value": 2,
+      "json_error: Invalid \\escape": 1,
+      "json_error: Expecting ':' delimiter": 1,
+      "json_error: Expecting ',' delimiter": 1
+    }
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "baseline_pass_rate": 0.8366666666666667,
+  "grpo_pass_rate": 0.9766666666666667,
+  "delta": 0.14,
+  "baseline_per_category": {
+    "hard": {
+      "total": 100,
+      "valid": 71,
+      "pass_rate": 0.71
+    },
+    "medium": {
+      "total": 100,
+      "valid": 84,
+      "pass_rate": 0.84
+    },
+    "simple": {
+      "total": 100,
+      "valid": 96,
+      "pass_rate": 0.96
+    }
+  },
+  "grpo_per_category": {
+    "hard": {
+      "total": 100,
+      "valid": 97,
+      "pass_rate": 0.97
+    },
+    "medium": {
+      "total": 100,
+      "valid": 96,
+      "pass_rate": 0.96
+    },
+    "simple": {
+      "total": 100,
+      "valid": 100,
+      "pass_rate": 1.0
+    }
+  },
+  "curriculum_stages": [
+    {
+      "label": "Baseline",
+      "pass_rate": 0.8366666666666667,
+      "per_category": {
+        "hard": {
+          "total": 100,
+          "valid": 71,
+          "pass_rate": 0.71
+        },
+        "medium": {
+          "total": 100,
+          "valid": 84,
+          "pass_rate": 0.84
+        },
+        "simple": {
+          "total": 100,
+          "valid": 96,
+          "pass_rate": 0.96
+        }
+      }
+    },
+    {
+      "label": "Stage 1: format_basics",
+      "pass_rate": 0.9433333333333334,
+      "per_category": {
+        "hard": {
+          "total": 100,
+          "valid": 91,
+          "pass_rate": 0.91
+        },
+        "medium": {
+          "total": 100,
+          "valid": 94,
+          "pass_rate": 0.94
+        },
+        "simple": {
+          "total": 100,
+          "valid": 98,
+          "pass_rate": 0.98
+        }
+      }
+    },
+    {
+      "label": "Stage 2: progressive",
+      "pass_rate": 0.97,
+      "per_category": {
+        "hard": {
+          "total": 100,
+          "valid": 95,
+          "pass_rate": 0.95
+        },
+        "medium": {
+          "total": 100,
+          "valid": 96,
+          "pass_rate": 0.96
+        },
+        "simple": {
+          "total": 100,
+          "valid": 100,
+          "pass_rate": 1.0
+        }
+      }
+    },
+    {
+      "label": "Stage 3: full_difficulty",
+      "pass_rate": 0.9766666666666667,
+      "per_category": {
+        "hard": {
+          "total": 100,
+          "valid": 97,
+          "pass_rate": 0.97
+        },
+        "medium": {
+          "total": 100,
+          "valid": 96,
+          "pass_rate": 0.96
+        },
+        "simple": {
+          "total": 100,
+          "valid": 100,
+          "pass_rate": 1.0
+        }
+      }
+    }
+  ]
+}

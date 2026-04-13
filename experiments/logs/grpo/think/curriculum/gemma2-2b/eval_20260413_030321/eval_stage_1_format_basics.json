@@ -1,0 +1,33 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/think/curriculum/gemma2-2b/train_20260412_222102/stages/stage_1_format_basics",
+  "label": "Stage 1: format_basics",
+  "metrics": {
+    "overall_pass_rate": 0.83,
+    "total_samples": 300,
+    "valid_samples": 249,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 86,
+        "pass_rate": 0.86
+      },
+      "medium": {
+        "total": 100,
+        "valid": 85,
+        "pass_rate": 0.85
+      },
+      "simple": {
+        "total": 100,
+        "valid": 78,
+        "pass_rate": 0.78
+      }
+    },
+    "error_distribution": {
+      "json_error: Expecting value": 28,
+      "json_error: Extra data": 14,
+      "json_error: Expecting ',' delimiter": 4,
+      "no_code_block": 4,
+      "json_error: Expecting property name enclosed in double quotes": 1
+    }
+  }
+}

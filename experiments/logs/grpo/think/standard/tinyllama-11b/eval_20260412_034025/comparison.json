@@ -1,0 +1,39 @@
+{
+  "baseline_pass_rate": 0.8566666666666667,
+  "grpo_pass_rate": 0.9866666666666667,
+  "delta": 0.13,
+  "baseline_per_category": {
+    "hard": {
+      "total": 100,
+      "valid": 80,
+      "pass_rate": 0.8
+    },
+    "medium": {
+      "total": 100,
+      "valid": 87,
+      "pass_rate": 0.87
+    },
+    "simple": {
+      "total": 100,
+      "valid": 90,
+      "pass_rate": 0.9
+    }
+  },
+  "grpo_per_category": {
+    "hard": {
+      "total": 100,
+      "valid": 99,
+      "pass_rate": 0.99
+    },
+    "medium": {
+      "total": 100,
+      "valid": 98,
+      "pass_rate": 0.98
+    },
+    "simple": {
+      "total": 100,
+      "valid": 99,
+      "pass_rate": 0.99
+    }
+  }
+}

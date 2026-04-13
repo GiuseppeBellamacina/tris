@@ -1,0 +1,33 @@
+{
+  "model": "google/gemma-2-2b-it",
+  "detailed_metrics": {
+    "overall_pass_rate": 0.9666666666666667,
+    "total_samples": 300,
+    "valid_samples": 290,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 93,
+        "pass_rate": 0.93
+      },
+      "medium": {
+        "total": 100,
+        "valid": 98,
+        "pass_rate": 0.98
+      },
+      "simple": {
+        "total": 100,
+        "valid": 99,
+        "pass_rate": 0.99
+      }
+    },
+    "error_distribution": {
+      "json_error: Expecting ',' delimiter": 3,
+      "no_code_block": 3,
+      "json_error: Extra data": 1,
+      "json_error: Expecting ':' delimiter": 1,
+      "json_error: Expecting value": 1,
+      "json_error: Expecting property name enclosed in double quotes": 1
+    }
+  }
+}

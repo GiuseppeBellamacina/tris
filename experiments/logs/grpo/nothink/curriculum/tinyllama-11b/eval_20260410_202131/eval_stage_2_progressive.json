@@ -1,0 +1,30 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/curriculum/tinyllama-11b/train_20260410_175911/stages/stage_2_progressive",
+  "label": "Stage 2: progressive",
+  "metrics": {
+    "overall_pass_rate": 0.9833333333333333,
+    "total_samples": 300,
+    "valid_samples": 295,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 98,
+        "pass_rate": 0.98
+      },
+      "medium": {
+        "total": 100,
+        "valid": 98,
+        "pass_rate": 0.98
+      },
+      "simple": {
+        "total": 100,
+        "valid": 99,
+        "pass_rate": 0.99
+      }
+    },
+    "error_distribution": {
+      "no_code_block": 4,
+      "json_error: Invalid control character at": 1
+    }
+  }
+}

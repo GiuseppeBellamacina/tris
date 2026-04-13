@@ -61,3 +61,4 @@ Thumbs.db
 .chain_failed
 .chain_stopped
 .monitor_cache
+.wandb_run_*

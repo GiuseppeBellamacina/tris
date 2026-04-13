@@ -1,0 +1,33 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/standard/gemma2-2b/train_20260410_110522/checkpoint-2500",
+  "label": "GRPO (checkpoint-2500)",
+  "metrics": {
+    "overall_pass_rate": 0.9666666666666667,
+    "total_samples": 300,
+    "valid_samples": 290,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 91,
+        "pass_rate": 0.91
+      },
+      "medium": {
+        "total": 100,
+        "valid": 99,
+        "pass_rate": 0.99
+      },
+      "simple": {
+        "total": 100,
+        "valid": 100,
+        "pass_rate": 1.0
+      }
+    },
+    "error_distribution": {
+      "json_error: Expecting property name enclosed in double quotes": 3,
+      "no_code_block": 3,
+      "json_error: Expecting ',' delimiter": 2,
+      "json_error: Expecting value": 1,
+      "json_error: Extra data": 1
+    }
+  }
+}

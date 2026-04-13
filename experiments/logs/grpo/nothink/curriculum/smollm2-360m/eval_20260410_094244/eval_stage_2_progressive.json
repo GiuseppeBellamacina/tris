@@ -1,0 +1,32 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/nothink/curriculum/smollm2-360m/train_20260410_065529/stages/stage_2_progressive",
+  "label": "Stage 2: progressive",
+  "metrics": {
+    "overall_pass_rate": 0.9133333333333333,
+    "total_samples": 300,
+    "valid_samples": 274,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 86,
+        "pass_rate": 0.86
+      },
+      "medium": {
+        "total": 100,
+        "valid": 93,
+        "pass_rate": 0.93
+      },
+      "simple": {
+        "total": 100,
+        "valid": 95,
+        "pass_rate": 0.95
+      }
+    },
+    "error_distribution": {
+      "no_code_block": 16,
+      "json_error: Expecting ',' delimiter": 7,
+      "json_error: Expecting property name enclosed in double quotes": 2,
+      "json_error: Expecting value": 1
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/think/curriculum/qwen25-05b/train_20260412_164117/stages/stage_2_progressive",
+  "label": "Stage 2: progressive",
+  "metrics": {
+    "overall_pass_rate": 0.9333333333333333,
+    "total_samples": 300,
+    "valid_samples": 280,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 86,
+        "pass_rate": 0.86
+      },
+      "medium": {
+        "total": 100,
+        "valid": 95,
+        "pass_rate": 0.95
+      },
+      "simple": {
+        "total": 100,
+        "valid": 99,
+        "pass_rate": 0.99
+      }
+    },
+    "error_distribution": {
+      "json_error: Extra data": 9,
+      "no_code_block": 3,
+      "json_error: Expecting ',' delimiter": 3,
+      "json_error: Invalid control character at": 2,
+      "json_error: Expecting value": 1,
+      "json_error: Expecting property name enclosed in double quotes": 1,
+      "json_error: Expecting ':' delimiter": 1
+    }
+  }
+}

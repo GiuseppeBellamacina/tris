@@ -1,0 +1,31 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/think/curriculum/gemma2-2b/train_20260412_222102/stages/stage_2_progressive",
+  "label": "Stage 2: progressive",
+  "metrics": {
+    "overall_pass_rate": 0.66,
+    "total_samples": 300,
+    "valid_samples": 198,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 71,
+        "pass_rate": 0.71
+      },
+      "medium": {
+        "total": 100,
+        "valid": 64,
+        "pass_rate": 0.64
+      },
+      "simple": {
+        "total": 100,
+        "valid": 63,
+        "pass_rate": 0.63
+      }
+    },
+    "error_distribution": {
+      "json_error: Expecting value": 92,
+      "json_error: Expecting property name enclosed in double quotes": 9,
+      "no_code_block": 1
+    }
+  }
+}

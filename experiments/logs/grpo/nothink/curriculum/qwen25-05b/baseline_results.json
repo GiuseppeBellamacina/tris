@@ -1,0 +1,33 @@
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "detailed_metrics": {
+    "overall_pass_rate": 0.8933333333333333,
+    "total_samples": 300,
+    "valid_samples": 268,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 79,
+        "pass_rate": 0.79
+      },
+      "medium": {
+        "total": 100,
+        "valid": 91,
+        "pass_rate": 0.91
+      },
+      "simple": {
+        "total": 100,
+        "valid": 98,
+        "pass_rate": 0.98
+      }
+    },
+    "error_distribution": {
+      "no_code_block": 10,
+      "json_error: Expecting ',' delimiter": 8,
+      "json_error: Expecting property name enclosed in double quotes": 5,
+      "json_error: Expecting value": 4,
+      "json_error: Invalid control character at": 4,
+      "json_error: Expecting ':' delimiter": 1
+    }
+  }
+}

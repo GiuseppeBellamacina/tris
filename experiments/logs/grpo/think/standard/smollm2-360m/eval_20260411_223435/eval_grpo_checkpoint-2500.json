@@ -1,0 +1,31 @@
+{
+  "checkpoint": "/home/bllgpp02h24c351g/GRPO-strict-generation/experiments/checkpoints/grpo/think/standard/smollm2-360m/train_20260411_195121/checkpoint-2500",
+  "label": "GRPO (checkpoint-2500)",
+  "metrics": {
+    "overall_pass_rate": 0.9566666666666667,
+    "total_samples": 300,
+    "valid_samples": 287,
+    "per_category": {
+      "hard": {
+        "total": 100,
+        "valid": 94,
+        "pass_rate": 0.94
+      },
+      "medium": {
+        "total": 100,
+        "valid": 97,
+        "pass_rate": 0.97
+      },
+      "simple": {
+        "total": 100,
+        "valid": 96,
+        "pass_rate": 0.96
+      }
+    },
+    "error_distribution": {
+      "no_code_block": 8,
+      "json_error: Expecting ',' delimiter": 3,
+      "json_error: Expecting value": 2
+    }
+  }
+}

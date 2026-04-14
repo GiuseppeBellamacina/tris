@@ -230,8 +230,6 @@ As the largest model with the highest baseline (98.33%), Gemma-2-2B presents the
 
 #### 5.2.2 Curriculum Learning (800-800-900 steps)
 
-### 5.1 Baseline (pre-training)
-
 **Table 3**: Baseline Pass@1 — off-the-shelf models on the balanced evaluation set (300 samples: 100 simple / 100 medium / 100 hard).
 
 | Model | Overall | Simple | Medium | Hard |

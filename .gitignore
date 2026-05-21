@@ -62,3 +62,14 @@ Thumbs.db
 .chain_stopped
 .monitor_cache
 .wandb_run_*
+
+# Latex
+*.aux
+*.log
+*.out
+*.toc
+*.nav
+*.snm
+*.fls
+*.fdb_latexmk
+*.synctex.gz

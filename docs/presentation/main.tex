@@ -1,0 +1,382 @@
+% ============================================================
+%  Aligning Small LLMs with GRPO for Strict JSON Generation
+%  Beamer presentation — Metropolis theme + Fira Sans
+%  Compile with: pdflatex main.tex
+% ============================================================
+
+\documentclass[10pt, aspectratio=169]{beamer}
+
+% ── Theme ────────────────────────────────────────────────
+\usetheme{metropolis}
+\usepackage{appendixnumberbeamer}
+
+% ── Packages ─────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage[T1]{fontenc}
+\usepackage[sfdefault,scaled=.9]{FiraSans}
+\usepackage[lining,scaled=.88]{FiraMono}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc}
+
+% ── Colour palette ───────────────────────────────────────
+\definecolor{navy}{HTML}{1B2A4A}
+\definecolor{sky}{HTML}{0EA5E9}
+\definecolor{slate}{HTML}{94A3B8}
+\definecolor{offwhite}{HTML}{F8FAFC}
+
+% ── Metropolis colour overrides ──────────────────────────
+\setbeamercolor{normal text}      {fg=navy,   bg=white}
+\setbeamercolor{frametitle}       {bg=navy,   fg=white}
+\setbeamercolor{title separator}  {fg=sky}
+\setbeamercolor{progress bar}     {fg=sky,    bg=slate!40}
+\setbeamercolor{alerted text}     {fg=sky}
+\setbeamercolor{block title}      {bg=navy!10, fg=navy}
+\setbeamercolor{block body}       {bg=navy!5}
+\setbeamercolor{title}            {fg=navy}
+\setbeamercolor{subtitle}         {fg=slate}
+\setbeamercolor{author}           {fg=navy}
+\setbeamercolor{date}             {fg=slate}
+
+% ── Metropolis options ───────────────────────────────────
+\metroset{
+  titleformat  = regular,
+  progressbar  = frametitle,
+  block        = fill,
+  sectionpage  = none,
+  numbering    = fraction,
+}
+
+% ── Metadata ─────────────────────────────────────────────
+\title{Aligning Small LLMs with GRPO\\[0.25em]for Strict JSON Generation}
+\subtitle{Rule-Based Reward Optimization for Schema-Conformant Output}
+\author{Giuseppe Bellamacina}
+\date{2026}
+
+% ============================================================
+\begin{document}
+
+% ── Slide 1 · Title ─────────────────────────────────────
+{
+  \setbeamercolor{background canvas}{bg=offwhite}
+  \maketitle
+}
+
+% ── Slide 2 · Problem & Objective ───────────────────────
+\begin{frame}{Problem \& Objective}
+  \begin{itemize}
+    \setlength\itemsep{0.75em}
+    \item Small LLMs ($<$2B parameters) frequently fail to produce valid,
+          schema-conformant JSON
+    \item Common errors: unclosed brackets, type violations, conversational filler
+    \item \textbf{Goal:} use GRPO with rule-based rewards to reach
+          $>$90\% Pass@1 on strict JSON
+    \item No neural reward model $\rightarrow$
+          dense, \alert{deterministic}, interpretable signal
+  \end{itemize}
+\end{frame}
+
+% ── Slide 3 · Models & Setup ────────────────────────────
+\begin{frame}{Models \& Hardware Configuration}
+  \begin{columns}[T]
+    \begin{column}{0.50\textwidth}
+      \renewcommand{\arraystretch}{1.35}
+      \begin{tabular}{@{}lr@{}}
+        \toprule
+        \textbf{Model}         & \textbf{Params} \\
+        \midrule
+        SmolLM2-135M-Instruct  & 135M \\
+        SmolLM2-360M-Instruct  & 360M \\
+        Qwen2.5-0.5B-Instruct  & 0.5B \\
+        TinyLlama-1.1B-Chat    & 1.1B \\
+        Gemma-2-2B-it          &   2B \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \vspace{0.4em}
+      \begin{itemize}
+        \setlength\itemsep{0.6em}
+        \item 4-bit NF4 quantization
+        \item LoRA \quad $r{=}16$,\; $\alpha{=}32$
+        \item 1$\times$ NVIDIA L40S \;(48\,GB)
+        \item 2\,500 training steps / model
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 4 · GRPO Algorithm ────────────────────────────
+\begin{frame}{Group Relative Policy Optimization (GRPO)}
+  \vspace{0.15em}
+  \centering
+  \resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}[
+    node distance=0cm and 0.52cm,
+    box/.style={
+      rectangle, rounded corners=5pt,
+      minimum width=2.5cm, minimum height=1.15cm,
+      text centered, inner sep=6pt, text width=2.4cm,
+      draw=navy, thick
+    },
+    arr/.style={-{Stealth[length=6pt]}, thick, color=navy},
+  ]
+    \node[box, fill=sky!15]  (p) {\small Prompt $x$\\[3pt]\tiny sampled from dataset};
+    \node[box, fill=navy!10, right=0.6cm of p] (g) {\small $G{=}8$ completions\\[3pt]\tiny policy $\pi_\theta$, temp $T$};
+    \node[box, fill=sky!28,  right=0.6cm of g] (r) {\small Reward $r_i$\\[3pt]\tiny 7 rule-based\\[-2pt]\tiny components};
+    \node[box, fill=navy!15, right=0.6cm of r] (n) {\small Advantage $\hat{A}_i$\\[3pt]\tiny $(r_i - \mu_G)\,/\,\sigma_G$};
+    \node[box, fill=sky!18,  right=0.6cm of n] (u) {\small Update $\pi_\theta$\\[3pt]\tiny gradient step\\[-2pt]\tiny KL reg.\ $\beta{=}0.04$};
+    \draw[arr] (p) -- (g);
+    \draw[arr] (g) -- (r);
+    \draw[arr] (r) -- (n);
+    \draw[arr] (n) -- (u);
+    \draw[arr, dashed, color=slate!80, rounded corners=6pt]
+      (u.south) -- ++(0,-0.65)
+      -- node[below, font=\tiny, color=slate, inner sep=2pt]
+         {updated policy becomes new reference for the next iteration}
+      ($(p.south)+(0,-0.65)$) -- (p.south);
+  \end{tikzpicture}}
+
+  \vspace{0.6em}
+  \raggedright
+  \begin{itemize}
+    \setlength\itemsep{0.42em}
+    \item No neural reward model — 7 \alert{rule-based} components score each completion
+    \item Additive rewards prevent \alert{zero-advantage collapse}
+    \item 4-bit NF4 $+$ LoRA ($r{=}16$) on a single NVIDIA L40S GPU
+  \end{itemize}
+\end{frame}
+
+% ── Slide 5 · Reward Functions ──────────────────────────
+\begin{frame}{Rule-Based Reward System}
+  \centering
+  \renewcommand{\arraystretch}{1.38}
+  \setlength\tabcolsep{8pt}
+  \begin{tabularx}{0.94\linewidth}{@{}lcX@{}}
+    \toprule
+    \textbf{Component} & \textbf{Range} & \textbf{What it measures} \\
+    \midrule
+    Format     & $[0,\,1]$     & \texttt{```json```} code fence present \\
+    Validity   & $[0,\,1]$     & JSON parseability (partial credit by error position) \\
+    Schema     & $[0,\,1]$     & Structural conformance: keys, types, nesting depth \\
+    Reasoning  & $[-0.5,\,1]$ & Quality of \texttt{<think>} block — Think mode only \\
+    Truncation & $[-1,\,1]$   & Unclosed brackets / trailing commas \\
+    Repetition & $[-1,\,1]$   & Degenerate loops, duplicate lines \\
+    Strictness & $[-1,\,1]$   & Extra text outside the JSON block \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.5em}
+
+  \small\textit{Additive score, not gating — gradient is always non-zero.}
+\end{frame}
+
+% ── Slide 5b · Reward Breakdown (SmolLM2-135M) ──────────
+\begin{frame}{Reward Breakdown — SmolLM2-135M}
+  \centering
+  \includegraphics[width=0.82\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/reward_breakdown.png}
+  \\[0.4em]
+  \small No-Think / Curriculum — component contributions at final checkpoint
+\end{frame}
+
+% ── Slide 6 · Training Strategies ──────────────────────
+\begin{frame}{Training Strategies}
+  \begin{columns}[T]
+    \begin{column}{0.44\textwidth}
+      \renewcommand{\arraystretch}{1.5}
+      \begin{tabular}{@{}lcc@{}}
+        \toprule
+                          & \textbf{Standard} & \textbf{Curriculum} \\
+        \midrule
+        \textbf{No-Think} & $\checkmark$      & $\checkmark$ \\
+        \textbf{Think}    & $\checkmark$      & $\checkmark$ \\
+        \bottomrule
+      \end{tabular}
+      \vspace{0.7em}\\
+      \small
+      \textbf{Think:} model generates \texttt{<think>} reasoning before JSON\\[0.4em]
+      \textbf{Curriculum:} 3 progressive stages
+    \end{column}
+    \begin{column}{0.53\textwidth}
+      \small
+      \renewcommand{\arraystretch}{1.35}
+      \begin{tabular}{@{}lrcc@{}}
+        \toprule
+        \textbf{Stage}       & \textbf{Steps} & \textbf{S\,/\,M\,/\,H} & \textbf{Temp} \\
+        \midrule
+        1 – Format Basics    & 800  & 35\,/\,55\,/\,10\%  & 0.8 \\
+        2 – Progressive      & 800  & 15\,/\,35\,/\,50\%  & 0.7 \\
+        3 – Full Difficulty  & 900  & 10\,/\,25\,/\,65\%  & 0.6 \\
+        \bottomrule
+      \end{tabular}
+      \vspace{0.3em}\\
+      \small S\,=\,Simple\quad M\,=\,Medium\quad H\,=\,Hard
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 7 · Dataset ───────────────────────────────────
+\begin{frame}{Parametric Synthetic Dataset}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{itemize}
+        \setlength\itemsep{0.55em}
+        \item 24 parameterized templates\\(8 per difficulty tier)
+        \item 1\,500 samples/stage $\times$ 3 stages\\
+              $= 4\,500$ training samples
+        \item Eval: \textbf{300 samples} — 100 simple / 100 medium / 100 hard
+        \item \textbf{No ground-truth JSON}\\
+              reward functions evaluate directly
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Difficulty tiers}
+        \small
+        \textbf{Simple} — flat key-value objects, typed arrays\\[0.4em]
+        \textbf{Medium} — nested objects, config files, form schemas\\[0.4em]
+        \textbf{Hard} — JSON Schema draft-07, paginated APIs, OpenAPI specs
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 8 · Results Overview ──────────────────────────
+\begin{frame}{Results — Peak Performance (Pass@1)}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \footnotesize
+      \renewcommand{\arraystretch}{1.32}
+      \setlength\tabcolsep{4pt}
+      \begin{tabular}{@{}lcccc@{}}
+        \toprule
+        \textbf{Model} & \textbf{Base} & \textbf{Peak} & \textbf{Config} & $\boldsymbol{\Delta}$ \\
+        \midrule
+        SmolLM2-135M   & 31\%  & \textbf{90.0\%} & Think / Std     & \alert{$+$58.7} \\
+        SmolLM2-360M   & 78\%  & \textbf{96.7\%} & NoThk / Std     & $+$19.0 \\
+        Qwen2.5-0.5B   & 92\%  & \textbf{98.0\%} & Think / Curr    & $+$6.3  \\
+        TinyLlama-1.1B & 79\%  & \textbf{99.3\%} & NoThk / Curr    & $+$20.0 \\
+        Gemma-2-2B     & 97\%  & \textbf{97.7\%} & Curriculum      & $+$1.3  \\
+        \bottomrule
+      \end{tabular}
+      \vspace{0.5em}\\
+      \small All models reach the \alert{87–99\%} band.
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/nothink/standard/smollm2-135m/eval_20260409_152243/figures/baseline_vs_grpo_comparison.png}
+      \\[0.3em]
+      \tiny SmolLM2-135M — baseline vs.\ GRPO (No-Think / Standard)
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 9 · Standard vs. Curriculum ──────────────────
+\begin{frame}{Standard vs.\ Curriculum Learning}
+  \begin{columns}[T]
+    \begin{column}{0.50\textwidth}
+      \begin{itemize}
+        \setlength\itemsep{0.55em}
+        \item \textbf{Standard} delivers strong gains for weak models\\*
+              \small SmolLM2-135M: $+$48.67 pp, TinyLlama: $+$18.33 pp
+        \item But causes \alert{regression} on already-strong models\\*
+              \small Gemma-2-2B: $-$1.67 pp on standard training
+        \item \textbf{Curriculum’s real value} is \alert{preventing degradation}\\*
+              \small Gemma-2-2B: standard $-$1.67 pp $\to$ curriculum $+$0.67 pp
+        \item Marginal extra gain for weak models\\*
+              \small 135M: 87.67\% $\to$ 89.00\% ($+$1.33 pp only)
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/curriculum_progression.png}
+      \\[0.3em]
+      \tiny SmolLM2-135M — Pass@1 across curriculum stages
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 10 · Think vs. No-Think ──────────────────────
+\begin{frame}{Think Mode — Reasoning Tokens in Practice}
+  \begin{columns}[T]
+    \begin{column}{0.54\textwidth}
+      \begin{itemize}
+        \setlength\itemsep{0.45em}
+        \item \alert{Think baseline is lower} for small models — the\\*
+              \texttt{<think>} prompt disrupts their fragile context\\*
+              \small SmolLM2-360M: 77.67\% $\to$ 69.33\% at baseline alone
+        \item Think vs.\ No-Think gain (standard training):\\*
+          \begin{tabular}{@{}lr@{}}
+            SmolLM2-135M  & \alert{$+$2.33 pp} \\
+            SmolLM2-360M  & \alert{$-$1.00 pp} \\
+            Qwen2.5-0.5B  & $+$0.34 pp \\
+            TinyLlama-1.1B & $+$1.00 pp \\
+            Gemma-2-2B    & \alert{$-$0.67 pp} \\
+          \end{tabular}
+        \item Extra tokens $\rightarrow$ higher latency, negligible accuracy benefit
+      \end{itemize}
+      \vspace{0.3em}
+      \begin{block}{Notable anomaly — Gemma-2-2B Think/Curriculum}
+        \small U-shaped curve: Stage\,1 \textbf{83\%} $\to$ Stage\,2 \textbf{66\%}
+        $\to$ Stage\,3 \textbf{97.67\%}\\*
+        Forcing reasoning on simple schemas temporarily\\* collapses an already-aligned model
+      \end{block}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/think/standard/smollm2-135m/eval_20260411_192610/figures/baseline_vs_grpo_comparison.png}
+      \\[0.3em]
+      \tiny SmolLM2-135M Think / Standard — only model with a real Think-mode benefit
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 11 · Lessons & Limitations ───────────────────
+\begin{frame}{Lessons \& Limitations}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \textbf{Lessons}
+      \begin{itemize}
+        \setlength\itemsep{0.5em}
+        \item Additive rewards $>$ gating\\*
+              (prevent zero-advantage collapse)
+        \item Standard training is \alert{sufficient} for weak models
+        \item Curriculum is a \alert{safety net} for strong models,\\*
+              not a universal performance booster
+        \item Think mode adds cost but \alert{minimal accuracy gain}\\*
+              for models $<$1B parameters
+        \item 4-bit LoRA on a single GPU is sufficient
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \textbf{Limitations}
+      \begin{itemize}
+        \setlength\itemsep{0.5em}
+        \item Evaluated on JSON only\\
+              (not directly generalizable)
+        \item Synthetic dataset $\rightarrow$\\
+              potential real-world gap
+        \item Single GPU, 2\,500 steps only
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 12 · Conclusions ──────────────────────────────
+\begin{frame}{Conclusions}
+  \begin{itemize}
+    \setlength\itemsep{0.72em}
+    \item GRPO $+$ rule-based rewards brings all 5 models to
+          \alert{87–99\% Pass@1} on strict JSON generation
+    \item \textbf{Standard training} is the go-to strategy for weak models —
+          large gains with no curriculum overhead
+    \item \textbf{Curriculum} is a safety net for strong models:\\*
+          prevents the regression that standard training causes on Gemma-2-2B
+    \item \textbf{Think mode} yields \alert{marginal gains} not worth the latency cost —
+          small models cannot generate meaningful reasoning tokens
+  \end{itemize}
+\end{frame}
+
+\end{document}

@@ -36,7 +36,7 @@ After 2 500 GRPO training steps, all five models converged to a tight **87–99%
 | SmolLM2-360M | ~78% | **96.67%** | No-Think / Standard | **+19.00 pp** |
 | Qwen2.5-0.5B | ~92% | **98.00%** | Think / Curriculum | **+6.33 pp** |
 | TinyLlama-1.1B | ~79% | **99.33%** | No-Think / Curriculum | **+20.00 pp** |
-| Gemma-2-2B | ~97% | **97.67%** | Think & No-Think / Curriculum | **+1.33 pp** |
+| Gemma-2-2B | ~96% | **97.67%** | Think / Curriculum | **+1.33 pp** |
 
 *Note: Baselines varied slightly between Think/No-Think system prompts. See the [full report](docs/REPORT.md) for detailed stage-by-stage breakdowns.*
 

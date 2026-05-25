@@ -50,6 +50,11 @@ fast = [
     "unsloth==2026.3.17",
     "vllm==0.18.0",
 ]
+presentation = [
+    "pdf2image",
+    "python-pptx",
+    "Pillow",
+]
 
 [tool.isort]
 profile = "black"

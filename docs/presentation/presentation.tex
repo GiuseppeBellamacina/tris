@@ -1,0 +1,709 @@
+﻿% ============================================================
+%  Aligning Small LLMs with GRPO for Strict JSON Generation
+%  Beamer presentation — Modern design
+%  Compile with: pdflatex presentation.tex (×2 for TikZ)
+% ============================================================
+
+\documentclass[10pt, aspectratio=169]{beamer}
+
+% ── Theme ────────────────────────────────────────────────
+\usetheme{metropolis}
+\usepackage{appendixnumberbeamer}
+
+% ── Packages ─────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage[T1]{fontenc}
+\usepackage[sfdefault,scaled=.9]{FiraSans}
+\usepackage[lining,scaled=.88]{FiraMono}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, backgrounds, fadings, shadows.blur}
+\usepackage[most]{tcolorbox}
+\usepackage{fontawesome5}
+\usepackage{multicol}
+\usepackage{etoolbox}
+\usepackage{colortbl}
+
+% ── Colour palette ───────────────────────────────────────
+\definecolor{navy}{HTML}{1B2A4A}
+\definecolor{sky}{HTML}{0EA5E9}
+\definecolor{offwhite}{HTML}{F8FAFC}
+\definecolor{accent}{HTML}{10B981}
+\definecolor{warn}{HTML}{EF4444}
+\definecolor{gold}{HTML}{F59E0B}
+\definecolor{mint}{HTML}{6EE7B7}
+\definecolor{slate}{HTML}{64748B}
+\definecolor{darkbg}{HTML}{0F172A}
+
+% ── Metropolis colour overrides ──────────────────────────
+\setbeamercolor{normal text}      {fg=navy,   bg=white}
+\setbeamercolor{frametitle}       {bg=navy,   fg=white}
+\setbeamercolor{title separator}  {fg=sky}
+\setbeamercolor{progress bar}     {fg=sky,    bg=navy!40}
+\setbeamercolor{alerted text}     {fg=sky}
+\setbeamercolor{block title}      {bg=navy!10, fg=navy}
+\setbeamercolor{block body}       {bg=navy!5}
+\setbeamercolor{title}            {fg=white}
+\setbeamercolor{subtitle}         {fg=sky!70!white}
+\setbeamercolor{author}           {fg=white!90}
+\setbeamercolor{date}             {fg=white!70}
+
+% ── Metropolis options ───────────────────────────────────
+\metroset{
+  titleformat  = regular,
+  progressbar  = frametitle,
+  block        = fill,
+  sectionpage  = none,
+  numbering    = fraction,
+}
+
+% ── Custom tcolorbox styles ──────────────────────────────
+\tcbset{
+  insightbox/.style={
+    enhanced, boxrule=0pt, frame hidden,
+    borderline west={3pt}{0pt}{#1},
+    colback=#1!5, coltext=navy,
+    left=8pt, right=6pt, top=5pt, bottom=5pt,
+    fonttitle=\small\bfseries, coltitle=navy,
+    sharp corners=east, rounded corners=west,
+    arc=2pt,
+  },
+  insightbox/.default={sky},
+  metricbox/.style={
+    enhanced, boxrule=0.5pt,
+    colframe=navy!20, colback=white,
+    coltext=navy, halign=center,
+    top=6pt, bottom=6pt, left=8pt, right=8pt,
+    drop fuzzy shadow=navy!15,
+    arc=4pt,
+  },
+  codebox/.style={
+    enhanced, boxrule=0pt, frame hidden,
+    colback=darkbg, coltext=white,
+    fontupper=\ttfamily\scriptsize,
+    left=8pt, right=8pt, top=6pt, bottom=6pt,
+    arc=3pt,
+  },
+}
+
+% ── Helper commands ──────────────────────────────────────
+\newcommand{\highlightnum}[2]{{\bfseries\color{#2}#1}}
+\newcommand{\iconitem}[2]{\item[\textcolor{sky}{#1}] #2}
+
+% ── Metadata ─────────────────────────────────────────────
+\title{Aligning Small LLMs with GRPO\\[0.25em]for Strict JSON Generation}
+\subtitle{Rule-Based Reward Optimization for Schema-Conformant Output}
+\author{Giuseppe Bellamacina}
+\date{2026}
+
+% ============================================================
+\begin{document}
+
+% ── Slide 1 · Title ─────────────────────────────────────
+{
+  \setbeamertemplate{headline}{}
+  \setbeamertemplate{footline}{}
+  \begin{frame}[plain]
+    \begin{tikzpicture}[remember picture, overlay]
+      % Gradient background
+      \fill[left color=navy, right color=navy!85!sky]
+        (current page.south west) rectangle (current page.north east);
+      % Decorative circles
+      \foreach \x/\y/\r/\o in {
+        12/3.5/1.8/8, 14/1/1.2/6, 1.5/4/1.4/5,
+        3/0.5/0.9/7, 13.5/4.5/0.7/4, 0.5/1.5/1.0/6%
+      }{
+        \fill[sky, opacity=0.0\o] (\x,\y) circle (\r);
+      }
+      % Geometric accent lines
+      \draw[sky!40, line width=0.5pt] (0,2.8) -- (16,2.8);
+      \draw[sky!25, line width=0.3pt] (0,2.6) -- (16,2.6);
+    \end{tikzpicture}
+    \vspace{1.2cm}
+    \begin{center}
+      {\LARGE\bfseries\color{white}\inserttitle}\\[0.6em]
+      {\normalsize\color{sky!70!white}\insertsubtitle}\\[1.5em]
+      {\small\color{white!90}\insertauthor}\\[0.3em]
+      {\footnotesize\color{white!70}\insertdate}
+    \end{center}
+  \end{frame}
+}
+
+% ── Slide 2 · Problem & Objective ───────────────────────
+\begin{frame}{Problem \& Objective}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \begin{itemize}
+        \setlength\itemsep{0.7em}
+        \item[\textcolor{sky}{\faAngleRight}] \textbf{Small LLMs} ($<$2B) frequently fail to produce
+              valid, schema-conformant JSON
+        \item[\textcolor{sky}{\faAngleRight}] \textbf{Common errors}: unclosed brackets, type violations,
+              conversational filler mixed with output
+        \item[\textcolor{sky}{\faAngleRight}] \textbf{Goal:} use GRPO with rule-based rewards
+              to reach $>$90\% Pass@1
+        \item[\textcolor{sky}{\faAngleRight}] \textbf{No neural reward model}:
+              dense, \alert{deterministic}, interpretable signal
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \begin{tcolorbox}[codebox, title={\color{warn}\faTimesCircle~Typical failure}, fonttitle=\scriptsize\bfseries, coltitle=warn]
+Sure! Here's the JSON you asked for:
+\{
+~~"name": "Alice",
+~~"age": 30,
+~~"skills": ["Python", "ML"
+\}
+
+\textcolor{warn}{// Missing ] and extra text}
+      \end{tcolorbox}
+      \vspace{0.4em}
+      \begin{tcolorbox}[codebox, title={\color{accent}\faCheckCircle~Expected output}, fonttitle=\scriptsize\bfseries, coltitle=accent]
+```json
+\{"name": "Alice", "age": 30,
+~~"skills": ["Python", "ML"]\}
+```
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 3 · Contributions ─────────────────────────────
+\begin{frame}{Our Contributions}
+  \vspace{0.2em}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[insightbox=sky]
+        \textcolor{sky}{\faPuzzlePiece}~~\textbf{7 Rule-Based Rewards}\\[3pt]
+        \scriptsize Additive composition with graduated partial credit. Avoids zero-advantage collapse inherent to hard gating
+      \end{tcolorbox}
+      \vspace{0.4em}
+      \begin{tcolorbox}[insightbox=accent]
+        \textcolor{accent}{\faLayerGroup}~~\textbf{3-Stage Curriculum}\\[3pt]
+        \scriptsize Progressive difficulty scaling (35\%→10\% simple, 10\%→65\% hard) with decreasing temperature across 2\,500 steps
+      \end{tcolorbox}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[insightbox=gold]
+        \textcolor{gold}{\faBalanceScale}~~\textbf{5 Models × 4 Strategies}\\[3pt]
+        \scriptsize Systematic comparison: 135M–2B parameters, Think/No-Think × Standard/Curriculum. Identical hyperparameters
+      \end{tcolorbox}
+      \vspace{0.4em}
+      \begin{tcolorbox}[insightbox=navy]
+        \textcolor{navy}{\faServer}~~\textbf{Reproducible Infrastructure}\\[3pt]
+        \scriptsize Per-model YAML configs, SLURM chain pipeline, stratified eval, parametric dataset generator (24 templates)
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 4 · Models & Setup ────────────────────────────
+\begin{frame}{Models \& Setup}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \rowcolors{2}{navy!4}{white}
+      \renewcommand{\arraystretch}{1.4}
+      \centering
+      \footnotesize
+      \begin{tabular}{@{}lrl@{}}
+        \toprule
+        \textbf{Model}         & \textbf{Params} & \textbf{Arch} \\
+        \midrule
+        SmolLM2-135M-Instruct  & 135M & LLaMA-like \\
+        SmolLM2-360M-Instruct  & 360M & LLaMA-like \\
+        Qwen2.5-0.5B-Instruct  & 0.5B & Qwen2.5 \\
+        TinyLlama-1.1B-Chat    & 1.1B & LLaMA 2 \\
+        Gemma-2-2B-it          &   2B & Gemma 2 \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      \vspace{0.2em}
+      \begin{tcolorbox}[insightbox=navy, title=Configuration]
+        \small
+        \textcolor{sky}{\faHdd}~4-bit NF4 quantization\\[0.35em]
+        \textcolor{sky}{\faSitemap}~LoRA $r{=}16$,\; $\alpha{=}32$\\[0.35em]
+        \textcolor{sky}{\faMicrochip}~1$\times$ NVIDIA L40S (48\,GB)\\[0.35em]
+        \textcolor{sky}{\faRedo}~2\,500 steps / model\\[0.35em]
+        \textcolor{sky}{\faCog}~Paged AdamW 8-bit\\[0.35em]
+        \textcolor{sky}{\faGraduationCap}~LR $5{\times}10^{-6}$, cosine
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 5 · GRPO Algorithm ────────────────────────────
+\begin{frame}{Group Relative Policy Optimization (GRPO)}
+  \centering
+  \resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}[
+    node distance=0cm and 0.7cm,
+    box/.style={
+      rectangle, rounded corners=6pt,
+      minimum width=3.2cm, minimum height=1.6cm,
+      text centered, inner sep=6pt, text width=3.1cm,
+      draw=navy!60, thick,
+      drop shadow={shadow xshift=1pt, shadow yshift=-1.5pt, opacity=0.25, fill=navy!40}
+    },
+    sbox/.style={
+      rectangle, rounded corners=4pt,
+      minimum width=1.6cm, minimum height=0.7cm,
+      text centered, inner sep=3pt, text width=1.5cm,
+      draw=sky!50, fill=sky!8, thick, font=\scriptsize
+    },
+    arr/.style={-{Stealth[length=7pt, width=5pt]}, line width=1.2pt, color=navy!80},
+    sarr/.style={-{Stealth[length=5pt]}, thick, color=sky!70},
+  ]
+    % ── Main pipeline nodes ──────────────────────────────
+    \node[box, top color=sky!12, bottom color=sky!3] (p)
+      {\small\textbf{Prompt} $x$\\[4pt]
+       \scriptsize sampled from dataset\\
+       difficulty $d\in\{S,M,H\}$};
+
+    \node[box, top color=navy!10, bottom color=navy!3, right=0.7cm of p] (g)
+      {\small\textbf{Sample} $G{=}8$\\[4pt]
+       \scriptsize $y_1,\dots,y_8\sim\pi_\theta(\cdot|x)$\\
+       temp $T\in[0.6,\,0.8]$};
+
+    \node[box, top color=sky!25, bottom color=sky!8, right=0.7cm of g] (r)
+      {\small\textbf{Score} $r_i$\\[4pt]
+       \scriptsize $r_i=\sum\nolimits_k w_k\,r_k(y_i)$\\
+       7 additive components};
+
+    \node[box, top color=navy!12, bottom color=navy!4, right=0.7cm of r] (a)
+      {\small\textbf{Advantage} $\hat{A}_i$\\[4pt]
+       \scriptsize $\hat{A}_i=\dfrac{r_i-\bar{r}_G}{\sigma_{r_G}}$\\[2pt]
+       group-relative norm.};
+
+    \node[box, top color=sky!18, bottom color=sky!5, right=0.7cm of a] (u)
+      {\small\textbf{Update} $\pi_\theta$\\[4pt]
+       \scriptsize $\mathcal{L}=\sum_i\hat{A}_i\log\pi_\theta(y_i|x)$\\
+       $-\,\beta\,D_{\mathrm{KL}}$,\quad$\beta{=}0.04$};
+
+    % ── Arrow labels ─────────────────────────────────────
+    \draw[arr] (p) -- node[above,font=\tiny\bfseries,color=navy!70]{prompt} (g);
+    \draw[arr] (g) -- node[above,font=\tiny\bfseries,color=navy!70]{$G$ completions} (r);
+    \draw[arr] (r) -- node[above,font=\tiny\bfseries,color=navy!70]{$\{r_i\}$} (a);
+    \draw[arr] (a) -- node[above,font=\tiny\bfseries,color=navy!70]{$\{\hat{A}_i\}$} (u);
+
+    % ── Feedback loop ─────────────────────────────────────
+    \draw[arr, dashed, color=navy!50, rounded corners=10pt]
+      (u.south) -- ++(0,-0.85)
+      -- node[below, font=\tiny\itshape, color=slate, pos=0.5]
+         {updated $\pi_\theta$ becomes new reference}
+      ($(p.south)+(0,-0.85)$) -- (p.south);
+
+    % ── Reward component sub-boxes (below Score node) ─────
+    \node[sbox, below=1.2cm of r, xshift=-3.8cm] (c1) {format\\$w{=}0.20$};
+    \node[sbox, right=0.14cm of c1]               (c2) {validity\\$w{=}0.25$};
+    \node[sbox, right=0.14cm of c2]               (c3) {schema\\$w{=}0.25$};
+    \node[sbox, right=0.14cm of c3]               (c4) {trunc.\\$w{=}0.10$};
+    \node[sbox, right=0.14cm of c4]               (c5) {repet.\\$w{=}0.10$};
+    \node[sbox, right=0.14cm of c5]               (c6) {strict.\\$w{=}0.10$};
+
+    % horizontal collector bar + single arrow to Score node
+    \coordinate (left)  at (c1.north west);
+    \coordinate (right) at (c6.north east);
+    \coordinate (mid)   at ($(left)!0.5!(right)$);
+    \draw[sarr, rounded corners=3pt]
+      (left) -- (right)
+      (mid)  -- (r.south);
+
+  \end{tikzpicture}}
+\end{frame}
+
+% ── Slide 6 · Reward Functions ──────────────────────────
+\begin{frame}{Rule-Based Reward System}
+  \centering
+  \scriptsize
+  \rowcolors{2}{navy!4}{white}
+  \renewcommand{\arraystretch}{1.4}
+  \setlength\tabcolsep{5pt}
+  \begin{tabularx}{0.99\linewidth}{@{}l c c c X@{}}
+    \toprule
+    \textbf{Component} & \textbf{Range} & \textbf{\,Think\,} & \textbf{\,NoThink\,} & \textbf{What it measures} \\
+    \midrule
+    \textcolor{sky}{\faCode}~\texttt{format}     & $[0,1]$      & 0.10 & 0.20 & \texttt{```json```} fence $\to$ 1.0 ~$\mid$~ generic fence $\to$ 0.5 ~$\mid$~ none $\to$ 0.0 \\
+    \textcolor{accent}{\faCheck}~\texttt{validity}   & $[0,1]$      & 0.15 & 0.25 & JSON parseability; partial credit by error position (0.20–0.70) \\
+    \textcolor{gold}{\faSitemap}~\texttt{schema}     & $[0,1]$      & 0.20 & 0.25 & Keys, types, nesting depth, required fields \\
+    \textcolor{navy}{\faBrain}~\texttt{reasoning}  & $[-0.5,1]$   & 0.25 & \alert{0.0}  & \texttt{<think>} block quality; penalises missing/copied \\
+    \textcolor{warn}{\faTimes}~\texttt{truncation} & $[-1,1]$     & 0.10 & 0.10 & Unclosed braces / unterminated strings \\
+    \textcolor{slate}{\faRedo}~\texttt{repetition} & $[-1,1]$     & 0.10 & 0.10 & Token loops, repeated lines, duplicate blocks \\
+    \textcolor{navy}{\faBan}~\texttt{strictness} & $[-1,1]$     & 0.10 & 0.10 & Extra text outside JSON $>$50\% of output \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.5em}
+
+  \begin{tcolorbox}[insightbox=sky, width=0.85\textwidth]
+    \small\textbf{Design principle:} Additive composition, no hard gating.
+    Gradient is always non-zero; avoids \alert{zero-advantage collapse}.
+    When Think is off, reasoning weight is redistributed proportionally.
+  \end{tcolorbox}
+\end{frame}
+
+% ── Slide 7 · Training Strategies ──────────────────────
+\begin{frame}{Training Strategies \& Dataset}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \vspace{0.3em}
+      % ── Curriculum timeline ──
+      \centering
+      \resizebox{\columnwidth}{!}{%
+      \begin{tikzpicture}
+        % Stage bars
+        \fill[accent!25, rounded corners=3pt] (0,0) rectangle (3.2,0.55);
+        \fill[gold!30, rounded corners=3pt] (3.35,0) rectangle (6.55,0.55);
+        \fill[warn!20, rounded corners=3pt] (6.7,0) rectangle (10.1,0.55);
+        % Labels
+        \node[font=\tiny\bfseries] at (1.6,0.28) {Stage 1: Format};
+        \node[font=\tiny\bfseries] at (4.95,0.28) {Stage 2: Progressive};
+        \node[font=\tiny\bfseries] at (8.4,0.28) {Stage 3: Full};
+        % Steps
+        \node[font=\tiny, color=slate, below=3pt] at (1.6,0) {800 steps};
+        \node[font=\tiny, color=slate, below=3pt] at (4.95,0) {800 steps};
+        \node[font=\tiny, color=slate, below=3pt] at (8.4,0) {900 steps};
+        % Difficulty distribution
+        \node[font=\tiny, color=navy, above=3pt] at (1.6,0.55) {S:35 M:55 H:10};
+        \node[font=\tiny, color=navy, above=3pt] at (4.95,0.55) {S:15 M:35 H:50};
+        \node[font=\tiny, color=navy, above=3pt] at (8.4,0.55) {S:10 M:25 H:65};
+      \end{tikzpicture}}
+
+      \vspace{0.8em}
+      % ── 2×2 Strategy matrix ──
+      \renewcommand{\arraystretch}{1.5}
+      \centering\small
+      \begin{tabular}{@{}r|c|c@{}}
+                          & \textbf{Standard} & \textbf{Curriculum} \\
+        \hline
+        \textbf{No-Think} & \cellcolor{sky!10}$\checkmark$ & \cellcolor{sky!10}$\checkmark$ \\
+        \hline
+        \textbf{Think}    & \cellcolor{sky!10}$\checkmark$ & \cellcolor{sky!10}$\checkmark$ \\
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \begin{tcolorbox}[insightbox=navy, title={\small Dataset}]
+        \small
+        \textcolor{sky}{\faFile}~24 parametric templates\\\hspace*{1.2em}{\scriptsize(8 per difficulty tier)}\\[0.35em]
+        \textcolor{sky}{\faLayerGroup}~1\,500 samples/stage $\times$ 3\\\hspace*{1.2em}= \textbf{4\,500} training\\[0.35em]
+        \textcolor{sky}{\faChartBar}~Eval: \textbf{300} balanced\\\hspace*{1.2em}{\scriptsize(100 S / 100 M / 100 H)}\\[0.35em]
+        \textcolor{sky}{\faBan}~No ground-truth JSON\\\hspace*{1.2em}{\scriptsize reward evaluates directly}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ════════════════════════════════════════════════════════════
+%  SECTION SEPARATOR — RESULTS
+% ════════════════════════════════════════════════════════════
+{
+  \setbeamertemplate{headline}{}
+  \setbeamertemplate{footline}{}
+  \begin{frame}[plain]
+    \begin{tikzpicture}[remember picture, overlay]
+      \fill[left color=navy, right color=darkbg]
+        (current page.south west) rectangle (current page.north east);
+      \draw[sky!30, line width=0.4pt] ([yshift=-0.5cm]current page.north west)
+        -- ([yshift=-0.5cm]current page.north east);
+    \end{tikzpicture}
+    \vfill
+    \begin{center}
+      {\Huge\color{sky}\faChartLine}\\[0.8em]
+      {\LARGE\bfseries\color{white}Experimental Results}\\[0.4em]
+      {\small\color{white!60}5 models $\times$ 4 strategies $\times$ 2\,500 steps}
+    \end{center}
+    \vfill
+  \end{frame}
+}
+
+% ── Slide 8 · Consolidated Baseline ─────────────────────
+\begin{frame}{Baseline Pass@1 — Off-the-Shelf Models}
+  \centering
+  \footnotesize
+  \rowcolors{2}{navy!4}{white}
+  \renewcommand{\arraystretch}{1.55}
+  \setlength\tabcolsep{10pt}
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    \textbf{Model} & \textbf{Overall} & \textbf{Simple} & \textbf{Medium} & \textbf{Hard} \\
+    \midrule
+    SmolLM2-135M   & 39.00\% & 58.00\% & 39.00\% & \textcolor{warn}{20.00\%} \\
+    SmolLM2-360M   & 77.67\% & 85.00\% & 86.00\% & 62.00\% \\
+    Qwen2.5-0.5B   & 92.67\% & 95.00\% & 95.00\% & 88.00\% \\
+    TinyLlama-1.1B & 79.33\% & 89.00\% & 76.00\% & 73.00\% \\
+    Gemma-2-2B     & \textbf{98.33\%} & \textbf{100\%} & \textbf{100\%} & \textbf{95.00\%} \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.6em}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[metricbox]
+        {\large\bfseries\color{warn}39\%} {\small floor}\\[-2pt]
+        {\scriptsize SmolLM2-135M overall}
+      \end{tcolorbox}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[metricbox]
+        {\large\bfseries\color{accent}98\%} {\small ceiling}\\[-2pt]
+        {\scriptsize Gemma-2-2B overall}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.3em}
+  {\scriptsize\color{slate} 300-sample balanced eval (100 S / 100 M / 100 H). Config: No-Think / Standard.}
+\end{frame}
+
+% ── Slide 9 · Peak Performance (Money Slide) ───────────
+\begin{frame}{Peak Performance — After 2\,500 GRPO Steps}
+  \centering
+  \footnotesize
+  \rowcolors{2}{navy!4}{white}
+  \renewcommand{\arraystretch}{1.6}
+  \setlength\tabcolsep{6pt}
+  \begin{tabular}{@{}lcclc@{}}
+    \toprule
+    \textbf{Model} & \textbf{Pre} & \textbf{Peak} & \textbf{Best Configuration} & $\boldsymbol{\Delta}$ \\
+    \midrule
+    SmolLM2-135M   & 31\% & \textbf{90.00\%} & Think / Standard &  \highlightnum{+58.67 pp}{accent} \\
+    SmolLM2-360M   & 78\% & \textbf{96.67\%} & No-Think / Standard &  \highlightnum{+19.00 pp}{accent} \\
+    Qwen2.5-0.5B   & 92\% & \textbf{98.00\%} & Think / Curriculum &  \highlightnum{+6.33 pp}{accent} \\
+    TinyLlama-1.1B & 79\% & \textbf{99.33\%} & No-Think / Curriculum &  \highlightnum{+20.00 pp}{accent} \\
+    Gemma-2-2B     & 96\% & \textbf{97.67\%} & Think / Curriculum &  \highlightnum{+1.33 pp}{accent} \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.4em}
+  {\scriptsize\color{slate} Pre = same-config baseline (Think prompting lowers small-model scores by $\sim$8pp vs.\ No-Think)}
+
+  \vspace{0.7em}
+  \begin{tcolorbox}[metricbox, width=0.7\textwidth]
+    {\Large\bfseries\color{sky} 87 – 99\% } {\normalsize convergence band}\\[2pt]
+    {\scriptsize All 5 models reach this band regardless of initial capability}
+  \end{tcolorbox}
+\end{frame}
+
+% ── Slide 10 · SmolLM2-135M Transformation ──────────────
+\begin{frame}{Greatest Transformation — SmolLM2-135M (+58.67 pp)}
+  \begin{columns}[c]
+    \begin{column}{0.72\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/think/standard/smollm2-135m/eval_20260411_192610/figures/baseline_vs_grpo_comparison.png}
+    \end{column}
+    \begin{column}{0.25\textwidth}
+      \begin{tcolorbox}[metricbox]
+        {\LARGE\bfseries\color{warn}31\%}\\[2pt]
+        {\scriptsize Baseline}
+      \end{tcolorbox}
+      \vspace{0.4em}
+      \centering{\large\color{accent}$\boldsymbol{\downarrow}$}
+      \vspace{0.4em}
+      \begin{tcolorbox}[metricbox]
+        {\LARGE\bfseries\color{accent}90\%}\\[2pt]
+        {\scriptsize Post-GRPO}
+      \end{tcolorbox}
+      \vspace{0.6em}
+      {\scriptsize\color{slate} Think / Standard\\
+       Small models learn to\\exploit reward signals\\without generating \texttt{<think>}}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 11 · SmolLM2-135M No-Think / Standard ─────────
+\begin{frame}{SmolLM2-135M — No-Think / Standard Comparison}
+  \centering
+  \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/standard/smollm2-135m/eval_20260409_152243/figures/baseline_vs_grpo_comparison.png}
+  \\[0.4em]
+  {\small\color{slate} Pass@1 by difficulty tier, before and after 2\,500 GRPO steps (No-Think / Standard)}
+\end{frame}
+
+% ── Slide 12 · SmolLM2-135M No-Think Curriculum Progression ──
+\begin{frame}{SmolLM2-135M — Curriculum Progression (No-Think)}
+  \centering
+  \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/curriculum_progression.png}
+  \\[0.4em]
+  {\small\color{slate} 33\% $\to$ 62.7\% $\to$ 84.7\% $\to$ 89.0\% across 3 curriculum stages}
+\end{frame}
+
+% ── Slide 13 · SmolLM2-135M No-Think Curriculum Heatmap ──
+\begin{frame}{SmolLM2-135M — Difficulty Heatmap (No-Think / Curriculum)}
+  \centering
+  \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/stage_difficulty_heatmap.png}
+  \\[0.4em]
+  {\small\color{slate} Pass@1 per difficulty tier at each curriculum stage}
+\end{frame}
+
+% ── Slide 14 · SmolLM2-135M Think Curriculum Progression ──
+\begin{frame}{SmolLM2-135M — Curriculum Progression (Think)}
+  \centering
+  \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/think/curriculum/smollm2-135m/eval_20260413_034728/figures/curriculum_progression.png}
+  \\[0.4em]
+  {\small\color{slate} 31.7\% $\to$ 55.7\% $\to$ 80.0\% $\to$ 89.3\%. Small models never generate \texttt{<think>} tokens but still exploit reward signals}
+\end{frame}
+
+% ── Slide 15 · SmolLM2-135M Think Curriculum Heatmap ─────
+\begin{frame}{SmolLM2-135M — Difficulty Heatmap (Think / Curriculum)}
+  \centering
+  \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/think/curriculum/smollm2-135m/eval_20260413_034728/figures/stage_difficulty_heatmap.png}
+  \\[0.4em]
+  {\small\color{slate} Per-difficulty breakdown reveals hard tier drives largest improvements}
+\end{frame}
+
+% ── Slide 16 · Gemma U-Curve Anomaly ────────────────────
+\begin{frame}{Anomaly — Gemma-2-2B U-Shaped Learning Curve}
+  \begin{columns}[c]
+    \begin{column}{0.68\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/think/curriculum/gemma2-2b/eval_20260413_030321/figures/stage_difficulty_heatmap.png}
+    \end{column}
+    \begin{column}{0.29\textwidth}
+      \begin{tcolorbox}[insightbox=warn]
+        \scriptsize\textbf{Temporary collapse}\\[3pt]
+        96\% $\to$ \textcolor{warn}{83\%} $\to$ \textcolor{warn}{66\%} $\to$ \textcolor{accent}{98\%}\\[4pt]
+        Forcing \texttt{<think>} on trivially simple schemas temporarily confuses alignment.\\[3pt]
+        Full recovery once hard schemas dominate in Stage 3.
+      \end{tcolorbox}
+      \vspace{0.5em}
+      \begin{tcolorbox}[insightbox=accent]
+        \scriptsize\textbf{Key insight}\\[3pt]
+        Curriculum pacing must match model capacity. Strong models need less ``warm-up''.
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 17 · Error Evolution ───────────────────────────
+\begin{frame}{Error Evolution — How Failures Disappear}
+  \begin{columns}[c]
+    \begin{column}{0.72\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/error_evolution.png}
+    \end{column}
+    \begin{column}{0.25\textwidth}
+      \begin{tcolorbox}[insightbox=sky]
+        \scriptsize\textbf{Stage 1}\\[2pt]
+        Dominant error:\\\texttt{no\_code\_block}\\[2pt]
+        Model learns the\\ \texttt{```json```} fence first
+      \end{tcolorbox}
+      \vspace{0.3em}
+      \begin{tcolorbox}[insightbox=gold]
+        \scriptsize\textbf{Stage 2}\\[2pt]
+        Format mastered, residual: \texttt{json\_error}\\
+        Focus shifts to structure
+      \end{tcolorbox}
+      \vspace{0.3em}
+      \begin{tcolorbox}[insightbox=accent]
+        \scriptsize\textbf{Stage 3}\\[2pt]
+        Near-zero errors remaining\\
+        Only edge-case schema failures
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 18 · Reward Breakdown ─────────────────────────────
+\begin{frame}{Reward Breakdown — SmolLM2-135M}
+  \centering
+  \includegraphics[width=0.80\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/reward_breakdown.png}
+  \\[0.4em]
+  {\small\color{slate} Component contributions at final checkpoint (No-Think / Curriculum)}
+\end{frame}
+
+% ── Slide 19 · Cross-Modality Insights ──────────────────
+\begin{frame}{Cross-Modality Insights}
+  \vspace{0.2em}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[insightbox=sky]
+        \textcolor{sky}{\faBrain}~~\textbf{Think vs.\ No-Think}\\[3pt]
+        \scriptsize Small models (135M, 360M, 0.5B) never generate \texttt{<think>} tokens;
+        only Gemma and TinyLlama can.
+        135M peaks \textbf{90\%} in Think config but by exploiting other rewards, not reasoning.
+        Think doesn't help for these tasks.
+      \end{tcolorbox}
+      \vspace{0.4em}
+      \begin{tcolorbox}[insightbox=accent]
+        \textcolor{accent}{\faLock}~~\textbf{Curriculum = Safety Net}\\[3pt]
+        \scriptsize Standard causes Gemma-2-2B to regress ($-$1.67pp).
+        Curriculum flips this to $+$0.67pp.
+        Produces the absolute highest scores (TinyLlama 99.33\%, Qwen 98.00\%).
+      \end{tcolorbox}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[insightbox=gold]
+        \textcolor{gold}{\faChartArea}~~\textbf{Inverted-U Gain Pattern}\\[3pt]
+        \scriptsize Smallest models gain most: 135M $+$58pp.
+        Mid-range (360M, 1.1B): $+$13–26pp.
+        Already-strong (0.5B, 2B): $+$0–8pp, approaching ceiling.
+      \end{tcolorbox}
+      \vspace{0.4em}
+      \begin{tcolorbox}[insightbox=warn]
+        \textcolor{warn}{\faExclamationTriangle}~~\textbf{Hard Tier Drives Improvement}\\[3pt]
+        \scriptsize Baselines: 17–20\% hard pass for 135M.
+        Post-GRPO: \textbf{86–99\%} on hard prompts.
+        Simple saturates to 100\% very early (Stage 1).
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ════════════════════════════════════════════════════════════
+%  CLOSING
+% ════════════════════════════════════════════════════════════
+
+% ── Slide 20 · Lessons & Limitations ────────────────────
+\begin{frame}{Lessons \& Limitations}
+  \begin{columns}[T]
+    \begin{column}{0.50\textwidth}
+      \begin{tcolorbox}[insightbox=accent, title={\small\textcolor{accent}{\faCheckCircle}~Technical Lessons}]
+        \small
+        \begin{itemize}
+          \setlength\itemsep{0.45em}
+          \item \textbf{Additive rewards $>$ gating}\\*
+                {\scriptsize Zero-advantage collapse if all tie $\to$ vanishing gradient}
+          \item \textbf{Graduated partial credit}\\*
+                {\scriptsize Binary validity gives no signal for near-valid JSON}
+          \item \textbf{4-bit NF4 + LoRA} sufficient\\*
+                {\scriptsize $<$2\% params trained, single GPU, identical hyperparams}
+          \item \textbf{Weight redistribution}\\*
+                {\scriptsize Auto-preserves component ratios when Think off}
+        \end{itemize}
+      \end{tcolorbox}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{tcolorbox}[insightbox=gold, title={\small\textcolor{gold}{\faExclamationCircle}~Limitations}]
+        \small
+        \begin{itemize}
+          \setlength\itemsep{0.45em}
+          \item JSON only — not directly\\generalizable to other formats
+          \item Fully synthetic dataset;\\potential real-world gap
+          \item No comparison with DPO/PPO\\(only GRPO tested)
+          \item Fixed hyperparameters —\\per-model tuning could help
+        \end{itemize}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ── Slide 21 · Conclusions ──────────────────────────────
+\begin{frame}{Conclusions}
+  \vspace{0.2em}
+  \begin{itemize}
+    \setlength\itemsep{0.6em}
+    \item[\textcolor{accent}{\faCheckCircle}] GRPO $+$ rule-based rewards brings all 5 models to
+          \alert{87–99\% Pass@1}
+    \item[\textcolor{sky}{\faRocket}] \textbf{Standard} is optimal for weak models:\\*
+          SmolLM2-135M \highlightnum{+58.67 pp}{accent}
+    \item[\textcolor{gold}{\faLock}] \textbf{Curriculum} is a safety net for strong models:\\*
+          Gemma-2-2B: $-$1.67 (std) $\to$ $+$0.67 (curr)
+    \item[\textcolor{slate}{\faBrain}] \textbf{Think mode}: $<$2 pp marginal gain;\\*
+          small models can't generate \texttt{<think>}, not useful for this task
+    \item[\textcolor{navy}{\faCog}] \textbf{Reward design $>$ hyperparameter tuning}:\\*
+          identical config works for 135M – 2B
+  \end{itemize}
+\end{frame}
+
+\end{document}

@@ -1,4 +1,4 @@
-﻿% ============================================================
+% ============================================================
 %  Aligning Small LLMs with GRPO for Strict JSON Generation
 %  Beamer presentation — Adapted to DL26 guidelines
 %  9 main slides + backup slides for Q&A
@@ -28,30 +28,37 @@
 \usepackage{multicol}
 \usepackage{etoolbox}
 \usepackage{colortbl}
+\pdfstringdefDisableCommands{\def\translate#1{#1}}
 
 % ── Colour palette ───────────────────────────────────────
-\definecolor{navy}{HTML}{1B2A4A}
-\definecolor{sky}{HTML}{0EA5E9}
-\definecolor{offwhite}{HTML}{F8FAFC}
-\definecolor{accent}{HTML}{10B981}
-\definecolor{warn}{HTML}{EF4444}
-\definecolor{gold}{HTML}{F59E0B}
-\definecolor{mint}{HTML}{6EE7B7}
-\definecolor{slate}{HTML}{64748B}
-\definecolor{darkbg}{HTML}{0F172A}
+\definecolor{darkbg}{HTML}{0D1117}       % GitHub-dark background
+\definecolor{cardbg}{HTML}{161B22}       % Slightly lighter for cards
+\definecolor{bordergray}{HTML}{30363D}   % Subtle borders
+\definecolor{textprimary}{HTML}{E6EDF3}  % Primary text (off-white)
+\definecolor{textsecondary}{HTML}{8B949E}% Muted text
+\definecolor{sky}{HTML}{58A6FF}          % Blue accent
+\definecolor{accent}{HTML}{3FB950}       % Green accent
+\definecolor{warn}{HTML}{F85149}         % Red accent
+\definecolor{gold}{HTML}{D29922}         % Amber accent
+\definecolor{purple}{HTML}{A371F7}       % Purple accent
+\definecolor{navy}{HTML}{0D1117}         % Alias for compat
+\definecolor{slate}{HTML}{8B949E}        % Alias for captions
 
 % ── Metropolis colour overrides ──────────────────────────
-\setbeamercolor{normal text}      {fg=navy,   bg=white}
-\setbeamercolor{frametitle}       {bg=navy,   fg=white}
+\setbeamercolor{normal text}      {fg=textprimary, bg=darkbg}
+\setbeamercolor{frametitle}       {bg=cardbg,      fg=textprimary}
 \setbeamercolor{title separator}  {fg=sky}
-\setbeamercolor{progress bar}     {fg=sky,    bg=navy!40}
+\setbeamercolor{progress bar}     {fg=sky,         bg=bordergray}
 \setbeamercolor{alerted text}     {fg=sky}
-\setbeamercolor{block title}      {bg=navy!10, fg=navy}
-\setbeamercolor{block body}       {bg=navy!5}
+\setbeamercolor{block title}      {bg=cardbg,      fg=textprimary}
+\setbeamercolor{block body}       {bg=cardbg}
 \setbeamercolor{title}            {fg=white}
-\setbeamercolor{subtitle}         {fg=sky!70!white}
-\setbeamercolor{author}           {fg=white!90}
-\setbeamercolor{date}             {fg=white!70}
+\setbeamercolor{subtitle}         {fg=sky!80!white}
+\setbeamercolor{author}           {fg=textprimary}
+\setbeamercolor{date}             {fg=textsecondary}
+\setbeamercolor{item}             {fg=sky}
+\setbeamercolor{footline}         {fg=textsecondary, bg=darkbg}
+\setbeamercolor{page number in head/foot}{fg=textsecondary}
 
 % ── Metropolis options ───────────────────────────────────
 \metroset{
@@ -66,34 +73,69 @@
 \tcbset{
   insightbox/.style={
     enhanced, boxrule=0pt, frame hidden,
-    borderline west={3pt}{0pt}{#1},
-    colback=#1!5, coltext=navy,
-    left=8pt, right=6pt, top=5pt, bottom=5pt,
-    fonttitle=\small\bfseries, coltitle=navy,
+    borderline west={2.5pt}{0pt}{#1},
+    colback=cardbg, coltext=textprimary,
+    left=10pt, right=8pt, top=6pt, bottom=6pt,
+    fonttitle=\small\bfseries, coltitle=#1,
+    colbacktitle=cardbg, toptitle=2pt, bottomtitle=2pt,
     sharp corners=east, rounded corners=west,
     arc=2pt,
   },
   insightbox/.default={sky},
   metricbox/.style={
-    enhanced, boxrule=0.5pt,
-    colframe=navy!20, colback=white,
-    coltext=navy, halign=center,
-    top=6pt, bottom=6pt, left=8pt, right=8pt,
-    drop fuzzy shadow=navy!15,
-    arc=4pt,
+    enhanced, boxrule=0pt, frame hidden,
+    borderline north={2pt}{0pt}{#1},
+    colback=cardbg, coltext=textprimary, halign=center,
+    top=8pt, bottom=8pt, left=10pt, right=10pt,
+    arc=5pt, outer arc=5pt,
   },
+  metricbox/.default={sky},
   codebox/.style={
     enhanced, boxrule=0pt, frame hidden,
-    colback=darkbg, coltext=white,
+    borderline west={2pt}{0pt}{bordergray},
+    colback=cardbg, coltext=textprimary,
     fontupper=\ttfamily\scriptsize,
-    left=8pt, right=8pt, top=6pt, bottom=6pt,
-    arc=3pt,
+    left=10pt, right=10pt, top=8pt, bottom=8pt,
+    arc=4pt, outer arc=4pt,
+  },
+  tablecard/.style={
+    enhanced, boxrule=0pt, frame hidden,
+    colback=cardbg, coltext=textprimary,
+    left=10pt, right=10pt, top=8pt, bottom=8pt,
+    arc=5pt, outer arc=5pt,
   },
 }
 
 % ── Helper commands ──────────────────────────────────────
 \newcommand{\highlightnum}[2]{{\bfseries\color{#2}#1}}
 \newcommand{\iconitem}[2]{\item[\textcolor{sky}{#1}] #2}
+
+% ── Stat pill: inline highlighted metric ─────────────────
+\newtcbox{\statpill}[1][sky]{on line,
+  enhanced, boxrule=0pt, frame hidden,
+  colback=#1!15!cardbg, coltext=#1,
+  arc=3pt, outer arc=3pt,
+  boxsep=0pt, left=5pt, right=5pt, top=2pt, bottom=2pt,
+  fontupper=\bfseries\small,
+}
+
+% ── Image frame: white bg for slides with white figures ──
+\newenvironment{imageframe}[1]{%
+  \begingroup
+  \setbeamercolor{background canvas}{bg=white}%
+  \setbeamercolor{normal text}{fg=darkbg}%
+  \setbeamercolor{frametitle}{bg=white, fg=darkbg}%
+  \setbeamercolor{item}{fg=sky}%
+  \begin{frame}{#1}\color{darkbg}%
+}{%
+  \end{frame}\endgroup%
+}
+
+% ── Table row colour for dark theme ─────────────────────
+\rowcolors{1}{darkbg}{cardbg}
+\arrayrulecolor{bordergray}
+\setlength{\lightrulewidth}{0.4pt}
+\setlength{\heavyrulewidth}{0.6pt}
 
 % ── Metadata ─────────────────────────────────────────────
 \title{Aligning Small LLMs with GRPO\\[0.25em]for Strict JSON Generation}
@@ -112,27 +154,27 @@
   \setbeamertemplate{footline}{}
   \begin{frame}[plain]
     \begin{tikzpicture}[remember picture, overlay]
-      % Gradient background
-      \fill[left color=navy, right color=navy!85!sky]
+      % Dark gradient background
+      \fill[left color=darkbg, right color=cardbg]
         (current page.south west) rectangle (current page.north east);
-      % Decorative circles
+      % Subtle glow circles
       \foreach \x/\y/\r/\o in {
         12/3.5/1.8/8, 14/1/1.2/6, 1.5/4/1.4/5,
         3/0.5/0.9/7, 13.5/4.5/0.7/4, 0.5/1.5/1.0/6%
       }{
         \fill[sky, opacity=0.0\o] (\x,\y) circle (\r);
       }
-      % Geometric accent lines
-      \draw[sky!40, line width=0.5pt] (0,2.8) -- (16,2.8);
-      \draw[sky!25, line width=0.3pt] (0,2.6) -- (16,2.6);
+      % Minimal accent lines
+      \draw[sky!30, line width=0.4pt] (0,2.8) -- (16,2.8);
+      \draw[sky!15, line width=0.3pt] (0,2.6) -- (16,2.6);
     \end{tikzpicture}
     \vspace{0.4cm}
     \begin{center}
-      {\footnotesize\color{white!70}Deep Learning: Advanced Models and Methods (DL26) \textbullet\ \textbf{G23}}\\[0.6em]
+      {\footnotesize\color{textsecondary}Deep Learning: Advanced Models and Methods (DL26) \textbullet\ \textbf{G23}}\\[0.6em]
       {\LARGE\bfseries\color{white}\inserttitle}\\[0.4em]
-      {\normalsize\color{sky!70!white}\insertsubtitle}\\[1.0em]
-      {\small\color{white!90}\insertauthor}\\[0.8em]
-      {\footnotesize\color{sky!60}\faGithub~~\texttt{github.com/GiuseppeBellamacina/GRPO-strict-generation}}
+      {\normalsize\color{sky!80!white}\insertsubtitle}\\[1.0em]
+      {\small\color{textprimary}\insertauthor}\\[0.8em]
+      {\footnotesize\color{textsecondary}\faGithub~~\texttt{github.com/GiuseppeBellamacina/GRPO-strict-generation}}
     \end{center}
   \end{frame}
 }
@@ -183,12 +225,13 @@ Sure! Here's the JSON you asked for:
 \begin{frame}{5 Models (135M–2B), Synthetic Dataset, Single GPU}
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
-      \rowcolors{2}{navy!4}{white}
-      \renewcommand{\arraystretch}{1.4}
+      \begin{tcolorbox}[tablecard]
+      \rowcolors{2}{cardbg}{darkbg!50!cardbg}
+      \renewcommand{\arraystretch}{1.3}
       \centering
-      \footnotesize
+      \scriptsize
       \begin{tabular}{@{}lrl@{}}
-        \toprule
+        \rowcolor{cardbg}
         \textbf{Model}         & \textbf{Params} & \textbf{Arch} \\
         \midrule
         SmolLM2-135M-Instruct  & 135M & LLaMA-like \\
@@ -196,30 +239,29 @@ Sure! Here's the JSON you asked for:
         Qwen2.5-0.5B-Instruct  & 0.5B & Qwen2.5 \\
         TinyLlama-1.1B-Chat    & 1.1B & LLaMA 2 \\
         Gemma-2-2B-it          &   2B & Gemma 2 \\
-        \bottomrule
       \end{tabular}
-      \vspace{0.5em}
+      \end{tcolorbox}
+      \vspace{0.2em}
 
-      \begin{tcolorbox}[insightbox=navy, title={\small Dataset}]
-        \small
-        \textcolor{sky}{\faFile}~24 parametric templates (8/difficulty)\\[0.3em]
-        \textcolor{sky}{\faLayerGroup}~4\,500 training samples\\[0.3em]
-        \textcolor{sky}{\faChartBar}~300 eval (100 S / 100 M / 100 H)\\[0.3em]
-        \textcolor{sky}{\faBan}~No ground-truth JSON — reward evaluates directly
+      \begin{tcolorbox}[insightbox=sky, title={\small Dataset}]
+        \scriptsize
+        \textcolor{sky}{\faFile}~24 templates (8/difficulty)\\[0.15em]
+        \textcolor{sky}{\faLayerGroup}~4\,500 training samples\\[0.15em]
+        \textcolor{sky}{\faChartBar}~300 eval (100 S / 100 M / 100 H)\\[0.15em]
+        \textcolor{sky}{\faBan}~No ground-truth JSON
       \end{tcolorbox}
     \end{column}
     \begin{column}{0.45\textwidth}
-      \vspace{0.2em}
       \begin{tcolorbox}[insightbox=sky, title={\small Configuration}]
-        \small
-        \textcolor{sky}{\faHdd}~4-bit NF4 quantization\\[0.35em]
-        \textcolor{sky}{\faSitemap}~LoRA $r{=}16$,\; $\alpha{=}32$\\[0.35em]
-        \textcolor{sky}{\faMicrochip}~1$\times$ NVIDIA L40S (48\,GB)\\[0.35em]
-        \textcolor{sky}{\faRedo}~2\,500 steps / model\\[0.35em]
-        \textcolor{sky}{\faCog}~Paged AdamW 8-bit\\[0.35em]
+        \scriptsize
+        \textcolor{sky}{\faHdd}~4-bit NF4 quantization\\[0.15em]
+        \textcolor{sky}{\faSitemap}~LoRA $r{=}16$,\; $\alpha{=}32$\\[0.15em]
+        \textcolor{sky}{\faMicrochip}~1$\times$ NVIDIA L40S (48\,GB)\\[0.15em]
+        \textcolor{sky}{\faRedo}~2\,500 steps / model\\[0.15em]
+        \textcolor{sky}{\faCog}~Paged AdamW 8-bit\\[0.2em]
         \textcolor{sky}{\faGraduationCap}~LR $5{\times}10^{-6}$, cosine
       \end{tcolorbox}
-      \vspace{0.5em}
+      \vspace{0.3em}
       \begin{tcolorbox}[insightbox=gold]
         \scriptsize\textbf{4 strategies tested:}\\[2pt]
         Think / No-Think $\times$ Standard / Curriculum\\[2pt]
@@ -236,69 +278,90 @@ Sure! Here's the JSON you asked for:
   \centering
   \resizebox{\textwidth}{!}{%
   \begin{tikzpicture}[
-    node distance=0cm and 0.7cm,
+    node distance=0cm and 0.8cm,
     box/.style={
-      rectangle, rounded corners=6pt,
-      minimum width=3.2cm, minimum height=1.6cm,
-      text centered, inner sep=6pt, text width=3.1cm,
-      draw=navy!60, thick,
-      drop shadow={shadow xshift=1pt, shadow yshift=-1.5pt, opacity=0.25, fill=navy!40}
+      rectangle, rounded corners=8pt,
+      minimum width=3.3cm, minimum height=1.7cm,
+      text centered, inner sep=7pt, text width=3.1cm,
+      draw=bordergray!80, line width=0.7pt,
+      top color=cardbg, bottom color=darkbg,
+      text=textprimary,
+      blur shadow={shadow xshift=2pt, shadow yshift=-2pt,
+                   shadow blur steps=6, shadow blur radius=3pt,
+                   shadow opacity=40},
     },
     sbox/.style={
-      rectangle, rounded corners=4pt,
-      minimum width=1.6cm, minimum height=0.7cm,
+      rectangle, rounded corners=5pt,
+      minimum width=1.7cm, minimum height=0.75cm,
       text centered, inner sep=3pt, text width=1.5cm,
-      draw=sky!50, fill=sky!8, thick, font=\scriptsize
+      draw=bordergray!60, line width=0.5pt,
+      fill=cardbg, font=\scriptsize,
+      text=textprimary,
     },
-    arr/.style={-{Stealth[length=7pt, width=5pt]}, line width=1.2pt, color=navy!80},
-    sarr/.style={-{Stealth[length=5pt]}, thick, color=sky!70},
+    arr/.style={-{Stealth[length=8pt, width=5pt]}, line width=1.4pt,
+                color=sky!80, shorten >=2pt, shorten <=2pt},
+    sarr/.style={-{Stealth[length=5pt]}, thick, color=sky!50},
+    lbl/.style={font=\tiny\bfseries, color=textsecondary, fill=darkbg,
+                inner sep=2pt, rounded corners=2pt},
   ]
     % ── Main pipeline nodes ──────────────────────────────
-    \node[box, top color=sky!12, bottom color=sky!3] (p)
+    \node[box] (p)
       {\small\textbf{Prompt} $x$\\[4pt]
        \scriptsize sampled from dataset\\
        difficulty $d\in\{S,M,H\}$};
 
-    \node[box, top color=navy!10, bottom color=navy!3, right=0.7cm of p] (g)
+    \node[box, right=0.8cm of p] (g)
       {\small\textbf{Sample} $G{=}8$\\[4pt]
        \scriptsize $y_1,\dots,y_8\sim\pi_\theta(\cdot|x)$\\
        temp $T\in[0.6,\,0.8]$};
 
-    \node[box, top color=sky!25, bottom color=sky!8, right=0.7cm of g] (r)
+    \node[box, right=0.8cm of g] (r)
       {\small\textbf{Score} $r_i$\\[4pt]
        \scriptsize $r_i=\sum\nolimits_k w_k\,r_k(y_i)$\\
        7 additive components};
 
-    \node[box, top color=navy!12, bottom color=navy!4, right=0.7cm of r] (a)
+    \node[box, right=0.8cm of r] (a)
       {\small\textbf{Advantage} $\hat{A}_i$\\[4pt]
        \scriptsize $\hat{A}_i=\dfrac{r_i-\bar{r}_G}{\sigma_{r_G}}$\\[2pt]
        group-relative norm.};
 
-    \node[box, top color=sky!18, bottom color=sky!5, right=0.7cm of a] (u)
+    \node[box, right=0.8cm of a] (u)
       {\small\textbf{Update} $\pi_\theta$\\[4pt]
        \scriptsize $\mathcal{L}=\sum_i\hat{A}_i\log\pi_\theta(y_i|x)$\\
        $-\,\beta\,D_{\mathrm{KL}}$,\quad$\beta{=}0.04$};
 
+    % ── Glow dots at node headers ────────────────────────
+    \foreach \nd/\col in {p/sky, g/purple, r/gold, a/accent, u/sky}{
+      \fill[\col, opacity=0.12] (\nd.north) circle (8pt);
+    }
+
     % ── Arrow labels ─────────────────────────────────────
-    \draw[arr] (p) -- node[above,font=\tiny\bfseries,color=navy!70]{prompt} (g);
-    \draw[arr] (g) -- node[above,font=\tiny\bfseries,color=navy!70]{$G$ completions} (r);
-    \draw[arr] (r) -- node[above,font=\tiny\bfseries,color=navy!70]{$\{r_i\}$} (a);
-    \draw[arr] (a) -- node[above,font=\tiny\bfseries,color=navy!70]{$\{\hat{A}_i\}$} (u);
+    \draw[arr] (p) -- node[lbl, above]{prompt} (g);
+    \draw[arr] (g) -- node[lbl, above]{$G$ completions} (r);
+    \draw[arr] (r) -- node[lbl, above]{$\{r_i\}$} (a);
+    \draw[arr] (a) -- node[lbl, above]{$\{\hat{A}_i\}$} (u);
 
     % ── Feedback loop ─────────────────────────────────────
-    \draw[arr, dashed, color=navy!50, rounded corners=10pt]
-      (u.south) -- ++(0,-0.85)
-      -- node[below, font=\tiny\itshape, color=slate, pos=0.5]
+    \draw[arr, densely dashed, color=textsecondary!60, rounded corners=12pt]
+      (u.south) -- ++(0,-0.9)
+      -- node[below, font=\tiny\itshape, color=textsecondary,
+              fill=darkbg, inner sep=2pt, rounded corners=2pt, pos=0.5]
          {updated $\pi_\theta$ becomes new reference}
-      ($(p.south)+(0,-0.85)$) -- (p.south);
+      ($(p.south)+(0,-0.9)$) -- (p.south);
 
     % ── Reward component sub-boxes (below Score node) ─────
-    \node[sbox, below=1.2cm of r, xshift=-3.8cm] (c1) {format\\$w{=}0.20$};
-    \node[sbox, right=0.14cm of c1]               (c2) {validity\\$w{=}0.25$};
-    \node[sbox, right=0.14cm of c2]               (c3) {schema\\$w{=}0.25$};
-    \node[sbox, right=0.14cm of c3]               (c4) {trunc.\\$w{=}0.10$};
-    \node[sbox, right=0.14cm of c4]               (c5) {repet.\\$w{=}0.10$};
-    \node[sbox, right=0.14cm of c5]               (c6) {strict.\\$w{=}0.10$};
+    \node[sbox, below=1.3cm of r, xshift=-3.8cm] (c1)
+      {\textcolor{sky}{\faCode}\\[-1pt]format\\$w{=}0.20$};
+    \node[sbox, right=0.18cm of c1] (c2)
+      {\textcolor{accent}{\faCheck}\\[-1pt]validity\\$w{=}0.25$};
+    \node[sbox, right=0.18cm of c2] (c3)
+      {\textcolor{gold}{\faSitemap}\\[-1pt]schema\\$w{=}0.25$};
+    \node[sbox, right=0.18cm of c3] (c4)
+      {\textcolor{warn}{\faTimes}\\[-1pt]trunc.\\$w{=}0.10$};
+    \node[sbox, right=0.18cm of c4] (c5)
+      {\textcolor{textsecondary}{\faRedo}\\[-1pt]repet.\\$w{=}0.10$};
+    \node[sbox, right=0.18cm of c5] (c6)
+      {\textcolor{purple}{\faBan}\\[-1pt]strict.\\$w{=}0.10$};
 
     % horizontal collector bar + single arrow to Score node
     \coordinate (left)  at (c1.north west);
@@ -309,11 +372,11 @@ Sure! Here's the JSON you asked for:
       (mid)  -- (r.south);
 
   \end{tikzpicture}}
-  \vspace{0.3em}
+  \vspace{0.4em}
 
-  \begin{tcolorbox}[insightbox=sky, width=0.85\textwidth]
-    \small\textbf{Key idea:} No critic network needed. Advantages are computed \emph{within} each group of $G{=}8$ completions.
-    Additive reward composition ensures gradient is always non-zero — avoids \alert{zero-advantage collapse}.
+  \begin{tcolorbox}[insightbox=sky, width=0.88\textwidth]
+    \small\textbf{Key insight} \textcolor{textsecondary}{|} No critic network needed. Advantages are computed \emph{within} each group of $G{=}8$ completions.
+    Additive reward ensures gradient $\neq 0$ — avoids \alert{zero-advantage collapse}.
   \end{tcolorbox}
 \end{frame}
 
@@ -323,13 +386,14 @@ Sure! Here's the JSON you asked for:
 \begin{frame}{7 Additive Rewards + 3-Stage Curriculum Prevent Collapse}
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
+      \begin{tcolorbox}[tablecard]
       \centering
       \scriptsize
-      \rowcolors{2}{navy!4}{white}
-      \renewcommand{\arraystretch}{1.35}
+      \rowcolors{2}{cardbg}{darkbg!50!cardbg}
+      \renewcommand{\arraystretch}{1.4}
       \setlength\tabcolsep{4pt}
       \begin{tabularx}{\linewidth}{@{}l c c X@{}}
-        \toprule
+        \rowcolor{cardbg}
         \textbf{Component} & \textbf{Range} & \textbf{$w$} & \textbf{Measures} \\
         \midrule
         \textcolor{sky}{\faCode}~format     & $[0,1]$    & .20 & \texttt{```json```} fence \\
@@ -337,41 +401,17 @@ Sure! Here's the JSON you asked for:
         \textcolor{gold}{\faSitemap}~schema     & $[0,1]$    & .25 & Keys, types, nesting \\
         \textcolor{warn}{\faTimes}~truncation & $[-1,1]$   & .10 & Unclosed braces \\
         \textcolor{slate}{\faRedo}~repetition & $[-1,1]$   & .10 & Token loops \\
-        \textcolor{navy}{\faBan}~strictness & $[-1,1]$   & .10 & Extra text outside JSON \\
-        \textcolor{navy}{\faBrain}~reasoning  & $[-0.5,1]$ & .25\textsuperscript{*} & \texttt{<think>} quality \\
-        \bottomrule
+        \textcolor{purple}{\faBan}~strictness & $[-1,1]$   & .10 & Extra text outside JSON \\
+        \textcolor{purple}{\faBrain}~reasoning  & $[-0.5,1]$ & .25\textsuperscript{*} & \texttt{<think>} quality \\
       \end{tabularx}
       {\tiny\color{slate} *Think mode only; weight redistributed when off}
+      \end{tcolorbox}
     \end{column}
     \begin{column}{0.45\textwidth}
-      \vspace{0.2em}
-      % ── Curriculum timeline ──
-      \centering
-      \resizebox{\columnwidth}{!}{%
-      \begin{tikzpicture}
-        % Stage bars
-        \fill[accent!25, rounded corners=3pt] (0,0) rectangle (3.2,0.55);
-        \fill[gold!30, rounded corners=3pt] (3.35,0) rectangle (6.55,0.55);
-        \fill[warn!20, rounded corners=3pt] (6.7,0) rectangle (10.1,0.55);
-        % Labels
-        \node[font=\tiny\bfseries] at (1.6,0.28) {Stage 1: Format};
-        \node[font=\tiny\bfseries] at (4.95,0.28) {Stage 2: Progressive};
-        \node[font=\tiny\bfseries] at (8.4,0.28) {Stage 3: Full};
-        % Steps
-        \node[font=\tiny, color=slate, below=3pt] at (1.6,0) {800 steps};
-        \node[font=\tiny, color=slate, below=3pt] at (4.95,0) {800 steps};
-        \node[font=\tiny, color=slate, below=3pt] at (8.4,0) {900 steps};
-        % Difficulty distribution
-        \node[font=\tiny, color=navy, above=3pt] at (1.6,0.55) {S:35 M:55 H:10};
-        \node[font=\tiny, color=navy, above=3pt] at (4.95,0.55) {S:15 M:35 H:50};
-        \node[font=\tiny, color=navy, above=3pt] at (8.4,0.55) {S:10 M:25 H:65};
-      \end{tikzpicture}}
-
-      \vspace{0.8em}
       \begin{tcolorbox}[insightbox=accent]
         \scriptsize\textbf{Curriculum = safety net}\\[3pt]
         Prevents regression in strong models.\\
-        Gemma-2-2B: $-$1.67pp (standard) $\to$ $+$0.67pp (curriculum)
+        Gemma-2-2B: \textcolor{warn}{$-$1.67pp} (standard) $\to$ \textcolor{accent}{$+$0.67pp} (curriculum)
       \end{tcolorbox}
       \vspace{0.3em}
       \begin{tcolorbox}[insightbox=sky]
@@ -381,6 +421,15 @@ Sure! Here's the JSON you asked for:
       \end{tcolorbox}
     \end{column}
   \end{columns}
+
+  \vspace{0.3em}
+  \centering
+  \scriptsize
+  \textcolor{accent}{\faPlayCircle}~\textbf{Stage 1:} Format {\tiny(800 st., S:35\% M:55\% H:10\%)}
+  \quad\textcolor{textsecondary}{\faAngleRight}\quad
+  \textcolor{gold}{\faPlayCircle}~\textbf{Stage 2:} Progressive {\tiny(800 st., S:15\% M:35\% H:50\%)}
+  \quad\textcolor{textsecondary}{\faAngleRight}\quad
+  \textcolor{warn}{\faPlayCircle}~\textbf{Stage 3:} Full {\tiny(900 st., S:10\% M:25\% H:65\%)}
 \end{frame}
 
 % ══════════════════════════════════════════════════════════
@@ -388,37 +437,41 @@ Sure! Here's the JSON you asked for:
 % ══════════════════════════════════════════════════════════
 \begin{frame}{All 5 Models Converge to 87–99\% Pass@1 After 2\,500 Steps}
   \centering
-  \footnotesize
-  \rowcolors{2}{navy!4}{white}
-  \renewcommand{\arraystretch}{1.6}
-  \setlength\tabcolsep{6pt}
+  \begin{tcolorbox}[tablecard, hbox, top=5pt, bottom=5pt]
+  \centering
+  \scriptsize
+  \rowcolors{2}{cardbg}{darkbg!50!cardbg}
+  \renewcommand{\arraystretch}{1.25}
+  \setlength\tabcolsep{5pt}
   \begin{tabular}{@{}lcclc@{}}
-    \toprule
-    \textbf{Model} & \textbf{Pre} & \textbf{Peak} & \textbf{Best Configuration} & $\boldsymbol{\Delta}$ \\
+    \rowcolor{cardbg}
+    \textbf{Model} & \textbf{Pre} & \textbf{Peak} & \textbf{Best Config} & $\boldsymbol{\Delta}$ \\
     \midrule
-    SmolLM2-135M   & 31\% & \textbf{90.00\%} & Think / Standard &  \highlightnum{+58.67 pp}{accent} \\
-    SmolLM2-360M   & 78\% & \textbf{96.67\%} & No-Think / Standard &  \highlightnum{+19.00 pp}{accent} \\
-    Qwen2.5-0.5B   & 92\% & \textbf{98.00\%} & Think / Curriculum &  \highlightnum{+6.33 pp}{accent} \\
-    TinyLlama-1.1B & 79\% & \textbf{99.33\%} & No-Think / Curriculum &  \highlightnum{+20.00 pp}{accent} \\
-    Gemma-2-2B     & 96\% & \textbf{97.67\%} & Think / Curriculum &  \highlightnum{+1.33 pp}{accent} \\
-    \bottomrule
+    SmolLM2-135M   & \textcolor{textsecondary}{31\%} & \textbf{90.00\%} & Think / Standard &  \highlightnum{+58.67 pp}{accent} \\
+    SmolLM2-360M   & \textcolor{textsecondary}{78\%} & \textbf{96.67\%} & No-Think / Standard &  \highlightnum{+19.00 pp}{accent} \\
+    Qwen2.5-0.5B   & \textcolor{textsecondary}{92\%} & \textbf{98.00\%} & Think / Curriculum &  \highlightnum{+6.33 pp}{accent} \\
+    TinyLlama-1.1B & \textcolor{textsecondary}{79\%} & \textbf{99.33\%} & No-Think / Curriculum &  \highlightnum{+20.00 pp}{accent} \\
+    Gemma-2-2B     & \textcolor{textsecondary}{96\%} & \textbf{97.67\%} & Think / Curriculum &  \highlightnum{+1.33 pp}{accent} \\
   \end{tabular}
+  \end{tcolorbox}
 
-  \vspace{0.5em}
-  {\scriptsize\color{slate} All 5 models, best configuration per model. Pre = same-config baseline (Think lowers small-model baselines by $\sim$8pp).}
+  \vspace{0.1em}
+  {\scriptsize\color{slate} Best config per model. Pre = same-config baseline.}
 
-  \vspace{0.6em}
+  \vspace{0.15em}
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[metricbox]
-        {\Large\bfseries\color{accent}+58.67 pp} {\normalsize largest gain}\\[2pt]
-        {\scriptsize SmolLM2-135M: 31\% $\to$ 90\%}
+      \begin{tcolorbox}[metricbox=accent, top=6pt, bottom=6pt]
+        {\large\bfseries\color{accent}+58.67 pp}\\[1pt]
+        {\scriptsize\color{textprimary}largest gain}\\[1pt]
+        {\scriptsize\color{textsecondary} SmolLM2-135M: 31\% $\to$ 90\%}
       \end{tcolorbox}
     \end{column}
     \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[metricbox]
-        {\Large\bfseries\color{sky}99.33\%} {\normalsize best overall}\\[2pt]
-        {\scriptsize TinyLlama-1.1B (No-Think / Curriculum)}
+      \begin{tcolorbox}[metricbox=sky, top=6pt, bottom=6pt]
+        {\large\bfseries\color{sky}99.33\%}\\[1pt]
+        {\scriptsize\color{textprimary}best overall}\\[1pt]
+        {\scriptsize\color{textsecondary} TinyLlama-1.1B (No-Think / Curriculum)}
       \end{tcolorbox}
     \end{column}
   \end{columns}
@@ -427,62 +480,89 @@ Sure! Here's the JSON you asked for:
 % ══════════════════════════════════════════════════════════
 %  SLIDE 7 — Failure Case: Gemma U-Shaped Collapse
 % ══════════════════════════════════════════════════════════
+{
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{fg=darkbg}\usebeamercolor[fg]{normal text}
+\setbeamercolor{frametitle}{bg=white, fg=darkbg}
 \begin{frame}{Gemma-2-2B Temporarily Collapses: Curriculum Pacing Must Match Capacity}
+  \color{darkbg}
   \begin{columns}[c]
     \begin{column}{0.68\textwidth}
       \centering
       \includegraphics[width=\linewidth]{../../experiments/logs/grpo/think/curriculum/gemma2-2b/eval_20260413_030321/figures/stage_difficulty_heatmap.png}
       \\[0.3em]
-      {\scriptsize\color{slate} Gemma-2-2B \textbullet\ Think / Curriculum \textbullet\ Pass@1 per stage \& difficulty}
+      {\scriptsize\color{textsecondary} Gemma-2-2B \textbullet\ Think / Curriculum \textbullet\ Pass@1 per stage \& difficulty}
     \end{column}
     \begin{column}{0.29\textwidth}
-      \begin{tcolorbox}[insightbox=warn]
+      \begin{tcolorbox}[enhanced, boxrule=0pt, frame hidden,
+        borderline west={2.5pt}{0pt}{warn},
+        colback=warn!5!white, coltext=darkbg,
+        left=8pt, right=6pt, top=6pt, bottom=6pt, arc=2pt]
         \scriptsize\textbf{U-shaped collapse}\\[3pt]
         96\% $\to$ \textcolor{warn}{83\%} $\to$ \textcolor{warn}{66\%} $\to$ \textcolor{accent}{98\%}\\[4pt]
         Forcing \texttt{<think>} on trivial schemas confuses an already-strong model.\\[3pt]
         Full recovery only once hard schemas dominate (Stage 3).
       \end{tcolorbox}
       \vspace{0.5em}
-      \begin{tcolorbox}[insightbox=accent]
+      \begin{tcolorbox}[enhanced, boxrule=0pt, frame hidden,
+        borderline west={2.5pt}{0pt}{accent},
+        colback=accent!5!white, coltext=darkbg,
+        left=8pt, right=6pt, top=6pt, bottom=6pt, arc=2pt]
         \scriptsize\textbf{Lesson}\\[3pt]
         Strong models need less warm-up.\\
-        Standard training causes $-$1.67pp regression; Curriculum recovers to $+$0.67pp.
+        Standard: \textcolor{warn}{$-$1.67pp}; Curriculum: \textcolor{accent}{$+$0.67pp}.
       \end{tcolorbox}
     \end{column}
   \end{columns}
 \end{frame}
+}
 
 % ══════════════════════════════════════════════════════════
 %  SLIDE 8 — Failure Analysis: How Errors Disappear
 % ══════════════════════════════════════════════════════════
+{
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{fg=darkbg}\usebeamercolor[fg]{normal text}
+\setbeamercolor{frametitle}{bg=white, fg=darkbg}
 \begin{frame}{Errors Vanish Stage by Stage: Format First, Then Structure}
+  \color{darkbg}
   \begin{columns}[c]
     \begin{column}{0.72\textwidth}
       \centering
       \includegraphics[width=\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/error_evolution.png}
       \\[0.3em]
-      {\scriptsize\color{slate} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ Error types per stage}
+      {\scriptsize\color{textsecondary} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ Error types per stage}
     \end{column}
     \begin{column}{0.25\textwidth}
-      \begin{tcolorbox}[insightbox=sky]
+      \begin{tcolorbox}[enhanced, boxrule=0pt, frame hidden,
+        borderline west={2.5pt}{0pt}{sky},
+        colback=sky!5!white, coltext=darkbg,
+        left=8pt, right=6pt, top=5pt, bottom=5pt, arc=2pt]
         \scriptsize\textbf{Stage 1}\\[2pt]
         Dominant error:\\\texttt{no\_code\_block}\\[2pt]
         Model learns the\\\texttt{```json```} fence first
       \end{tcolorbox}
       \vspace{0.3em}
-      \begin{tcolorbox}[insightbox=gold]
+      \begin{tcolorbox}[enhanced, boxrule=0pt, frame hidden,
+        borderline west={2.5pt}{0pt}{gold},
+        colback=gold!5!white, coltext=darkbg,
+        left=8pt, right=6pt, top=5pt, bottom=5pt, arc=2pt]
         \scriptsize\textbf{Stage 2}\\[2pt]
         Format mastered.\\Residual: \texttt{json\_error}\\
         Focus shifts to structure
       \end{tcolorbox}
       \vspace{0.3em}
-      \begin{tcolorbox}[insightbox=accent]
+      \begin{tcolorbox}[enhanced, boxrule=0pt, frame hidden,
+        borderline west={2.5pt}{0pt}{accent},
+        colback=accent!5!white, coltext=darkbg,
+        left=8pt, right=6pt, top=5pt, bottom=5pt, arc=2pt]
         \scriptsize\textbf{Stage 3}\\[2pt]
         Near-zero errors.\\Only edge-case\\schema failures remain
       \end{tcolorbox}
     \end{column}
   \end{columns}
 \end{frame}
+}
 
 % ══════════════════════════════════════════════════════════
 %  SLIDE 9 — Conclusions, Limits & Takeaways
@@ -490,23 +570,23 @@ Sure! Here's the JSON you asked for:
 \begin{frame}{Reward Design Matters More Than Model Size}
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
-      \begin{tcolorbox}[insightbox=accent, title={\small Main Message}]
+      \begin{tcolorbox}[insightbox=accent, title={\small\color{accent} Main Message}]
         \scriptsize
         GRPO with 7 additive rule-based rewards brings \textbf{all 5 models} (135M--2B) to \textbf{87--99\% Pass@1} on strict JSON generation, single GPU, identical hyperparameters.
       \end{tcolorbox}
       \vspace{0.3em}
-      \begin{tcolorbox}[insightbox=sky, title={\small Takeaways}]
+      \begin{tcolorbox}[insightbox=sky, title={\small\color{sky} Takeaways}]
         \scriptsize
         \begin{enumerate}
-          \setlength\itemsep{0.25em}
-          \item \textbf{Standard} optimal for weak models (135M: +58.67pp)
-          \item \textbf{Curriculum} safety net for strong models (prevents Gemma regression)
-          \item \textbf{Think mode} $<$2pp marginal gain (small models can't produce \texttt{<think>})
+          \setlength\itemsep{0.2em}
+          \item \textbf{Standard} optimal for weak models (135M: \textcolor{accent}{+58.67pp})
+          \item \textbf{Curriculum} safety net for strong (prevents Gemma regression)
+          \item \textbf{Think mode} $<$2pp marginal (small models can't \texttt{<think>})
         \end{enumerate}
       \end{tcolorbox}
     \end{column}
     \begin{column}{0.45\textwidth}
-      \begin{tcolorbox}[insightbox=gold, title={\small Limitations}]
+      \begin{tcolorbox}[insightbox=gold, title={\small\color{gold} Limitations}]
         \scriptsize
         \begin{itemize}
           \setlength\itemsep{0.2em}
@@ -516,13 +596,13 @@ Sure! Here's the JSON you asked for:
         \end{itemize}
       \end{tcolorbox}
       \vspace{0.3em}
-      \begin{tcolorbox}[insightbox=navy, title={\small Future Work}]
+      \begin{tcolorbox}[insightbox=purple, title={\small\color{purple} Future Work}]
         \scriptsize
         \begin{itemize}
           \setlength\itemsep{0.2em}
           \item Extend to YAML, XML, SQL output
           \item Real-world API-call datasets
-          \item Function reward ablation comparison
+          \item Reward ablation comparison
           \item Per-model hyperparameter tuning
         \end{itemize}
       \end{tcolorbox}
@@ -537,30 +617,30 @@ Sure! Here's the JSON you asked for:
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
       \begin{tcolorbox}[insightbox=sky]
-        \textcolor{sky}{\faBrain}~~\textbf{Think vs.\ No-Think}\\[3pt]
+        \textcolor{sky}{\faBrain}~~\textbf{\color{sky}Think vs.\ No-Think}\\[4pt]
         \scriptsize Small models (135M, 360M, 0.5B) never generate \texttt{<think>} tokens;
         only Gemma and TinyLlama can.
         135M peaks 90\% in Think by exploiting other rewards, not reasoning.
       \end{tcolorbox}
-      \vspace{0.4em}
+      \vspace{0.5em}
       \begin{tcolorbox}[insightbox=accent]
-        \textcolor{accent}{\faLock}~~\textbf{Curriculum = Safety Net}\\[3pt]
-        \scriptsize Produces absolute highest scores (TinyLlama 99.33\%, Qwen 98.00\%).
+        \textcolor{accent}{\faLock}~~\textbf{\color{accent}Curriculum = Safety Net}\\[4pt]
+        \scriptsize Produces absolute highest scores (TinyLlama \textbf{99.33\%}, Qwen \textbf{98.00\%}).
         Standard causes Gemma to regress.
       \end{tcolorbox}
     \end{column}
     \begin{column}{0.48\textwidth}
       \begin{tcolorbox}[insightbox=gold]
-        \textcolor{gold}{\faChartArea}~~\textbf{Inverted-U Gain Pattern}\\[3pt]
-        \scriptsize Smallest models gain most: 135M $+$58pp.
-        Mid-range: $+$13--26pp.
-        Already-strong: $+$0--8pp (ceiling).
+        \textcolor{gold}{\faChartArea}~~\textbf{\color{gold}Inverted-U Gain Pattern}\\[4pt]
+        \scriptsize Smallest models gain most: 135M \textbf{+58pp}.
+        Mid-range: +13--26pp.
+        Already-strong: +0--8pp (ceiling effect).
       \end{tcolorbox}
-      \vspace{0.4em}
+      \vspace{0.5em}
       \begin{tcolorbox}[insightbox=warn]
-        \textcolor{warn}{\faExclamationTriangle}~~\textbf{Hard Tier Drives Improvement}\\[3pt]
+        \textcolor{warn}{\faExclamationTriangle}~~\textbf{\color{warn}Hard Tier Drives Improvement}\\[4pt]
         \scriptsize Baselines: 17--20\% hard pass for 135M.
-        Post-GRPO: 86--99\% on hard prompts.
+        Post-GRPO: \textbf{86--99\%} on hard prompts.
         Simple saturates to 100\% in Stage 1.
       \end{tcolorbox}
     \end{column}
@@ -577,14 +657,16 @@ Sure! Here's the JSON you asked for:
   \setbeamertemplate{footline}{}
   \begin{frame}[plain]
     \begin{tikzpicture}[remember picture, overlay]
-      \fill[left color=navy, right color=darkbg]
+      \fill[darkbg]
         (current page.south west) rectangle (current page.north east);
+      \draw[bordergray, line width=0.3pt] ([yshift=-0.5cm]current page.north west)
+        -- ([yshift=-0.5cm]current page.north east);
     \end{tikzpicture}
     \vfill
     \begin{center}
       {\Huge\color{sky}\faFolderOpen}\\[0.8em]
-      {\LARGE\bfseries\color{white}Backup Slides}\\[0.4em]
-      {\small\color{white!60}Additional detail for Q\&A}
+      {\LARGE\bfseries\color{textprimary}Backup Slides}\\[0.4em]
+      {\small\color{textsecondary}Additional detail for Q\&A}
     \end{center}
     \vfill
   \end{frame}
@@ -593,12 +675,14 @@ Sure! Here's the JSON you asked for:
 % ── Backup: Baseline Detail ──────────────────────────────
 \begin{frame}{Baseline Pass@1 — Per-Difficulty Breakdown}
   \centering
+  \begin{tcolorbox}[tablecard, hbox]
+  \centering
   \footnotesize
-  \rowcolors{2}{navy!4}{white}
-  \renewcommand{\arraystretch}{1.55}
+  \rowcolors{2}{cardbg}{darkbg!50!cardbg}
+  \renewcommand{\arraystretch}{1.6}
   \setlength\tabcolsep{10pt}
   \begin{tabular}{@{}lcccc@{}}
-    \toprule
+    \rowcolor{cardbg}
     \textbf{Model} & \textbf{Overall} & \textbf{Simple} & \textbf{Medium} & \textbf{Hard} \\
     \midrule
     SmolLM2-135M   & 39.00\% & 58.00\% & 39.00\% & \textcolor{warn}{20.00\%} \\
@@ -606,8 +690,8 @@ Sure! Here's the JSON you asked for:
     Qwen2.5-0.5B   & 92.67\% & 95.00\% & 95.00\% & 88.00\% \\
     TinyLlama-1.1B & 79.33\% & 89.00\% & 76.00\% & 73.00\% \\
     Gemma-2-2B     & \textbf{98.33\%} & \textbf{100\%} & \textbf{100\%} & \textbf{95.00\%} \\
-    \bottomrule
   \end{tabular}
+  \end{tcolorbox}
 
   \vspace{0.6em}
   {\scriptsize\color{slate} 300-sample balanced eval (100 S / 100 M / 100 H). Config: No-Think / Standard.}
@@ -616,78 +700,117 @@ Sure! Here's the JSON you asked for:
 % ── Backup: Reward System Detail ─────────────────────────
 \begin{frame}{Reward System — Full Think/No-Think Weight Table}
   \centering
+  \begin{tcolorbox}[tablecard]
+  \centering
   \scriptsize
-  \rowcolors{2}{navy!4}{white}
-  \renewcommand{\arraystretch}{1.4}
+  \rowcolors{2}{cardbg}{darkbg!50!cardbg}
+  \renewcommand{\arraystretch}{1.45}
   \setlength\tabcolsep{5pt}
-  \begin{tabularx}{0.99\linewidth}{@{}l c c c X@{}}
-    \toprule
+  \begin{tabularx}{0.98\linewidth}{@{}l c c c X@{}}
+    \rowcolor{cardbg}
     \textbf{Component} & \textbf{Range} & \textbf{\,Think\,} & \textbf{\,NoThink\,} & \textbf{What it measures} \\
     \midrule
     \textcolor{sky}{\faCode}~\texttt{format}     & $[0,1]$      & 0.10 & 0.20 & \texttt{```json```} fence $\to$ 1.0 ~$\mid$~ generic fence $\to$ 0.5 ~$\mid$~ none $\to$ 0.0 \\
     \textcolor{accent}{\faCheck}~\texttt{validity}   & $[0,1]$      & 0.15 & 0.25 & JSON parseability; partial credit by error position (0.20--0.70) \\
     \textcolor{gold}{\faSitemap}~\texttt{schema}     & $[0,1]$      & 0.20 & 0.25 & Keys, types, nesting depth, required fields \\
-    \textcolor{navy}{\faBrain}~\texttt{reasoning}  & $[-0.5,1]$   & 0.25 & \alert{0.0}  & \texttt{<think>} block quality; penalises missing/copied \\
+    \textcolor{purple}{\faBrain}~\texttt{reasoning}  & $[-0.5,1]$   & 0.25 & \alert{0.0}  & \texttt{<think>} block quality; penalises missing/copied \\
     \textcolor{warn}{\faTimes}~\texttt{truncation} & $[-1,1]$     & 0.10 & 0.10 & Unclosed braces / unterminated strings \\
     \textcolor{slate}{\faRedo}~\texttt{repetition} & $[-1,1]$     & 0.10 & 0.10 & Token loops, repeated lines, duplicate blocks \\
-    \textcolor{navy}{\faBan}~\texttt{strictness} & $[-1,1]$     & 0.10 & 0.10 & Extra text outside JSON $>$50\% of output \\
-    \bottomrule
+    \textcolor{purple}{\faBan}~\texttt{strictness} & $[-1,1]$     & 0.10 & 0.10 & Extra text outside JSON $>$50\% of output \\
   \end{tabularx}
-  \vspace{0.5em}
+  \end{tcolorbox}
+  \vspace{0.4em}
 
   \begin{tcolorbox}[insightbox=sky, width=0.85\textwidth]
-    \small\textbf{Design principle:} Additive composition, no hard gating.
+    \small\textbf{Design principle} \textcolor{textsecondary}{|}
+    Additive composition, no hard gating.
     Gradient is always non-zero; avoids \alert{zero-advantage collapse}.
     When Think is off, reasoning weight is redistributed proportionally.
   \end{tcolorbox}
 \end{frame}
 
 % ── Backup: SmolLM2-135M No-Think Standard ───────────────
+{
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{fg=darkbg}\usebeamercolor[fg]{normal text}
+\setbeamercolor{frametitle}{bg=white, fg=darkbg}
 \begin{frame}{SmolLM2-135M — No-Think / Standard Comparison}
+  \color{darkbg}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/standard/smollm2-135m/eval_20260409_152243/figures/baseline_vs_grpo_comparison.png}
   \\[0.4em]
-  {\small\color{slate} SmolLM2-135M \textbullet\ No-Think / Standard \textbullet\ Pass@1 by difficulty tier, baseline vs.\ GRPO}
+  {\small\color{textsecondary} SmolLM2-135M \textbullet\ No-Think / Standard \textbullet\ Pass@1 by difficulty tier, baseline vs.\ GRPO}
 \end{frame}
+}
 
 % ── Backup: Curriculum Progression (No-Think) ────────────
+{
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{fg=darkbg}\usebeamercolor[fg]{normal text}
+\setbeamercolor{frametitle}{bg=white, fg=darkbg}
 \begin{frame}{SmolLM2-135M — Curriculum Progression (No-Think)}
+  \color{darkbg}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/curriculum_progression.png}
   \\[0.4em]
-  {\small\color{slate} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ 33\% $\to$ 62.7\% $\to$ 84.7\% $\to$ 89.0\%}
+  {\small\color{textsecondary} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ 33\% $\to$ 62.7\% $\to$ 84.7\% $\to$ 89.0\%}
 \end{frame}
+}
 
 % ── Backup: Heatmap (No-Think / Curriculum) ──────────────
+{
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{fg=darkbg}\usebeamercolor[fg]{normal text}
+\setbeamercolor{frametitle}{bg=white, fg=darkbg}
 \begin{frame}{SmolLM2-135M — Difficulty Heatmap (No-Think / Curriculum)}
+  \color{darkbg}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/stage_difficulty_heatmap.png}
   \\[0.4em]
-  {\small\color{slate} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ Pass@1 per difficulty tier at each stage}
+  {\small\color{textsecondary} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ Pass@1 per difficulty tier at each stage}
 \end{frame}
+}
 
 % ── Backup: Curriculum Progression (Think) ───────────────
+{
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{fg=darkbg}\usebeamercolor[fg]{normal text}
+\setbeamercolor{frametitle}{bg=white, fg=darkbg}
 \begin{frame}{SmolLM2-135M — Curriculum Progression (Think)}
+  \color{darkbg}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/think/curriculum/smollm2-135m/eval_20260413_034728/figures/curriculum_progression.png}
   \\[0.4em]
-  {\small\color{slate} SmolLM2-135M \textbullet\ Think / Curriculum \textbullet\ 31.7\% $\to$ 55.7\% $\to$ 80.0\% $\to$ 89.3\%}
+  {\small\color{textsecondary} SmolLM2-135M \textbullet\ Think / Curriculum \textbullet\ 31.7\% $\to$ 55.7\% $\to$ 80.0\% $\to$ 89.3\%}
 \end{frame}
+}
 
 % ── Backup: Heatmap (Think / Curriculum) ─────────────────
+{
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{fg=darkbg}\usebeamercolor[fg]{normal text}
+\setbeamercolor{frametitle}{bg=white, fg=darkbg}
 \begin{frame}{SmolLM2-135M — Difficulty Heatmap (Think / Curriculum)}
+  \color{darkbg}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/think/curriculum/smollm2-135m/eval_20260413_034728/figures/stage_difficulty_heatmap.png}
   \\[0.4em]
-  {\small\color{slate} SmolLM2-135M \textbullet\ Think / Curriculum \textbullet\ Pass@1 per difficulty tier at each stage}
+  {\small\color{textsecondary} SmolLM2-135M \textbullet\ Think / Curriculum \textbullet\ Pass@1 per difficulty tier at each stage}
 \end{frame}
+}
 
 % ── Backup: Reward Breakdown ─────────────────────────────
+{
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{fg=darkbg}\usebeamercolor[fg]{normal text}
+\setbeamercolor{frametitle}{bg=white, fg=darkbg}
 \begin{frame}{Reward Component Contributions at Final Checkpoint}
+  \color{darkbg}
   \centering
   \includegraphics[width=0.80\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/reward_breakdown.png}
   \\[0.4em]
-  {\small\color{slate} SmolLM2-135M, No-Think / Curriculum}
+  {\small\color{textsecondary} SmolLM2-135M, No-Think / Curriculum}
 \end{frame}
+}
 
 \end{document}

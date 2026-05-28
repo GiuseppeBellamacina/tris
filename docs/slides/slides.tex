@@ -1,7 +1,8 @@
 ﻿% ============================================================
 %  Aligning Small LLMs with GRPO for Strict JSON Generation
-%  Beamer presentation — Modern design
-%  Compile with: pdflatex presentation.tex (×2 for TikZ)
+%  Beamer presentation — Adapted to DL26 guidelines
+%  9 main slides + backup slides for Q&A
+%  Compile with: pdflatex slides.tex (×2 for TikZ)
 % ============================================================
 
 \documentclass[10pt, aspectratio=169]{beamer}
@@ -104,7 +105,7 @@
 \begin{document}
 
 % ══════════════════════════════════════════════════════════
-%  SLIDE 1 — Title (Required info)
+%  SLIDE 1 — Title (Required: course, track, name, repo)
 % ══════════════════════════════════════════════════════════
 {
   \setbeamertemplate{headline}{}
@@ -125,31 +126,33 @@
       \draw[sky!40, line width=0.5pt] (0,2.8) -- (16,2.8);
       \draw[sky!25, line width=0.3pt] (0,2.6) -- (16,2.6);
     \end{tikzpicture}
-    \vspace{0.6cm}
+    \vspace{0.4cm}
     \begin{center}
-      {\footnotesize\color{white!70}Deep Learning: Advanced Models and Methods (DL26)}\\[0.8em]
-      {\LARGE\bfseries\color{white}\inserttitle}\\[0.5em]
-      {\normalsize\color{sky!70!white}\insertsubtitle}\\[1.2em]
-      {\small\color{white!90}\insertauthor}\\[0.6em]
+      {\footnotesize\color{white!70}Deep Learning: Advanced Models and Methods (DL26) \textbullet\ \textbf{G23}}\\[0.6em]
+      {\LARGE\bfseries\color{white}\inserttitle}\\[0.4em]
+      {\normalsize\color{sky!70!white}\insertsubtitle}\\[1.0em]
+      {\small\color{white!90}\insertauthor}\\[0.8em]
       {\footnotesize\color{sky!60}\faGithub~~\texttt{github.com/GiuseppeBellamacina/GRPO-strict-generation}}
     \end{center}
   \end{frame}
 }
 
-% ── Slide 2 · Problem & Objective ───────────────────────
-\begin{frame}{Problem \& Objective}
+% ══════════════════════════════════════════════════════════
+%  SLIDE 2 — Hook: Small LLMs Fail at Structured Output
+% ══════════════════════════════════════════════════════════
+\begin{frame}{Small LLMs ($<$2B) Cannot Reliably Produce Valid JSON}
   \begin{columns}[T]
     \begin{column}{0.55\textwidth}
       \begin{itemize}
         \setlength\itemsep{0.7em}
-        \item[\textcolor{sky}{\faAngleRight}] \textbf{Small LLMs} ($<$2B) frequently fail to produce
-              valid, schema-conformant JSON
-        \item[\textcolor{sky}{\faAngleRight}] \textbf{Common errors}: unclosed brackets, type violations,
+        \item[\textcolor{warn}{\faTimesCircle}] \textbf{31–39\% Pass@1} for SmolLM2-135M
+        \newline{\scriptsize(39\% No-Think, 31\% with Think prompting)}
+        \item[\textcolor{warn}{\faTimesCircle}] Unclosed brackets, type violations,
               conversational filler mixed with output
         \item[\textcolor{sky}{\faAngleRight}] \textbf{Goal:} use GRPO with rule-based rewards
-              to reach $>$90\% Pass@1
-        \item[\textcolor{sky}{\faAngleRight}] \textbf{No neural reward model}:
-              dense, \alert{deterministic}, interpretable signal
+              to reach $>$90\% Pass@1 — no neural reward model
+        \item[\textcolor{sky}{\faAngleRight}] \textbf{Dense, deterministic, interpretable} signal
+              drives alignment on a single GPU
       \end{itemize}
     \end{column}
     \begin{column}{0.42\textwidth}
@@ -174,37 +177,10 @@ Sure! Here's the JSON you asked for:
   \end{columns}
 \end{frame}
 
-% ── Slide 3 · Contributions ─────────────────────────────
-\begin{frame}{Our Contributions}
-  \vspace{0.2em}
-  \begin{columns}[T]
-    \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[insightbox=sky]
-        \textcolor{sky}{\faPuzzlePiece}~~\textbf{7 Rule-Based Rewards}\\[3pt]
-        \scriptsize Additive composition with graduated partial credit. Avoids zero-advantage collapse inherent to hard gating
-      \end{tcolorbox}
-      \vspace{0.4em}
-      \begin{tcolorbox}[insightbox=accent]
-        \textcolor{accent}{\faLayerGroup}~~\textbf{3-Stage Curriculum}\\[3pt]
-        \scriptsize Progressive difficulty scaling (35\%→10\% simple, 10\%→65\% hard) with decreasing temperature across 2\,500 steps
-      \end{tcolorbox}
-    \end{column}
-    \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[insightbox=gold]
-        \textcolor{gold}{\faBalanceScale}~~\textbf{5 Models × 4 Strategies}\\[3pt]
-        \scriptsize Systematic comparison: 135M–2B parameters, Think/No-Think × Standard/Curriculum. Identical hyperparameters
-      \end{tcolorbox}
-      \vspace{0.4em}
-      \begin{tcolorbox}[insightbox=navy]
-        \textcolor{navy}{\faServer}~~\textbf{Reproducible Infrastructure}\\[3pt]
-        \scriptsize Per-model YAML configs, SLURM chain pipeline, stratified eval, parametric dataset generator (24 templates)
-      \end{tcolorbox}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-% ── Slide 4 · Models & Setup ────────────────────────────
-\begin{frame}{Models \& Setup}
+% ══════════════════════════════════════════════════════════
+%  SLIDE 3 — Context: Models & Dataset
+% ══════════════════════════════════════════════════════════
+\begin{frame}{5 Models (135M–2B), Synthetic Dataset, Single GPU}
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
       \rowcolors{2}{navy!4}{white}
@@ -222,10 +198,19 @@ Sure! Here's the JSON you asked for:
         Gemma-2-2B-it          &   2B & Gemma 2 \\
         \bottomrule
       \end{tabular}
+      \vspace{0.5em}
+
+      \begin{tcolorbox}[insightbox=navy, title={\small Dataset}]
+        \small
+        \textcolor{sky}{\faFile}~24 parametric templates (8/difficulty)\\[0.3em]
+        \textcolor{sky}{\faLayerGroup}~4\,500 training samples\\[0.3em]
+        \textcolor{sky}{\faChartBar}~300 eval (100 S / 100 M / 100 H)\\[0.3em]
+        \textcolor{sky}{\faBan}~No ground-truth JSON — reward evaluates directly
+      \end{tcolorbox}
     \end{column}
     \begin{column}{0.45\textwidth}
       \vspace{0.2em}
-      \begin{tcolorbox}[insightbox=navy, title=Configuration]
+      \begin{tcolorbox}[insightbox=sky, title={\small Configuration}]
         \small
         \textcolor{sky}{\faHdd}~4-bit NF4 quantization\\[0.35em]
         \textcolor{sky}{\faSitemap}~LoRA $r{=}16$,\; $\alpha{=}32$\\[0.35em]
@@ -234,12 +219,20 @@ Sure! Here's the JSON you asked for:
         \textcolor{sky}{\faCog}~Paged AdamW 8-bit\\[0.35em]
         \textcolor{sky}{\faGraduationCap}~LR $5{\times}10^{-6}$, cosine
       \end{tcolorbox}
+      \vspace{0.5em}
+      \begin{tcolorbox}[insightbox=gold]
+        \scriptsize\textbf{4 strategies tested:}\\[2pt]
+        Think / No-Think $\times$ Standard / Curriculum\\[2pt]
+        Identical hyperparameters across all models
+      \end{tcolorbox}
     \end{column}
   \end{columns}
 \end{frame}
 
-% ── Slide 5 · GRPO Algorithm ────────────────────────────
-\begin{frame}{Group Relative Policy Optimization (GRPO)}
+% ══════════════════════════════════════════════════════════
+%  SLIDE 4 — Method: GRPO Pipeline
+% ══════════════════════════════════════════════════════════
+\begin{frame}{GRPO: Group-Relative Advantage Eliminates the Critic}
   \centering
   \resizebox{\textwidth}{!}{%
   \begin{tikzpicture}[
@@ -316,42 +309,42 @@ Sure! Here's the JSON you asked for:
       (mid)  -- (r.south);
 
   \end{tikzpicture}}
-\end{frame}
-
-% ── Slide 6 · Reward Functions ──────────────────────────
-\begin{frame}{Rule-Based Reward System}
-  \centering
-  \scriptsize
-  \rowcolors{2}{navy!4}{white}
-  \renewcommand{\arraystretch}{1.4}
-  \setlength\tabcolsep{5pt}
-  \begin{tabularx}{0.99\linewidth}{@{}l c c c X@{}}
-    \toprule
-    \textbf{Component} & \textbf{Range} & \textbf{\,Think\,} & \textbf{\,NoThink\,} & \textbf{What it measures} \\
-    \midrule
-    \textcolor{sky}{\faCode}~\texttt{format}     & $[0,1]$      & 0.10 & 0.20 & \texttt{```json```} fence $\to$ 1.0 ~$\mid$~ generic fence $\to$ 0.5 ~$\mid$~ none $\to$ 0.0 \\
-    \textcolor{accent}{\faCheck}~\texttt{validity}   & $[0,1]$      & 0.15 & 0.25 & JSON parseability; partial credit by error position (0.20–0.70) \\
-    \textcolor{gold}{\faSitemap}~\texttt{schema}     & $[0,1]$      & 0.20 & 0.25 & Keys, types, nesting depth, required fields \\
-    \textcolor{navy}{\faBrain}~\texttt{reasoning}  & $[-0.5,1]$   & 0.25 & \alert{0.0}  & \texttt{<think>} block quality; penalises missing/copied \\
-    \textcolor{warn}{\faTimes}~\texttt{truncation} & $[-1,1]$     & 0.10 & 0.10 & Unclosed braces / unterminated strings \\
-    \textcolor{slate}{\faRedo}~\texttt{repetition} & $[-1,1]$     & 0.10 & 0.10 & Token loops, repeated lines, duplicate blocks \\
-    \textcolor{navy}{\faBan}~\texttt{strictness} & $[-1,1]$     & 0.10 & 0.10 & Extra text outside JSON $>$50\% of output \\
-    \bottomrule
-  \end{tabularx}
-  \vspace{0.5em}
+  \vspace{0.3em}
 
   \begin{tcolorbox}[insightbox=sky, width=0.85\textwidth]
-    \small\textbf{Design principle:} Additive composition, no hard gating.
-    Gradient is always non-zero; avoids \alert{zero-advantage collapse}.
-    When Think is off, reasoning weight is redistributed proportionally.
+    \small\textbf{Key idea:} No critic network needed. Advantages are computed \emph{within} each group of $G{=}8$ completions.
+    Additive reward composition ensures gradient is always non-zero — avoids \alert{zero-advantage collapse}.
   \end{tcolorbox}
 \end{frame}
 
-% ── Slide 7 · Training Strategies ──────────────────────
-\begin{frame}{Training Strategies \& Dataset}
+% ══════════════════════════════════════════════════════════
+%  SLIDE 5 — Method: Reward Design + Curriculum
+% ══════════════════════════════════════════════════════════
+\begin{frame}{7 Additive Rewards + 3-Stage Curriculum Prevent Collapse}
   \begin{columns}[T]
-    \begin{column}{0.55\textwidth}
-      \vspace{0.3em}
+    \begin{column}{0.52\textwidth}
+      \centering
+      \scriptsize
+      \rowcolors{2}{navy!4}{white}
+      \renewcommand{\arraystretch}{1.35}
+      \setlength\tabcolsep{4pt}
+      \begin{tabularx}{\linewidth}{@{}l c c X@{}}
+        \toprule
+        \textbf{Component} & \textbf{Range} & \textbf{$w$} & \textbf{Measures} \\
+        \midrule
+        \textcolor{sky}{\faCode}~format     & $[0,1]$    & .20 & \texttt{```json```} fence \\
+        \textcolor{accent}{\faCheck}~validity   & $[0,1]$    & .25 & JSON parseability \\
+        \textcolor{gold}{\faSitemap}~schema     & $[0,1]$    & .25 & Keys, types, nesting \\
+        \textcolor{warn}{\faTimes}~truncation & $[-1,1]$   & .10 & Unclosed braces \\
+        \textcolor{slate}{\faRedo}~repetition & $[-1,1]$   & .10 & Token loops \\
+        \textcolor{navy}{\faBan}~strictness & $[-1,1]$   & .10 & Extra text outside JSON \\
+        \textcolor{navy}{\faBrain}~reasoning  & $[-0.5,1]$ & .25\textsuperscript{*} & \texttt{<think>} quality \\
+        \bottomrule
+      \end{tabularx}
+      {\tiny\color{slate} *Think mode only; weight redistributed when off}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      \vspace{0.2em}
       % ── Curriculum timeline ──
       \centering
       \resizebox{\columnwidth}{!}{%
@@ -375,32 +368,210 @@ Sure! Here's the JSON you asked for:
       \end{tikzpicture}}
 
       \vspace{0.8em}
-      % ── 2×2 Strategy matrix ──
-      \renewcommand{\arraystretch}{1.5}
-      \centering\small
-      \begin{tabular}{@{}r|c|c@{}}
-                          & \textbf{Standard} & \textbf{Curriculum} \\
-        \hline
-        \textbf{No-Think} & \cellcolor{sky!10}$\checkmark$ & \cellcolor{sky!10}$\checkmark$ \\
-        \hline
-        \textbf{Think}    & \cellcolor{sky!10}$\checkmark$ & \cellcolor{sky!10}$\checkmark$ \\
-      \end{tabular}
+      \begin{tcolorbox}[insightbox=accent]
+        \scriptsize\textbf{Curriculum = safety net}\\[3pt]
+        Prevents regression in strong models.\\
+        Gemma-2-2B: $-$1.67pp (standard) $\to$ $+$0.67pp (curriculum)
+      \end{tcolorbox}
+      \vspace{0.3em}
+      \begin{tcolorbox}[insightbox=sky]
+        \scriptsize\textbf{Graduated partial credit}\\[3pt]
+        Binary validity gives no gradient for near-valid JSON.
+        Position-based scoring (0.20--0.70) keeps learning alive.
+      \end{tcolorbox}
     \end{column}
-    \begin{column}{0.42\textwidth}
-      \begin{tcolorbox}[insightbox=navy, title={\small Dataset}]
-        \small
-        \textcolor{sky}{\faFile}~24 parametric templates\\\hspace*{1.2em}{\scriptsize(8 per difficulty tier)}\\[0.35em]
-        \textcolor{sky}{\faLayerGroup}~1\,500 samples/stage $\times$ 3\\\hspace*{1.2em}= \textbf{4\,500} training\\[0.35em]
-        \textcolor{sky}{\faChartBar}~Eval: \textbf{300} balanced\\\hspace*{1.2em}{\scriptsize(100 S / 100 M / 100 H)}\\[0.35em]
-        \textcolor{sky}{\faBan}~No ground-truth JSON\\\hspace*{1.2em}{\scriptsize reward evaluates directly}
+  \end{columns}
+\end{frame}
+
+% ══════════════════════════════════════════════════════════
+%  SLIDE 6 — Results: All Models Converge to 87–99%
+% ══════════════════════════════════════════════════════════
+\begin{frame}{All 5 Models Converge to 87–99\% Pass@1 After 2\,500 Steps}
+  \centering
+  \footnotesize
+  \rowcolors{2}{navy!4}{white}
+  \renewcommand{\arraystretch}{1.6}
+  \setlength\tabcolsep{6pt}
+  \begin{tabular}{@{}lcclc@{}}
+    \toprule
+    \textbf{Model} & \textbf{Pre} & \textbf{Peak} & \textbf{Best Configuration} & $\boldsymbol{\Delta}$ \\
+    \midrule
+    SmolLM2-135M   & 31\% & \textbf{90.00\%} & Think / Standard &  \highlightnum{+58.67 pp}{accent} \\
+    SmolLM2-360M   & 78\% & \textbf{96.67\%} & No-Think / Standard &  \highlightnum{+19.00 pp}{accent} \\
+    Qwen2.5-0.5B   & 92\% & \textbf{98.00\%} & Think / Curriculum &  \highlightnum{+6.33 pp}{accent} \\
+    TinyLlama-1.1B & 79\% & \textbf{99.33\%} & No-Think / Curriculum &  \highlightnum{+20.00 pp}{accent} \\
+    Gemma-2-2B     & 96\% & \textbf{97.67\%} & Think / Curriculum &  \highlightnum{+1.33 pp}{accent} \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.5em}
+  {\scriptsize\color{slate} All 5 models, best configuration per model. Pre = same-config baseline (Think lowers small-model baselines by $\sim$8pp).}
+
+  \vspace{0.6em}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[metricbox]
+        {\Large\bfseries\color{accent}+58.67 pp} {\normalsize largest gain}\\[2pt]
+        {\scriptsize SmolLM2-135M: 31\% $\to$ 90\%}
+      \end{tcolorbox}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[metricbox]
+        {\Large\bfseries\color{sky}99.33\%} {\normalsize best overall}\\[2pt]
+        {\scriptsize TinyLlama-1.1B (No-Think / Curriculum)}
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ══════════════════════════════════════════════════════════
+%  SLIDE 7 — Failure Case: Gemma U-Shaped Collapse
+% ══════════════════════════════════════════════════════════
+\begin{frame}{Gemma-2-2B Temporarily Collapses: Curriculum Pacing Must Match Capacity}
+  \begin{columns}[c]
+    \begin{column}{0.68\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/think/curriculum/gemma2-2b/eval_20260413_030321/figures/stage_difficulty_heatmap.png}
+      \\[0.3em]
+      {\scriptsize\color{slate} Gemma-2-2B \textbullet\ Think / Curriculum \textbullet\ Pass@1 per stage \& difficulty}
+    \end{column}
+    \begin{column}{0.29\textwidth}
+      \begin{tcolorbox}[insightbox=warn]
+        \scriptsize\textbf{U-shaped collapse}\\[3pt]
+        96\% $\to$ \textcolor{warn}{83\%} $\to$ \textcolor{warn}{66\%} $\to$ \textcolor{accent}{98\%}\\[4pt]
+        Forcing \texttt{<think>} on trivial schemas confuses an already-strong model.\\[3pt]
+        Full recovery only once hard schemas dominate (Stage 3).
+      \end{tcolorbox}
+      \vspace{0.5em}
+      \begin{tcolorbox}[insightbox=accent]
+        \scriptsize\textbf{Lesson}\\[3pt]
+        Strong models need less warm-up.\\
+        Standard training causes $-$1.67pp regression; Curriculum recovers to $+$0.67pp.
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ══════════════════════════════════════════════════════════
+%  SLIDE 8 — Failure Analysis: How Errors Disappear
+% ══════════════════════════════════════════════════════════
+\begin{frame}{Errors Vanish Stage by Stage: Format First, Then Structure}
+  \begin{columns}[c]
+    \begin{column}{0.72\textwidth}
+      \centering
+      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/error_evolution.png}
+      \\[0.3em]
+      {\scriptsize\color{slate} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ Error types per stage}
+    \end{column}
+    \begin{column}{0.25\textwidth}
+      \begin{tcolorbox}[insightbox=sky]
+        \scriptsize\textbf{Stage 1}\\[2pt]
+        Dominant error:\\\texttt{no\_code\_block}\\[2pt]
+        Model learns the\\\texttt{```json```} fence first
+      \end{tcolorbox}
+      \vspace{0.3em}
+      \begin{tcolorbox}[insightbox=gold]
+        \scriptsize\textbf{Stage 2}\\[2pt]
+        Format mastered.\\Residual: \texttt{json\_error}\\
+        Focus shifts to structure
+      \end{tcolorbox}
+      \vspace{0.3em}
+      \begin{tcolorbox}[insightbox=accent]
+        \scriptsize\textbf{Stage 3}\\[2pt]
+        Near-zero errors.\\Only edge-case\\schema failures remain
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ══════════════════════════════════════════════════════════
+%  SLIDE 9 — Conclusions, Limits & Takeaways
+% ══════════════════════════════════════════════════════════
+\begin{frame}{Reward Design Matters More Than Model Size}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \begin{tcolorbox}[insightbox=accent, title={\small Main Message}]
+        \scriptsize
+        GRPO with 7 additive rule-based rewards brings \textbf{all 5 models} (135M--2B) to \textbf{87--99\% Pass@1} on strict JSON generation, single GPU, identical hyperparameters.
+      \end{tcolorbox}
+      \vspace{0.3em}
+      \begin{tcolorbox}[insightbox=sky, title={\small Takeaways}]
+        \scriptsize
+        \begin{enumerate}
+          \setlength\itemsep{0.25em}
+          \item \textbf{Standard} optimal for weak models (135M: +58.67pp)
+          \item \textbf{Curriculum} safety net for strong models (prevents Gemma regression)
+          \item \textbf{Think mode} $<$2pp marginal gain (small models can't produce \texttt{<think>})
+        \end{enumerate}
+      \end{tcolorbox}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      \begin{tcolorbox}[insightbox=gold, title={\small Limitations}]
+        \scriptsize
+        \begin{itemize}
+          \setlength\itemsep{0.2em}
+          \item JSON-only — not directly generalizable
+          \item Fully synthetic dataset; real-world gap unknown
+          \item Fixed hyperparameters across models
+        \end{itemize}
+      \end{tcolorbox}
+      \vspace{0.3em}
+      \begin{tcolorbox}[insightbox=navy, title={\small Future Work}]
+        \scriptsize
+        \begin{itemize}
+          \setlength\itemsep{0.2em}
+          \item Extend to YAML, XML, SQL output
+          \item Real-world API-call datasets
+          \item Function reward ablation comparison
+          \item Per-model hyperparameter tuning
+        \end{itemize}
       \end{tcolorbox}
     \end{column}
   \end{columns}
 \end{frame}
 
 % ════════════════════════════════════════════════════════════
-%  SECTION SEPARATOR — RESULTS
+%  SLIDE 10 — Cross-Strategy Insights
 % ════════════════════════════════════════════════════════════
+\begin{frame}{Cross-Strategy Insights}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[insightbox=sky]
+        \textcolor{sky}{\faBrain}~~\textbf{Think vs.\ No-Think}\\[3pt]
+        \scriptsize Small models (135M, 360M, 0.5B) never generate \texttt{<think>} tokens;
+        only Gemma and TinyLlama can.
+        135M peaks 90\% in Think by exploiting other rewards, not reasoning.
+      \end{tcolorbox}
+      \vspace{0.4em}
+      \begin{tcolorbox}[insightbox=accent]
+        \textcolor{accent}{\faLock}~~\textbf{Curriculum = Safety Net}\\[3pt]
+        \scriptsize Produces absolute highest scores (TinyLlama 99.33\%, Qwen 98.00\%).
+        Standard causes Gemma to regress.
+      \end{tcolorbox}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{tcolorbox}[insightbox=gold]
+        \textcolor{gold}{\faChartArea}~~\textbf{Inverted-U Gain Pattern}\\[3pt]
+        \scriptsize Smallest models gain most: 135M $+$58pp.
+        Mid-range: $+$13--26pp.
+        Already-strong: $+$0--8pp (ceiling).
+      \end{tcolorbox}
+      \vspace{0.4em}
+      \begin{tcolorbox}[insightbox=warn]
+        \textcolor{warn}{\faExclamationTriangle}~~\textbf{Hard Tier Drives Improvement}\\[3pt]
+        \scriptsize Baselines: 17--20\% hard pass for 135M.
+        Post-GRPO: 86--99\% on hard prompts.
+        Simple saturates to 100\% in Stage 1.
+      \end{tcolorbox}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ════════════════════════════════════════════════════════════
+%  BACKUP SLIDES (for Q&A — not part of main presentation)
+% ════════════════════════════════════════════════════════════
+\appendix
+
 {
   \setbeamertemplate{headline}{}
   \setbeamertemplate{footline}{}
@@ -408,21 +579,19 @@ Sure! Here's the JSON you asked for:
     \begin{tikzpicture}[remember picture, overlay]
       \fill[left color=navy, right color=darkbg]
         (current page.south west) rectangle (current page.north east);
-      \draw[sky!30, line width=0.4pt] ([yshift=-0.5cm]current page.north west)
-        -- ([yshift=-0.5cm]current page.north east);
     \end{tikzpicture}
     \vfill
     \begin{center}
-      {\Huge\color{sky}\faChartLine}\\[0.8em]
-      {\LARGE\bfseries\color{white}Experimental Results}\\[0.4em]
-      {\small\color{white!60}5 models $\times$ 4 strategies $\times$ 2\,500 steps}
+      {\Huge\color{sky}\faFolderOpen}\\[0.8em]
+      {\LARGE\bfseries\color{white}Backup Slides}\\[0.4em]
+      {\small\color{white!60}Additional detail for Q\&A}
     \end{center}
     \vfill
   \end{frame}
 }
 
-% ── Slide 8 · Consolidated Baseline ─────────────────────
-\begin{frame}{Baseline Pass@1 — Off-the-Shelf Models}
+% ── Backup: Baseline Detail ──────────────────────────────
+\begin{frame}{Baseline Pass@1 — Per-Difficulty Breakdown}
   \centering
   \footnotesize
   \rowcolors{2}{navy!4}{white}
@@ -441,272 +610,84 @@ Sure! Here's the JSON you asked for:
   \end{tabular}
 
   \vspace{0.6em}
-  \begin{columns}[T]
-    \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[metricbox]
-        {\large\bfseries\color{warn}39\%} {\small floor}\\[-2pt]
-        {\scriptsize SmolLM2-135M overall}
-      \end{tcolorbox}
-    \end{column}
-    \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[metricbox]
-        {\large\bfseries\color{accent}98\%} {\small ceiling}\\[-2pt]
-        {\scriptsize Gemma-2-2B overall}
-      \end{tcolorbox}
-    \end{column}
-  \end{columns}
-
-  \vspace{0.3em}
   {\scriptsize\color{slate} 300-sample balanced eval (100 S / 100 M / 100 H). Config: No-Think / Standard.}
 \end{frame}
 
-% ── Slide 9 · Peak Performance (Money Slide) ───────────
-\begin{frame}{Peak Performance — After 2\,500 GRPO Steps}
+% ── Backup: Reward System Detail ─────────────────────────
+\begin{frame}{Reward System — Full Think/No-Think Weight Table}
   \centering
-  \footnotesize
+  \scriptsize
   \rowcolors{2}{navy!4}{white}
-  \renewcommand{\arraystretch}{1.6}
-  \setlength\tabcolsep{6pt}
-  \begin{tabular}{@{}lcclc@{}}
+  \renewcommand{\arraystretch}{1.4}
+  \setlength\tabcolsep{5pt}
+  \begin{tabularx}{0.99\linewidth}{@{}l c c c X@{}}
     \toprule
-    \textbf{Model} & \textbf{Pre} & \textbf{Peak} & \textbf{Best Configuration} & $\boldsymbol{\Delta}$ \\
+    \textbf{Component} & \textbf{Range} & \textbf{\,Think\,} & \textbf{\,NoThink\,} & \textbf{What it measures} \\
     \midrule
-    SmolLM2-135M   & 31\% & \textbf{90.00\%} & Think / Standard &  \highlightnum{+58.67 pp}{accent} \\
-    SmolLM2-360M   & 78\% & \textbf{96.67\%} & No-Think / Standard &  \highlightnum{+19.00 pp}{accent} \\
-    Qwen2.5-0.5B   & 92\% & \textbf{98.00\%} & Think / Curriculum &  \highlightnum{+6.33 pp}{accent} \\
-    TinyLlama-1.1B & 79\% & \textbf{99.33\%} & No-Think / Curriculum &  \highlightnum{+20.00 pp}{accent} \\
-    Gemma-2-2B     & 96\% & \textbf{97.67\%} & Think / Curriculum &  \highlightnum{+1.33 pp}{accent} \\
+    \textcolor{sky}{\faCode}~\texttt{format}     & $[0,1]$      & 0.10 & 0.20 & \texttt{```json```} fence $\to$ 1.0 ~$\mid$~ generic fence $\to$ 0.5 ~$\mid$~ none $\to$ 0.0 \\
+    \textcolor{accent}{\faCheck}~\texttt{validity}   & $[0,1]$      & 0.15 & 0.25 & JSON parseability; partial credit by error position (0.20--0.70) \\
+    \textcolor{gold}{\faSitemap}~\texttt{schema}     & $[0,1]$      & 0.20 & 0.25 & Keys, types, nesting depth, required fields \\
+    \textcolor{navy}{\faBrain}~\texttt{reasoning}  & $[-0.5,1]$   & 0.25 & \alert{0.0}  & \texttt{<think>} block quality; penalises missing/copied \\
+    \textcolor{warn}{\faTimes}~\texttt{truncation} & $[-1,1]$     & 0.10 & 0.10 & Unclosed braces / unterminated strings \\
+    \textcolor{slate}{\faRedo}~\texttt{repetition} & $[-1,1]$     & 0.10 & 0.10 & Token loops, repeated lines, duplicate blocks \\
+    \textcolor{navy}{\faBan}~\texttt{strictness} & $[-1,1]$     & 0.10 & 0.10 & Extra text outside JSON $>$50\% of output \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
+  \vspace{0.5em}
 
-  \vspace{0.4em}
-  {\scriptsize\color{slate} Pre = same-config baseline (Think prompting lowers small-model scores by $\sim$8pp vs.\ No-Think)}
-
-  \vspace{0.7em}
-  \begin{tcolorbox}[metricbox, width=0.7\textwidth]
-    {\Large\bfseries\color{sky} 87 – 99\% } {\normalsize convergence band}\\[2pt]
-    {\scriptsize All 5 models reach this band regardless of initial capability}
+  \begin{tcolorbox}[insightbox=sky, width=0.85\textwidth]
+    \small\textbf{Design principle:} Additive composition, no hard gating.
+    Gradient is always non-zero; avoids \alert{zero-advantage collapse}.
+    When Think is off, reasoning weight is redistributed proportionally.
   \end{tcolorbox}
 \end{frame}
 
-% ── Slide 10 · SmolLM2-135M Transformation ──────────────
-\begin{frame}{Greatest Transformation — SmolLM2-135M (+58.67 pp)}
-  \begin{columns}[c]
-    \begin{column}{0.72\textwidth}
-      \centering
-      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/think/standard/smollm2-135m/eval_20260411_192610/figures/baseline_vs_grpo_comparison.png}
-    \end{column}
-    \begin{column}{0.25\textwidth}
-      \begin{tcolorbox}[metricbox]
-        {\LARGE\bfseries\color{warn}31\%}\\[2pt]
-        {\scriptsize Baseline}
-      \end{tcolorbox}
-      \vspace{0.4em}
-      \centering{\large\color{accent}$\boldsymbol{\downarrow}$}
-      \vspace{0.4em}
-      \begin{tcolorbox}[metricbox]
-        {\LARGE\bfseries\color{accent}90\%}\\[2pt]
-        {\scriptsize Post-GRPO}
-      \end{tcolorbox}
-      \vspace{0.6em}
-      {\scriptsize\color{slate} Think / Standard\\
-       Small models learn to\\exploit reward signals\\without generating \texttt{<think>}}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-% ── Slide 11 · SmolLM2-135M No-Think / Standard ─────────
+% ── Backup: SmolLM2-135M No-Think Standard ───────────────
 \begin{frame}{SmolLM2-135M — No-Think / Standard Comparison}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/standard/smollm2-135m/eval_20260409_152243/figures/baseline_vs_grpo_comparison.png}
   \\[0.4em]
-  {\small\color{slate} Pass@1 by difficulty tier, before and after 2\,500 GRPO steps (No-Think / Standard)}
+  {\small\color{slate} SmolLM2-135M \textbullet\ No-Think / Standard \textbullet\ Pass@1 by difficulty tier, baseline vs.\ GRPO}
 \end{frame}
 
-% ── Slide 12 · SmolLM2-135M No-Think Curriculum Progression ──
+% ── Backup: Curriculum Progression (No-Think) ────────────
 \begin{frame}{SmolLM2-135M — Curriculum Progression (No-Think)}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/curriculum_progression.png}
   \\[0.4em]
-  {\small\color{slate} 33\% $\to$ 62.7\% $\to$ 84.7\% $\to$ 89.0\% across 3 curriculum stages}
+  {\small\color{slate} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ 33\% $\to$ 62.7\% $\to$ 84.7\% $\to$ 89.0\%}
 \end{frame}
 
-% ── Slide 13 · SmolLM2-135M No-Think Curriculum Heatmap ──
+% ── Backup: Heatmap (No-Think / Curriculum) ──────────────
 \begin{frame}{SmolLM2-135M — Difficulty Heatmap (No-Think / Curriculum)}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/stage_difficulty_heatmap.png}
   \\[0.4em]
-  {\small\color{slate} Pass@1 per difficulty tier at each curriculum stage}
+  {\small\color{slate} SmolLM2-135M \textbullet\ No-Think / Curriculum \textbullet\ Pass@1 per difficulty tier at each stage}
 \end{frame}
 
-% ── Slide 14 · SmolLM2-135M Think Curriculum Progression ──
+% ── Backup: Curriculum Progression (Think) ───────────────
 \begin{frame}{SmolLM2-135M — Curriculum Progression (Think)}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/think/curriculum/smollm2-135m/eval_20260413_034728/figures/curriculum_progression.png}
   \\[0.4em]
-  {\small\color{slate} 31.7\% $\to$ 55.7\% $\to$ 80.0\% $\to$ 89.3\%. Small models never generate \texttt{<think>} tokens but still exploit reward signals}
+  {\small\color{slate} SmolLM2-135M \textbullet\ Think / Curriculum \textbullet\ 31.7\% $\to$ 55.7\% $\to$ 80.0\% $\to$ 89.3\%}
 \end{frame}
 
-% ── Slide 15 · SmolLM2-135M Think Curriculum Heatmap ─────
+% ── Backup: Heatmap (Think / Curriculum) ─────────────────
 \begin{frame}{SmolLM2-135M — Difficulty Heatmap (Think / Curriculum)}
   \centering
   \includegraphics[width=0.78\linewidth]{../../experiments/logs/grpo/think/curriculum/smollm2-135m/eval_20260413_034728/figures/stage_difficulty_heatmap.png}
   \\[0.4em]
-  {\small\color{slate} Per-difficulty breakdown reveals hard tier drives largest improvements}
+  {\small\color{slate} SmolLM2-135M \textbullet\ Think / Curriculum \textbullet\ Pass@1 per difficulty tier at each stage}
 \end{frame}
 
-% ── Slide 16 · Gemma U-Curve Anomaly ────────────────────
-\begin{frame}{Anomaly — Gemma-2-2B U-Shaped Learning Curve}
-  \begin{columns}[c]
-    \begin{column}{0.68\textwidth}
-      \centering
-      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/think/curriculum/gemma2-2b/eval_20260413_030321/figures/stage_difficulty_heatmap.png}
-    \end{column}
-    \begin{column}{0.29\textwidth}
-      \begin{tcolorbox}[insightbox=warn]
-        \scriptsize\textbf{Temporary collapse}\\[3pt]
-        96\% $\to$ \textcolor{warn}{83\%} $\to$ \textcolor{warn}{66\%} $\to$ \textcolor{accent}{98\%}\\[4pt]
-        Forcing \texttt{<think>} on trivially simple schemas temporarily confuses alignment.\\[3pt]
-        Full recovery once hard schemas dominate in Stage 3.
-      \end{tcolorbox}
-      \vspace{0.5em}
-      \begin{tcolorbox}[insightbox=accent]
-        \scriptsize\textbf{Key insight}\\[3pt]
-        Curriculum pacing must match model capacity. Strong models need less ``warm-up''.
-      \end{tcolorbox}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-% ── Slide 17 · Error Evolution ───────────────────────────
-\begin{frame}{Error Evolution — How Failures Disappear}
-  \begin{columns}[c]
-    \begin{column}{0.72\textwidth}
-      \centering
-      \includegraphics[width=\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/error_evolution.png}
-    \end{column}
-    \begin{column}{0.25\textwidth}
-      \begin{tcolorbox}[insightbox=sky]
-        \scriptsize\textbf{Stage 1}\\[2pt]
-        Dominant error:\\\texttt{no\_code\_block}\\[2pt]
-        Model learns the\\ \texttt{```json```} fence first
-      \end{tcolorbox}
-      \vspace{0.3em}
-      \begin{tcolorbox}[insightbox=gold]
-        \scriptsize\textbf{Stage 2}\\[2pt]
-        Format mastered, residual: \texttt{json\_error}\\
-        Focus shifts to structure
-      \end{tcolorbox}
-      \vspace{0.3em}
-      \begin{tcolorbox}[insightbox=accent]
-        \scriptsize\textbf{Stage 3}\\[2pt]
-        Near-zero errors remaining\\
-        Only edge-case schema failures
-      \end{tcolorbox}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-% ── Slide 18 · Reward Breakdown ─────────────────────────────
-\begin{frame}{Reward Breakdown — SmolLM2-135M}
+% ── Backup: Reward Breakdown ─────────────────────────────
+\begin{frame}{Reward Component Contributions at Final Checkpoint}
   \centering
   \includegraphics[width=0.80\linewidth]{../../experiments/logs/grpo/nothink/curriculum/smollm2-135m/eval_20260410_060558/figures/reward_breakdown.png}
   \\[0.4em]
-  {\small\color{slate} Component contributions at final checkpoint (No-Think / Curriculum)}
-\end{frame}
-
-% ── Slide 19 · Cross-Modality Insights ──────────────────
-\begin{frame}{Cross-Modality Insights}
-  \vspace{0.2em}
-  \begin{columns}[T]
-    \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[insightbox=sky]
-        \textcolor{sky}{\faBrain}~~\textbf{Think vs.\ No-Think}\\[3pt]
-        \scriptsize Small models (135M, 360M, 0.5B) never generate \texttt{<think>} tokens;
-        only Gemma and TinyLlama can.
-        135M peaks \textbf{90\%} in Think config but by exploiting other rewards, not reasoning.
-        Think doesn't help for these tasks.
-      \end{tcolorbox}
-      \vspace{0.4em}
-      \begin{tcolorbox}[insightbox=accent]
-        \textcolor{accent}{\faLock}~~\textbf{Curriculum = Safety Net}\\[3pt]
-        \scriptsize Standard causes Gemma-2-2B to regress ($-$1.67pp).
-        Curriculum flips this to $+$0.67pp.
-        Produces the absolute highest scores (TinyLlama 99.33\%, Qwen 98.00\%).
-      \end{tcolorbox}
-    \end{column}
-    \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[insightbox=gold]
-        \textcolor{gold}{\faChartArea}~~\textbf{Inverted-U Gain Pattern}\\[3pt]
-        \scriptsize Smallest models gain most: 135M $+$58pp.
-        Mid-range (360M, 1.1B): $+$13–26pp.
-        Already-strong (0.5B, 2B): $+$0–8pp, approaching ceiling.
-      \end{tcolorbox}
-      \vspace{0.4em}
-      \begin{tcolorbox}[insightbox=warn]
-        \textcolor{warn}{\faExclamationTriangle}~~\textbf{Hard Tier Drives Improvement}\\[3pt]
-        \scriptsize Baselines: 17–20\% hard pass for 135M.
-        Post-GRPO: \textbf{86–99\%} on hard prompts.
-        Simple saturates to 100\% very early (Stage 1).
-      \end{tcolorbox}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-% ════════════════════════════════════════════════════════════
-%  CLOSING
-% ════════════════════════════════════════════════════════════
-
-% ── Slide 20 · Lessons & Limitations ────────────────────
-\begin{frame}{Lessons \& Limitations}
-  \begin{columns}[T]
-    \begin{column}{0.50\textwidth}
-      \begin{tcolorbox}[insightbox=accent, title={\small\textcolor{accent}{\faCheckCircle}~Technical Lessons}]
-        \small
-        \begin{itemize}
-          \setlength\itemsep{0.45em}
-          \item \textbf{Additive rewards $>$ gating}\\*
-                {\scriptsize Zero-advantage collapse if all tie $\to$ vanishing gradient}
-          \item \textbf{Graduated partial credit}\\*
-                {\scriptsize Binary validity gives no signal for near-valid JSON}
-          \item \textbf{4-bit NF4 + LoRA} sufficient\\*
-                {\scriptsize $<$2\% params trained, single GPU, identical hyperparams}
-          \item \textbf{Weight redistribution}\\*
-                {\scriptsize Auto-preserves component ratios when Think off}
-        \end{itemize}
-      \end{tcolorbox}
-    \end{column}
-    \begin{column}{0.46\textwidth}
-      \begin{tcolorbox}[insightbox=gold, title={\small\textcolor{gold}{\faExclamationCircle}~Limitations}]
-        \small
-        \begin{itemize}
-          \setlength\itemsep{0.45em}
-          \item JSON only — not directly\\generalizable to other formats
-          \item Fully synthetic dataset;\\potential real-world gap
-          \item No comparison with DPO/PPO\\(only GRPO tested)
-          \item Fixed hyperparameters —\\per-model tuning could help
-        \end{itemize}
-      \end{tcolorbox}
-    \end{column}
-  \end{columns}
-\end{frame}
-
-% ── Slide 21 · Conclusions ──────────────────────────────
-\begin{frame}{Conclusions}
-  \vspace{0.2em}
-  \begin{itemize}
-    \setlength\itemsep{0.6em}
-    \item[\textcolor{accent}{\faCheckCircle}] GRPO $+$ rule-based rewards brings all 5 models to
-          \alert{87–99\% Pass@1}
-    \item[\textcolor{sky}{\faRocket}] \textbf{Standard} is optimal for weak models:\\*
-          SmolLM2-135M \highlightnum{+58.67 pp}{accent}
-    \item[\textcolor{gold}{\faLock}] \textbf{Curriculum} is a safety net for strong models:\\*
-          Gemma-2-2B: $-$1.67 (std) $\to$ $+$0.67 (curr)
-    \item[\textcolor{slate}{\faBrain}] \textbf{Think mode}: $<$2 pp marginal gain;\\*
-          small models can't generate \texttt{<think>}, not useful for this task
-    \item[\textcolor{navy}{\faCog}] \textbf{Reward design $>$ hyperparameter tuning}:\\*
-          identical config works for 135M – 2B
-  \end{itemize}
+  {\small\color{slate} SmolLM2-135M, No-Think / Curriculum}
 \end{frame}
 
 \end{document}

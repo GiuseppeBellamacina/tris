@@ -1,7 +1,7 @@
 # Align a Small LLM with GRPO for Strict JSON Generation
 
 [![Report](https://img.shields.io/badge/Paper-REPORT.md-blue)](docs/REPORT.md)
-[![References](https://img.shields.io/badge/References-REFERENCES.md-green)](docs/REFERENCES.md)
+[![References](https://img.shields.io/badge/References-REFERENCES.md-green)](docs/markdowns/REFERENCES.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## Overview
@@ -42,7 +42,7 @@ After 2 500 GRPO training steps, all five models converged to a tight **87–99%
 
 ## Repository Structure
 
-[**Complete Repository Structure**](docs/REPO_STRUCTURE.md)
+[**Complete Repository Structure**](docs/markdowns/REPO_STRUCTURE.md)
 
 ```text
 ├── 📁 cluster/                     # Slurm scripts and cluster management
@@ -97,7 +97,7 @@ uv sync                 # core dependencies
 uv sync --extra dev     # + ruff, pytest, black
 ```
 
-**Cluster setup**: see [docs/QUICK_SETUP.md](docs/QUICK_SETUP.md) for step-by-step instructions or [docs/CLUSTER.md](docs/CLUSTER.md) for the full Slurm guide.
+**Cluster setup**: see [QUICK_SETUP.md](docs/markdowns/QUICK_SETUP.md) for step-by-step instructions or [CLUSTER.md](docs/markdowns/CLUSTER.md) for the full Slurm guide.
 
 ## Usage
 

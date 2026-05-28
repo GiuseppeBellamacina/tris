@@ -67,8 +67,8 @@ def pdf_to_pptx(pdf_path: str, output_path: str, dpi: int = 1200):
 
 if __name__ == "__main__":
     script_dir = Path(__file__).parent
-    pdf_file = script_dir / "presentation.pdf"
-    pptx_file = script_dir / "presentation.pptx"
+    pdf_file = script_dir / "slides.pdf"
+    pptx_file = script_dir / "slides.pptx"
 
     if not pdf_file.exists():
         print(
